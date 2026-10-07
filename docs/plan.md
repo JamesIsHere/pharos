@@ -22,6 +22,7 @@
 | 25  | Price vintage is a DATE: two full pulls of one ticker on one day share a vintage               | Same-day accept re-pull leaves the conflict in place                   | step 4 (D23 build) |
 | 28  | C05 checks raw files by row count only; no content hash is recorded at write time              | A raw file rewritten with the same row count passes C05                | M1 (runs.py)       |
 | 34  | A series added after the audit has no baseline row; C13 never compares it. Any re-baseline path built for this must also decide a size cap on isolated print disagreements: D41's shape rule passes one of any size, and C10 only catches moves over 40% (folded in from #37) | A watchlist addition can lose history with C13 green; a re-run audit could pass a large isolated bad print | before any watchlist change |
+| 40  | Charts has no dual-axis option; design.md section 8 says dual axes opt-in. With rebase off, mixed units share one axis (labelled 'mixed units') | Unrebased GDP (~30,000) beside CPI (~330) and a price flattens the small ones; the spec item is unbuilt | step 9               |
 
 ---
 

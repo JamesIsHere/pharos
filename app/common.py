@@ -60,3 +60,15 @@ def status_bar() -> health.Health:
     show = {"green": st.success, "yellow": st.warning, "red": st.error}[h.status]
     show(text, icon=STATUS_ICON[h.status])
     return h
+
+
+@st.cache_data(show_spinner=False)
+def _query(name: str, args: tuple, published_at, latest_run):
+    con = _connection(published_at, latest_run)
+    return None if con is None else getattr(board, name)(con.cursor(), *args)
+
+
+def query(name: str, *args):
+    """board.<name>(con, *args), cached like frame(); list arguments pass as tuples."""
+    args = tuple(tuple(a) if isinstance(a, list) else a for a in args)
+    return _query(name, args, board.last_published_at(), board.latest_run_id())

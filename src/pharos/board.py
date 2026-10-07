@@ -169,3 +169,84 @@ def failing_rows_by_source(result: dict) -> dict[str, list[dict]]:
             source = "run"
         groups.setdefault(source, []).append(row)
     return groups
+
+
+# --- Charts (step 9, D47) -------------------------------------------------------
+
+# A first vintage further than this past its period end is a later re-release of
+# history, not the release: ALFRED records no release date for that observation
+# (GDP/GDPC1 before 1991-07, CPIAUCSL before 1972-04). Measured: recorded releases
+# lag at most 84 days, re-released history at least 112 (D47).
+RELEASE_RECORDED_WITHIN_DAYS = 90
+
+
+def series_list(con) -> pl.DataFrame:
+    """Every served series, for the picker."""
+    return con.sql("""SELECT series_id, name, source, units, frequency FROM series_catalog
+                      WHERE series_id IN (SELECT DISTINCT series_id FROM observations)
+                      ORDER BY source DESC, series_id""").pl()
+
+
+def chart_points(con, series_ids: list[str]) -> pl.DataFrame:
+    """Each observation's latest-vintage value, placed at the date it became
+    public (D47): a price at its trade date; a FRED value at its first vintage,
+    or, where ALFRED records no release (first vintage over
+    RELEASE_RECORDED_WITHIN_DAYS past period end), at period end plus the series'
+    expected_lag_days, flagged `estimated`. A value withdrawn in the latest
+    vintage is left out, so the previous value holds until the next release."""
+    return con.sql(f"""
+        WITH picked AS (SELECT * FROM observations WHERE list_contains(?::VARCHAR[], series_id)),
+        latest AS (SELECT series_id, obs_date, value FROM picked
+                   QUALIFY row_number() OVER (PARTITION BY series_id, obs_date ORDER BY vintage DESC) = 1),
+        released AS (SELECT series_id, obs_date, min(available_date) AS first_available FROM picked GROUP BY ALL),
+        dated AS (
+            SELECT l.series_id, l.obs_date, l.value, r.first_available, c.expected_lag_days,
+                   CASE c.frequency WHEN 'D' THEN l.obs_date
+                                    WHEN 'M' THEN (l.obs_date + INTERVAL 1 MONTH)::DATE - 1
+                                    WHEN 'Q' THEN (l.obs_date + INTERVAL 3 MONTH)::DATE - 1
+                                    ELSE error('no period end for frequency ' || c.frequency) END AS period_end
+            FROM latest AS l JOIN released AS r USING (series_id, obs_date) JOIN series_catalog AS c USING (series_id))
+        SELECT series_id, obs_date, period_end, value,
+               first_available - period_end > {RELEASE_RECORDED_WITHIN_DAYS} AS estimated,
+               CASE WHEN first_available - period_end > {RELEASE_RECORDED_WITHIN_DAYS}
+                    THEN period_end + expected_lag_days ELSE first_available END AS plot_date
+        FROM dated WHERE value IS NOT NULL
+        ORDER BY series_id, plot_date, obs_date""", params=[list(series_ids)]).pl()
+
+
+def chart(con, series_ids: list[str], start, end, rebase: bool) -> pl.DataFrame:
+    """chart_points inside (start, end], opened per series by the value in
+    effect at start (the last at or before it) drawn at start: a quarterly value
+    released before the range still holds on its first day. A series with
+    nothing until later opens at its first point. Each series also closes at
+    end with its last value, still in effect until the next release. Both added
+    points are `carried`. Rebased, each series is 100 at its opening point."""
+    points = chart_points(con, series_ids)
+    return con.sql("""
+        WITH p AS (SELECT * FROM points),
+        opening AS (SELECT * REPLACE (?::DATE AS plot_date), plot_date < ?::DATE AS carried FROM p WHERE plot_date <= ?::DATE
+                    QUALIFY row_number() OVER (PARTITION BY series_id ORDER BY plot_date DESC, obs_date DESC) = 1),
+        windowed AS (SELECT *, false AS carried FROM p WHERE plot_date > ?::DATE AND plot_date <= ?::DATE
+                     UNION ALL SELECT * FROM opening),
+        closing AS (SELECT * REPLACE (?::DATE AS plot_date, true AS carried) FROM windowed
+                    QUALIFY row_number() OVER (PARTITION BY series_id ORDER BY plot_date DESC, obs_date DESC) = 1
+                        AND plot_date < ?::DATE),
+        drawn AS (SELECT * FROM windowed UNION ALL SELECT * FROM closing),
+        based AS (SELECT *, first_value(value) OVER (PARTITION BY series_id ORDER BY plot_date, obs_date) AS base
+                  FROM drawn)
+        SELECT series_id, obs_date, period_end, plot_date, estimated, carried, value,
+               CASE WHEN ? THEN 100 * value / base ELSE value END AS shown
+        FROM based ORDER BY series_id, plot_date, obs_date""",
+        params=[start, start, start, start, end, end, end, rebase]).pl()
+
+
+def watchlist_year(con) -> pl.DataFrame:
+    """The year to the latest served close of every active watchlist ticker,
+    for Home's small multiples."""
+    return con.sql("""WITH prices AS (SELECT o.series_id, c.entity_id AS ticker, o.obs_date, o.value, o.vintage
+                                      FROM observations AS o JOIN series_catalog AS c USING (series_id)
+                                      WHERE c.source = 'yf' AND c.active_to IS NULL)
+                      SELECT series_id, ticker, obs_date, value FROM prices
+                      WHERE obs_date > (SELECT max(obs_date) FROM prices) - INTERVAL 1 YEAR
+                      QUALIFY row_number() OVER (PARTITION BY series_id, obs_date ORDER BY vintage DESC) = 1
+                      ORDER BY ticker, obs_date""").pl()
