@@ -1,0 +1,26 @@
+# What Pharos downloads, and what it expects to have.
+# Together with watchlist.csv this is the declared expectation the health checks
+# measure against (design.md section 7). Change it deliberately, in a commit that
+# says why.
+
+# Earliest date any series is expected to have data. A blank active_from in
+# watchlist.csv means "listed before this date".
+backfill_start: 2005-01-01
+
+yahoo:
+  # Always explicit: yfinance's default has changed between versions.
+  # false = Close is split-adjusted but not dividend-adjusted (design.md section 4).
+  auto_adjust: false
+  # Nightly pulls re-download this many calendar days before the last stored date,
+  # so a late correction by Yahoo is seen (and caught by C14) instead of missed.
+  overlap_days: 10
+  # Series every watchlist ticker must have (check C03).
+  required_series: [close]
+
+fred:
+  # Pulled with every vintage (ALFRED). Names, units and frequency come from
+  # FRED's own metadata at load time, so they are not repeated here.
+  series:
+    - GDP        # nominal GDP, quarterly, SAAR
+    - GDPC1      # real GDP, quarterly, SAAR
+    - CPIAUCSL   # CPI, all urban consumers, monthly, seasonally adjusted

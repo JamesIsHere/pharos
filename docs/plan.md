@@ -2,11 +2,11 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M1, not started
+- **Milestone:** M1, step 1 of 10 built (scaffold)
 - **Health:** n/a (no data yet)
-- **Last session:** n/a
-- **Next action:** scaffold repo `pharos` (uv init, layout per CLAUDE.md, .env.example, config/watchlist.csv from the table below)
-- **Blockers / open questions:** none
+- **Last session:** 2026-10-07: design review (D16-D18), backup made add-only for raw, step 1 built file by file; 13 tests pass
+- **Next action:** step 2, loaders. First verify yfinance (`auto_adjust=False` columns) and FRED/ALFRED paging limits against current docs
+- **Blockers / open questions:** watchlist `cik` left blank until M2 (needs SEC download; plan said M1). Review concerns queued: 4 (C10 split exclusion), 6 (ended/source-missing states), 7 (Windows swap locks), 9 (refresh vs mirror timing), 10 (synthetic fault-test data), 11 (C02 dual severity), 12 (split-adjusted look-ahead), 13 (`.env*` ignore), SEC available_date = next trading day after filing (M2)
 
 ---
 
@@ -22,7 +22,7 @@
 - **Dashboard:** Home, Health, and Charts pages. Desktop launcher. Nightly scheduled task.
 
 ### Build order
-- [ ] 1. Scaffold: uv project, layout, `PHAROS_DATA_ROOT`, `.env.example`, `config/watchlist.csv`
+- [x] 1. Scaffold: uv project, layout, `PHAROS_DATA_ROOT`, `.env.example`, `config/watchlist.csv`
 - [ ] 2. Loaders: yfinance (wrapped, schema-validated, explicit `auto_adjust`), FRED with vintages
 - [ ] 3. Transform to staging (DuckDB SQL); series_catalog + observations; regenerate `catalog.duckdb` views
 - [ ] 4. Checks C01–C14 in `checks/*.sql`; runner; write-audit-publish gate with atomic swap; run manifest
