@@ -57,8 +57,8 @@ def stage(run_id: str | None = None) -> Path:
     included = [r for r in runs if r <= run_id]
 
     con = duckdb.connect()
-    _bind_raw(con, included)
-    _bind_config(con)
+    bind_raw(con, included)
+    bind_config(con)
 
     fred = _transform(con, "fred_observations", "raw_fred_observations")
     _require_none(con, fred, "units IS NULL", "FRED rows with no units window (D19)")
@@ -83,7 +83,7 @@ def stage(run_id: str | None = None) -> Path:
     return target
 
 
-def _bind_raw(con, included: list[str]) -> None:
+def bind_raw(con, included: list[str]) -> None:
     """One view per raw dataset over the files of the included runs.
     A run whose source returned nothing has a load record but no file."""
     for source, dataset in DATASETS:
@@ -93,7 +93,7 @@ def _bind_raw(con, included: list[str]) -> None:
         con.execute(f"CREATE VIEW raw_{source}_{dataset} AS {select}")
 
 
-def _bind_config(con) -> None:
+def bind_config(con) -> None:
     """The expected set, from config: watchlist windows and configured FRED series."""
     cfg = config.sources()
     con.execute("CREATE TABLE watchlist_windows (ticker VARCHAR, yahoo_symbol VARCHAR, "
