@@ -1,8 +1,8 @@
 """Shared by every page: cached reads and the health status bar.
 
 Caching (design.md section 8, D43):
-- Data is keyed on last_published_at, so a publish shows new data on the next
-  render and nothing else re-queries.
+- Data is keyed on last_published_at and the latest run_id, so a publish or a
+  blocked run shows on the next render and nothing else re-queries (#38).
 - Health is keyed on (last_published_at, wall-clock minute): freshness is
   judged at view time, at most a minute late, and evaluated with record=False
   so the app never writes health/.
@@ -28,19 +28,26 @@ def current_health() -> health.Health:
 
 
 @st.cache_resource(show_spinner=False)
-def _connection(published_at):
+def _connection(published_at, latest_run):
     return board.connect()
 
 
 @st.cache_data(show_spinner=False)
-def _frame(name: str, published_at):
-    con = _connection(published_at)
+def _frame(name: str, published_at, latest_run):
+    con = _connection(published_at, latest_run)
     return None if con is None else getattr(board, name)(con.cursor())
 
 
 def frame(name: str):
-    """board.<name>() over what is served, or None before the first publish."""
-    return _frame(name, board.last_published_at())
+    """board.<name>() over what is served and the manifest, or None before the
+    first publish. Keyed on the latest run too: a blocked run moves the
+    manifest (run strip, rows by run) without a publish (#38)."""
+    return _frame(name, board.last_published_at(), board.latest_run_id())
+
+
+@st.cache_data(show_spinner=False)
+def run_failures(run_id: str):
+    return board.run_failures(run_id)
 
 
 def status_bar() -> health.Health:

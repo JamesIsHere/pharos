@@ -6,7 +6,9 @@ Nothing here writes: the app reads health/, it never records (D43).
 - connect(): an in-memory connection with the published version, the run
   manifest and the XNYS calendar bound, plus transform/expected_dates.sql,
   the definition C04 uses, so the heatmap's holes are C04's (D44).
-- last_published_at(): the cache key for everything served (D31).
+- last_published_at() and latest_run_id(): the cache key for what is served
+  (D31) and for the manifest, which a blocked run moves without a publish.
+- run_failures(): a blocked or failed run's recorded reasons (#38).
 - The health page's sections, one function each (design.md section 7).
 """
 
@@ -34,6 +36,31 @@ def last_published_at() -> datetime | None:
     return duckdb.sql(f"""SELECT max(published_at) FROM
                           read_parquet('{folder.as_posix()}/*.parquet', union_by_name = true)
                           WHERE status = 'published'""").fetchone()[0]
+
+
+def latest_run_id() -> str | None:
+    """The newest run with a manifest, published or not: the second cache key.
+    A blocked run doesn't move last_published_at, but it must reach the run
+    strip and the page (#38)."""
+    runs = sorted(p.stem for p in (data_root() / "health" / "run_manifest").glob("*.parquet"))
+    return runs[-1] if runs else None
+
+
+def run_failures(run_id: str) -> tuple[str | None, list[dict]]:
+    """Why a run didn't publish: its manifest error (a crash) and every check
+    that didn't pass in its latest run-time evaluation, as recorded then. Read
+    from health/, never re-run: the staged data was refused, not served (#38)."""
+    root = data_root() / "health"
+    error = duckdb.sql(f"""SELECT any_value(error) FROM read_parquet('{(root / "run_manifest" / f"{run_id}.parquet").as_posix()}')""").fetchone()[0]
+    files = sorted((root / "check_results").glob(f"{run_id}__*.parquet"))
+    if not files:
+        return error, []
+    source = f"read_parquet({[f.as_posix() for f in files]}, union_by_name = true)"
+    context = "coalesce(context, 'run')" if "context" in duckdb.sql(f"SELECT * FROM {source} LIMIT 0").columns else "'run'"
+    rel = duckdb.sql(f"""SELECT * FROM {source} WHERE {context} = 'run' AND status <> 'pass'
+                         AND evaluated_at = (SELECT max(evaluated_at) FROM {source} WHERE {context} = 'run')
+                         ORDER BY gate DESC, check_id""")
+    return error, [dict(zip(rel.columns, row)) for row in rel.fetchall()]
 
 
 def connect() -> duckdb.DuckDBPyConnection | None:

@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import polars as pl
 import streamlit as st
 
-from common import frame, status_bar
+from common import frame, run_failures, status_bar
 from pharos import board, config
 
 # sequential blue ramp, light -> dark (dataviz reference palette, steps 100-700)
@@ -12,9 +12,39 @@ COVERAGE_SCALE = [[0.0, "#cde2fb"], [0.5, "#5598e7"], [0.9, "#256abf"], [1.0, "#
 # status palette: good / warning / critical, always beside a label
 RUN_COLOR = {"green": "#0ca30c", "yellow": "#fab219", "red": "#d03b3b"}
 
+
+def failing_checks(results: list[dict]) -> None:
+    """The table of checks that didn't pass, each drillable to its rows grouped by source (D42)."""
+    st.dataframe(
+        pl.DataFrame([{"check": r["check_id"], "kind": "gate" if r["gate"] else "monitor",
+                       "status": r["status"], "rows": r["failing_row_count"],
+                       "evaluated": "at run" if r["gate"] or r.get("context") == "run" else "now",
+                       "description": r["description"]} for r in results]),
+        hide_index=True, width="stretch")
+    for r in results:
+        with st.expander(f"{r['check_id']} {r['status']}: {r['failing_row_count'] or 0} rows. {r['description']}"):
+            if r["error"]:
+                st.code(r["error"])
+            for source, rows in board.failing_rows_by_source(r).items():
+                st.markdown(f"**{source}** ({len(rows)})")
+                st.dataframe(pl.DataFrame(rows, infer_schema_length=None), hide_index=True, width="stretch")
+
+
 st.set_page_config(page_title="Pharos: Health", layout="wide")
 h = status_bar()
 st.title("Health")
+
+# --- A run that didn't publish: why, from its own record (#38) ---------------
+if h.latest_run_status in ("blocked", "failed"):
+    st.header(f"Latest run {h.latest_run_status}: {h.latest_run}")
+    st.caption(f"Serving still shows {h.published_run or 'nothing'}. These results are the refused run's, "
+               "recorded when it ran; everything below this section describes what is served.")
+    crash, refused = run_failures(h.latest_run)
+    if crash:
+        st.code(crash)
+    if refused:
+        failing_checks(refused)
+    st.divider()
 
 # --- Overall traffic light -------------------------------------------------
 counts = {s: sum(r["status"] == s for r in h.results) for s in ("pass", "warn", "error", "broken")}
@@ -31,22 +61,10 @@ for col, r in zip(cols[4:], sources):
 # --- Failing checks, drillable to their rows grouped by source --------------
 st.header("Failing checks")
 failing = [r for r in h.results if r["status"] != "pass"]
-if not failing:
-    st.write("Every check passes.")
+if failing:
+    failing_checks(failing)
 else:
-    st.dataframe(
-        pl.DataFrame([{"check": r["check_id"], "kind": "gate" if r["gate"] else "monitor",
-                       "status": r["status"], "rows": r["failing_row_count"],
-                       "evaluated": "at run" if r["gate"] else "now", "description": r["description"]}
-                      for r in failing]),
-        hide_index=True, width="stretch")
-    for r in failing:
-        with st.expander(f"{r['check_id']} {r['status']}: {r['failing_row_count'] or 0} rows. {r['description']}"):
-            if r["error"]:
-                st.code(r["error"])
-            for source, rows in board.failing_rows_by_source(r).items():
-                st.markdown(f"**{source}** ({len(rows)})")
-                st.dataframe(pl.DataFrame(rows, infer_schema_length=None), hide_index=True, width="stretch")
+    st.write("Every check passes.")
 
 if summary is None:
     st.info("Nothing has been published yet, so there is no coverage, run history or sample to show.")
