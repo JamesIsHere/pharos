@@ -2,10 +2,10 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M1, steps 1-3 of 10 built (scaffold, loaders, staging); step 3b (incremental Yahoo loader) next
+- **Milestone:** M1, steps 1-3 and 3b of 10 built (scaffold, loaders, staging, incremental Yahoo loader); step 4 next
 - **Health:** n/a (`pharos health` arrives in step 5). `pharos stage` on run 20261007T140923Z: 96,160 observations (11,050 FRED incl. 743 withdrawn-as-NULL, 85,110 Yahoo), 21 catalog rows, 0 duplicate keys; `catalog.duckdb` has 6 views
-- **Last session:** 2026-10-07: D19 (units per observation row), D20 (raw Yahoo rows carry pull window; price vintage = latest full pull), transform SQL x3, `stage.py` + `pharos stage`, `catalog.py`; 52 tests pass
-- **Next action:** step 3b, incremental Yahoo loader: watermark = max stored obs_date per ticker (read from raw), pull from watermark - overlap_days; full pull when no watermark; full re-pull when overlap closes differ from stored by a near-constant ratio (re-basing) or stock_splits is nonzero (backup trigger, false alarm costs one vintage). Today every run is a full pull, so each new day would start a new vintage of all ~85k rows (pinned by test_full_pull_on_a_new_day_starts_a_new_vintage). Then step 4.
+- **Last session:** 2026-10-07: D19 (units per observation row), D20 (raw Yahoo rows carry pull window; price vintage = latest full pull), D21 (incremental Yahoo pulls with overlap basis check, pull_reason on every row), transform SQL x3, `stage.py` + `pharos stage`, `catalog.py`; 59 tests pass. Live dry run of D21 (no raw written): all 17 stored tickers classify incremental, overlap gap 0.0 on 7 dates; ATVI bootstraps every night (empty response, cheap)
+- **Next action:** step 4, checks C01-C14 in `checks/*.sql`, runner, write-audit-publish gate with atomic swap, run manifest. First run the real `pharos load` once to land the first incremental snapshot (exercises D21 on live data and gives step 4 two overlapping runs)
 - **Blockers / open questions:** C11 as an error gate blocks every publish on ATVI (catalog row, zero observations): resolve with review concern 6 in step 4. Under dedup rule A a real source correction blocks publish permanently (old raw file never leaves): step 4 needs a deliberate accept path. expected_lag_days NULL in series_catalog until step 4 (trading calendar, FRED release dates). Findings carried: (d) ATVI by absence, (e) float32 tolerance, (f) stock_splits carries non-splits, COST special dividend. Watchlist `cik` blank until M2. Review concerns queued: 4, 6, 7 (partly handled: catalog swap fails loudly when DBeaver holds the file), 9, 10, 11, 12, SEC available_date (M2)
 
 ---
@@ -25,7 +25,7 @@
 - [x] 1. Scaffold: uv project, layout, `PHAROS_DATA_ROOT`, `.env.example`, `config/watchlist.csv`
 - [x] 2. Loaders: yfinance (wrapped, schema-validated, explicit `auto_adjust`), FRED with vintages
 - [x] 3. Transform to staging (DuckDB SQL); series_catalog + observations; regenerate `catalog.duckdb` views
-- [ ] 3b. Incremental Yahoo loader: watermark + overlap window, full re-pull on re-basing (step-2 scope found missing in step 3)
+- [x] 3b. Incremental Yahoo loader: watermark + overlap window, full re-pull on re-basing (step-2 scope found missing in step 3)
 - [ ] 4. Checks C01–C14 in `checks/*.sql`; runner; write-audit-publish gate with atomic swap; run manifest
 - [ ] 5. `pharos health` CLI + `health/latest.md`
 - [ ] 6. Fault-injection tests (5 faults, design.md §7)

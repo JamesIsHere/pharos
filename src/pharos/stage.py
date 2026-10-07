@@ -25,6 +25,7 @@ import duckdb
 
 from pharos import config
 from pharos.paths import data_root
+from pharos.runs import raw_select
 
 TRANSFORM_DIR = Path(__file__).parent / "transform"
 DATASETS = [("yf", "prices"), ("fred", "observations"), ("fred", "series")]
@@ -85,19 +86,10 @@ def stage(run_id: str | None = None) -> Path:
 def _bind_raw(con, included: list[str]) -> None:
     """One view per raw dataset over the files of the included runs.
     A run whose source returned nothing has a load record but no file."""
-    root = data_root()
     for source, dataset in DATASETS:
-        files = [root / "raw" / source / dataset / f"{r}.parquet" for r in included]
-        files = [f.as_posix() for f in files if f.exists()]
-        if not files:
+        select = raw_select(source, dataset, included)
+        if select is None:
             raise StageError(f"no raw files for {source}/{dataset}")
-        select = f"SELECT * FROM read_parquet({files}, union_by_name = true)"
-        if (source, dataset) == ("yf", "prices"):
-            # Files from before D20 have no pull window. Mixed with newer files,
-            # union_by_name fills NULL; on their own, the columns must be added.
-            cols = {c[0] for c in con.execute(f"DESCRIBE {select}").fetchall()}
-            if "pull_start" not in cols:
-                select = select.replace("SELECT *", "SELECT *, NULL::DATE AS pull_start, NULL::DATE AS pull_end")
         con.execute(f"CREATE VIEW raw_{source}_{dataset} AS {select}")
 
 

@@ -72,3 +72,23 @@ def write_raw(download, source: str, dataset: str, run_id: str) -> Path | None:
 def _count_rows(con: duckdb.DuckDBPyConnection, path: Path) -> int:
     """Rows actually in the file, read back from disk: the C06 control total."""
     return con.execute(f"SELECT count(*) FROM read_parquet('{path.as_posix()}')").fetchone()[0]
+
+
+def raw_select(source: str, dataset: str, run_ids: list[str] | None = None) -> str | None:
+    """SELECT over the raw files of one dataset (all runs, or only run_ids).
+    None when no file exists. The one place raw is read back, so the pre-D20
+    shim lives here: Yahoo files from before D20 have no pull window, and when
+    none of the files has one, the columns are added as NULL."""
+    folder = data_root() / "raw" / source / dataset
+    files = sorted(folder.glob("*.parquet"))
+    if run_ids is not None:
+        files = [f for f in files if f.stem in set(run_ids)]
+    if not files:
+        return None
+    select = f"SELECT * FROM read_parquet({[f.as_posix() for f in files]}, union_by_name = true)"
+    if (source, dataset) == ("yf", "prices"):
+        cols = {c[0] for c in duckdb.sql(f"DESCRIBE {select}").fetchall()}
+        if "pull_start" not in cols:
+            select = select.replace("SELECT *", "SELECT *, NULL::DATE AS pull_start, NULL::DATE AS pull_end, "
+                                                "NULL::VARCHAR AS pull_reason", 1)
+    return select
