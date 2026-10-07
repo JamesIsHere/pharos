@@ -11,7 +11,7 @@ import pytest
 from pharos import health
 from pharos.paths import data_root
 from pharos.publish import publish
-from test_faults import RUN2, manifest_row, reland, tamper
+from test_faults import CLEAN_BASELINE, RUN2, manifest_row, record_baseline, reland, tamper
 from pharos.stage import stage
 
 
@@ -21,9 +21,11 @@ def at(month, day, hour, minute=0):
 
 @pytest.fixture
 def served(staged_run):
-    """The fixture run published at 14:30 UTC on 2026-10-07, with its manifest."""
+    """The fixture run published at 14:30 UTC on 2026-10-07, with its manifest
+    and a baseline matching it (two dates are too few for the real audit)."""
     publish(staged_run)
     manifest_row(staged_run, "published", "2026-10-07 14:30:00+00")
+    record_baseline(CLEAN_BASELINE)
     return staged_run
 
 
@@ -50,6 +52,13 @@ def test_yellow_on_warnings_only(served):
     h = health.evaluate(at(10, 8, 12))                  # NVDA 1 session late, C01 at 21.5h
     assert h.status == "yellow"
     assert statuses(h)["C02"] == "warn" and statuses(h)["C01"] == "pass"
+
+
+def test_yellow_until_a_baseline_is_recorded(served):
+    for p in (data_root() / "health" / "baseline").glob("*.parquet"):
+        p.unlink()
+    h = health.evaluate(at(10, 7, 15))
+    assert h.status == "yellow" and statuses(h)["C13"] == "warn"
 
 
 def test_red_when_pipeline_silently_stopped(served):

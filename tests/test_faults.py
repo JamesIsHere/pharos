@@ -486,3 +486,72 @@ def test_c12_no_common_dates_warns(staged_run):
     rewrite_tiingo(staged_run, "SELECT * REPLACE (obs_date + 1 AS obs_date) FROM t WHERE obs_date = DATE '2026-10-06'")
     r = result(run_checks(staged_run), "C12")
     assert (r["status"], r["failing_row_count"]) == ("warn", 1) and "no common dates" in r["sample"]
+
+
+def record_baseline(rows):
+    """Write a baseline file as the audit would: (series_id, first_date, last_date, row_count)."""
+    path = data_root() / "health" / "baseline" / "20261001T140000Z.parquet"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    con = duckdb.connect()
+    con.execute("CREATE TABLE b (series_id VARCHAR, first_date DATE, last_date DATE, row_count BIGINT, "
+                "audit_run_id VARCHAR, recorded_at TIMESTAMPTZ)")
+    con.executemany("INSERT INTO b VALUES (?, ?, ?, ?, '20261001T140000Z', now())", rows)
+    con.execute(f"COPY b TO '{path.as_posix()}' (FORMAT parquet)")
+    con.close()
+    return path
+
+
+CLEAN_BASELINE = [("yf:close:NVDA", date(2026, 10, 5), date(2026, 10, 6), 2),
+                  ("fred:GDP", date(2026, 4, 1), date(2026, 4, 1), 1)]
+
+
+def test_c13_no_baseline_warns(staged_run):
+    r = result(run_checks(staged_run), "C13")
+    assert (r["status"], r["failing_row_count"]) == ("warn", 1) and "no baseline recorded" in r["sample"]
+
+
+def test_c13_matching_baseline_passes(staged_run):
+    record_baseline(CLEAN_BASELINE)
+    assert result(run_checks(staged_run), "C13")["status"] == "pass"
+
+
+def test_c13_history_grown_since_baseline_passes(staged_run):
+    record_baseline([("yf:close:NVDA", date(2026, 10, 5), date(2026, 10, 5), 1), CLEAN_BASELINE[1]])
+    assert result(run_checks(staged_run), "C13")["status"] == "pass"
+
+
+@pytest.mark.parametrize("select, problem", [
+    ("SELECT * FROM t WHERE obs_date <> DATE '2026-10-05'", "first_date moved later"),
+    ("SELECT * FROM t WHERE series_id <> 'fred:GDP'", "series gone"),
+])
+def test_c13_lost_history_warns(staged_run, select, problem):
+    record_baseline(CLEAN_BASELINE)
+    tamper(staged_run, "observations", select)
+    r = result(run_checks(staged_run), "C13")
+    assert (r["status"], r["failing_row_count"]) == ("warn", 1) and problem in r["sample"]
+
+
+def test_c13_row_count_below_baseline_warns(staged_run):
+    record_baseline([("yf:close:NVDA", date(2026, 10, 5), date(2026, 10, 6), 3), CLEAN_BASELINE[1]])
+    r = result(run_checks(staged_run), "C13")
+    assert (r["status"], r["failing_row_count"]) == ("warn", 1) and "row_count below baseline" in r["sample"]
+
+
+def test_c13_counts_current_price_vintage_only(staged_run):
+    # an older vintage still holding 10-05 must not hide a re-pull that lost it
+    record_baseline(CLEAN_BASELINE)
+    tamper(staged_run, "observations",
+           "SELECT * FROM t WHERE series_id <> 'yf:close:NVDA' UNION ALL "
+           "SELECT * REPLACE (vintage - 1 AS vintage) FROM t WHERE series_id = 'yf:close:NVDA' UNION ALL "
+           "SELECT * FROM t WHERE series_id = 'yf:close:NVDA' AND obs_date = DATE '2026-10-06'")
+    r = result(run_checks(staged_run), "C13")
+    assert r["status"] == "warn" and "first_date moved later" in r["sample"]
+
+
+def test_two_baselines_stop_the_run(staged_run):
+    record_baseline(CLEAN_BASELINE)
+    other = data_root() / "health" / "baseline" / "20261002T140000Z.parquet"
+    other.write_bytes((data_root() / "health" / "baseline" / "20261001T140000Z.parquet").read_bytes())
+    from pharos.checks import CheckError
+    with pytest.raises(CheckError, match="more than one baseline"):
+        run_checks(staged_run)

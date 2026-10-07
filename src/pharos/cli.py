@@ -96,6 +96,22 @@ def cmd_health(args: argparse.Namespace) -> int:
     return 1 if h.status == "red" else 0
 
 
+def cmd_audit(args: argparse.Namespace) -> int:
+    from pharos.audit import audit
+
+    a = audit()
+    print(f"audit of published run {a.run_id}: {'passed' if a.passed else 'FAILED'}")
+    print(f"comparisons {a.comparisons}")
+    for f in a.failures:
+        when = f" {f['obs_date']} ({f['pick']}) rel_diff {f['rel_diff']:+.4%}" if f["obs_date"] else ""
+        print(f"  {f['ticker']:<6} {f['problem']}{when}")
+    if not a.passed:
+        print("no baseline recorded")
+        return 1
+    print(f"baseline {a.baseline}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pharos", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -116,6 +132,10 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("health", help="judge what is being served, now: recorded gate results + monitors re-run")
     p.set_defaults(func=cmd_health)
+
+    p = sub.add_parser("audit", help="reconcile the published run against the second source; "
+                                     "record the baseline only if every ticker passes")
+    p.set_defaults(func=cmd_audit)
 
     p = sub.add_parser("refresh", help="load, stage, check and publish a new run; writes the run manifest")
     p.set_defaults(func=cmd_refresh)

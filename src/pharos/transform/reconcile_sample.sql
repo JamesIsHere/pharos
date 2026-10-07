@@ -48,6 +48,8 @@ ranked AS (
 )
 SELECT ticker, obs_date, yahoo_close, tiingo_close, tiingo_raw_close,
        yahoo_close / tiingo_close - 1 AS rel_diff,
-       CASE WHEN is_latest THEN 'latest' ELSE 'random' END AS pick
+       -- a drawn date stays 'random' even when it is also the latest, so a
+       -- ticker always shows its 5 random dates (the audit counts them)
+       CASE WHEN draw <= 5 THEN 'random' ELSE 'latest' END AS pick
 FROM ranked
 WHERE draw <= 5 OR is_latest

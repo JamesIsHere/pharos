@@ -173,20 +173,23 @@ def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = Non
     run_at = datetime.strptime(run_id, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
     con.execute("CREATE TABLE this_run AS SELECT ? AS run_id, ?::TIMESTAMPTZ AS run_at",
                 [run_id, run_at])
-    # Yahoo vs Tiingo on sampled dates, one definition for C12 and the audit (D38).
-    # DuckDB binds a view when it is created, so broken inputs (a dropped column)
-    # fail here. That must reach the checks that use the view as `broken`, with
-    # the real message, not crash the whole evaluation: bind a view that raises it.
-    sample_sql = (PROJECT_ROOT / "src" / "pharos" / "transform" / "reconcile_sample.sql").read_text(encoding="utf-8")
-    try:
-        con.execute(f"CREATE VIEW reconcile_sample AS {sample_sql}")
-    except duckdb.Error as e:
-        message = f"reconcile_sample could not be built: {type(e).__name__}: {e}".replace("'", "''")
-        # same columns as the real view, so a check binds and the error() itself is what surfaces
-        con.execute(f"""CREATE VIEW reconcile_sample AS
-                        SELECT CAST(error('{message}') AS VARCHAR) AS ticker, NULL::DATE AS obs_date,
-                               NULL::DOUBLE AS yahoo_close, NULL::DOUBLE AS tiingo_close,
-                               NULL::DOUBLE AS tiingo_raw_close, NULL::DOUBLE AS rel_diff, NULL::VARCHAR AS pick""")
+    # Views shared by a check and the opening-balance audit, one SQL file each:
+    # Yahoo vs Tiingo on sampled dates (C12, D38) and per-series baseline
+    # metrics (C13, D39).
+    _bind_shared(con, "reconcile_sample", "ticker VARCHAR, obs_date DATE, yahoo_close DOUBLE, "
+                 "tiingo_close DOUBLE, tiingo_raw_close DOUBLE, rel_diff DOUBLE, pick VARCHAR")
+    _bind_shared(con, "baseline_metrics", "series_id VARCHAR, first_date DATE, last_date DATE, row_count BIGINT")
+    # the recorded opening balance (D39); empty before the audit records it, so
+    # C13 reports the absence instead of breaking. The audit writes it once:
+    # a second file would double every comparison, so it stops the run.
+    baselines = sorted((data_root() / "health" / "baseline").glob("*.parquet"))
+    if len(baselines) > 1:
+        raise CheckError(f"more than one baseline recorded: {[p.name for p in baselines]}")
+    if baselines:
+        con.execute(f"CREATE VIEW baseline AS SELECT * FROM read_parquet('{baselines[0].as_posix()}')")
+    else:
+        con.execute("CREATE TABLE baseline (series_id VARCHAR, first_date DATE, last_date DATE, "
+                    "row_count BIGINT, audit_run_id VARCHAR, recorded_at TIMESTAMPTZ)")
     con.execute("CREATE TABLE clock AS SELECT ?::TIMESTAMPTZ AS now", [now or run_at])
 
     # every run's manifest (D31); none before the first refresh. The run being
@@ -197,6 +200,22 @@ def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = Non
                     f"read_parquet('{manifests.as_posix()}/*.parquet', union_by_name = true)")
     else:
         con.execute("CREATE TABLE run_manifest (run_id VARCHAR, status VARCHAR, published_at TIMESTAMPTZ)")
+
+
+def _bind_shared(con, name: str, columns: str) -> None:
+    """Bind transform/<name>.sql as a view. DuckDB binds a view when it is
+    created, so broken inputs (a dropped column) fail here. That must reach the
+    checks that use the view as `broken`, with the real message, not crash the
+    whole evaluation: bind a view of the same columns that raises it."""
+    sql = (PROJECT_ROOT / "src" / "pharos" / "transform" / f"{name}.sql").read_text(encoding="utf-8")
+    try:
+        con.execute(f"CREATE VIEW {name} AS {sql}")
+    except duckdb.Error as e:
+        message = f"{name} could not be built: {type(e).__name__}: {e}".replace("'", "''")
+        cols = [c.strip().split(" ", 1) for c in columns.split(",")]
+        first, rest = cols[0], cols[1:]
+        select = [f"CAST(error('{message}') AS {first[1]}) AS {first[0]}"] + [f"NULL::{t} AS {n}" for n, t in rest]
+        con.execute(f"CREATE VIEW {name} AS SELECT {', '.join(select)}")
 
 
 def _evaluate(con, check: Check, run_id: str, evaluated_at: datetime, context: str) -> dict:

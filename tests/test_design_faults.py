@@ -18,6 +18,7 @@ import pandas as pd
 import pytest
 
 from pharos import config, health
+from pharos.audit import audit
 from pharos import refresh as refresh_mod
 from pharos.paths import data_root
 from pharos.publish import current_version
@@ -82,6 +83,8 @@ def published(root, monkeypatch):
         {"ticker": "NVDA", "yahoo_symbol": "NVDA", "active_from": FIRST, "active_to": None}])
     pub = run(monkeypatch, RUN1, bars(SESSIONS))
     assert pub.evaluation.verdict == "passed" and current_version() == pub.version
+    assert health.evaluate(at(10, 7, 15)).status == "yellow"       # C13: no baseline yet
+    assert audit().passed                                            # the opening-balance audit records it
     assert health.evaluate(at(10, 7, 15)).status == "green"
     return monkeypatch
 

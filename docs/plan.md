@@ -2,11 +2,11 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M1, steps 1-6 and 3b of 10 built. Step 6: design.md's five faults end to end in tests/test_design_faults.py. Step 5: `pharos health` (recorded gate results + monitors re-run now), `health/latest.md`. Step 4: runner, C01-C11 and C14-C17, publish gate, run manifest, `pharos refresh`. Step 7 in progress: Tiingo loader + wiring, C18-C20, C12 built; opening-balance audit and C13 remain
-- **Health:** RED at 2026-10-07 17:51 UTC (`pharos health`): C18, no Tiingo rows for the published run (expected until TIINGO_API_KEY is set and a refresh lands Tiingo data). Also C15 ATVI and C16 CPI Oct 2025 warn, documented expected states (#31). Live run 20261007T171613Z: published; C01-C11, C14 and C17 pass, C15 warns 1 row (ATVI source-missing, acceptance #3), C16 warns 1 row (CPIAUCSL 2025-10-01 withdrawn by source). serving/CURRENT = 20261007T171613Z: 96,160 observations, 21 catalog rows; rerun added 0 rows (acceptance #2)
-- **Last session:** 2026-10-07 (second session): steps 4-6 built and step 7 started. C01-C12 and C14-C20 checks, publish gate (write-once versions + CURRENT pointer), run manifest, `pharos refresh`, `pharos health` + latest.md, the five design faults end to end, Tiingo chosen, loaded and wired (outage doesn't fail the run). D28-D38. 177 tests pass. Live: 1 manual publish + 2 `pharos refresh` runs, all published; rerun added 0 rows (acceptance #2)
-- **Next action:** decide the open question below, then build the opening-balance audit (reuses transform/reconcile_sample.sql) and C13; once TIINGO_API_KEY is set, a live refresh verifies the Tiingo shape (#33) and the audit runs
-- **Blockers / open questions:** OPEN: when a ticker fails the audit's 0.5% reconciliation, does the audit refuse to record a baseline until every active ticker reconciles (recommended: yes, write all comparisons, exit 1), or record it with exceptions? BLOCKER for live step 7: James creates the Tiingo account and adds TIINGO_API_KEY to .env. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
+- **Milestone:** M1, steps 1-6 and 3b of 10 built. Step 7 code complete, live run pending: Tiingo loader + wiring, C12, C13, C18-C20, `pharos audit` (all or nothing, D39). The step closes when a live audit records the baseline (acceptance #4)
+- **Health:** RED at 2026-10-07 (`pharos health`, session start): C18, no Tiingo rows for the published run (TIINGO_API_KEY not yet set). From this commit C13 also warns (no baseline recorded) until the audit passes live. C15 ATVI and C16 CPI Oct 2025 warn, documented expected states (#31). serving/CURRENT = 20261007T171613Z: 96,160 observations, 21 catalog rows
+- **Last session:** 2026-10-07 (third session): audit baseline rule decided (all or nothing), `pharos audit`, C13, shared transform/baseline_metrics.sql, reconcile_sample relabel (a drawn latest date stays random). D39. 194 tests pass
+- **Next action:** with TIINGO_API_KEY in .env: `pharos refresh` (lands Tiingo, verifies its shape, #33), `pharos health` (C18 clears, C12 live), then `pharos audit`. Pass: baseline recorded, step 7 done, C13 clears. Fail: read health/audit/ comparisons per ticker before changing anything
+- **Blockers / open questions:** BLOCKER for live step 7: TIINGO_API_KEY in .env (James has the token). #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
 <!-- Every concern or finding not fixed in the turn it comes up goes here before that turn ends. IDs never change or get reused. Fixing an issue deletes its row in the same commit, and the commit message cites the ID; git history is the record. -->
@@ -24,6 +24,7 @@
 | 31  | Documented expected states (C15 ATVI, C16 CPI Oct 2025) hold health at yellow permanently        | A yellow that never clears trains the eye to ignore yellow; acceptance #3 says green apart from them | step 8 (roll-up)   |
 | 32  | Status roll-up is overall only; design.md section 7 rolls up per source, then overall           | Health page traffic light per source has no data behind it             | step 8             |
 | 33  | Tiingo ROW_KEYS and date format come from its docs, not a live response (no key yet)            | First live pull may fail loud on a shape mismatch                      | step 7 (first pull)|
+| 34  | A series added after the audit has no baseline row; C13 never compares it                        | A watchlist addition can lose history with C13 green                   | before any watchlist change |
 
 ---
 
