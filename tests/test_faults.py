@@ -172,3 +172,15 @@ def test_c07_ignores_value_conflict(staged_run):
     tamper(staged_run, "observations", "SELECT * FROM t UNION ALL SELECT * REPLACE (value * 1.01 AS value) FROM t "
                                        "WHERE series_id = 'yf:close:NVDA' AND obs_date = DATE '2026-10-05'")
     assert result(run_checks(staged_run), "C07")["status"] == "pass"
+
+
+@pytest.mark.parametrize("table, select, problem", [
+    ("observations", "SELECT * EXCLUDE (loaded_at) FROM t", "missing"),
+    ("series_catalog", "SELECT *, 1 AS extra FROM t", "unexpected"),
+    ("observations", "SELECT * REPLACE (CAST(value AS FLOAT) AS value) FROM t", "type"),
+])
+def test_c08_schema_drift_blocks(staged_run, table, select, problem):
+    tamper(staged_run, table, select)
+    r = result(run_checks(staged_run), "C08")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1)
+    assert problem in r["sample"]
