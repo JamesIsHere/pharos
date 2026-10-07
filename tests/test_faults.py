@@ -268,3 +268,22 @@ def test_c11_ended_series_with_observations_passes_c15(staged_run):
                                          "THEN DATE '2026-10-06' ELSE active_to END AS active_to) FROM t")
     e = run_checks(staged_run)
     assert (result(e, "C11")["status"], result(e, "C15")["status"]) == ("pass", "pass")
+
+
+GDP_KEY = "series_id = 'fred:GDP'"
+
+
+@pytest.mark.parametrize("rows, status", [
+    (f"SELECT * REPLACE (value * 1.01 AS value) FROM t WHERE {NVDA_DAY}", "error"),
+    (f"SELECT * REPLACE (value * 1.01 AS value) FROM t WHERE {GDP_KEY}", "error"),
+    (f"SELECT * REPLACE (NULL AS value) FROM t WHERE {GDP_KEY}", "error"),        # withdrawn vs number
+    # conflict in a superseded price vintage: already reviewed and re-pulled (D23)
+    (f"SELECT * REPLACE (vintage - 30 AS vintage) FROM t WHERE {NVDA_DAY} UNION ALL "
+     f"SELECT * REPLACE (vintage - 30 AS vintage, value * 1.01 AS value) FROM t WHERE {NVDA_DAY}", "pass"),
+])
+def test_c14_same_key_different_value(staged_run, rows, status):
+    tamper(staged_run, "observations", f"SELECT * FROM t UNION ALL {rows}")
+    r = result(run_checks(staged_run), "C14")
+    assert r["status"] == status
+    if status == "error":
+        assert r["failing_row_count"] == 1
