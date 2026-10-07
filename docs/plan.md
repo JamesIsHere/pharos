@@ -2,10 +2,10 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M1, steps 1-4 and 3b of 10 built. Step 4: runner, C01-C11 and C14-C17, publish gate, run manifest, `pharos refresh`. C12 and C13 need the second price source and are built in step 7
-- **Health:** n/a (`pharos health` arrives in step 5). Live run 20261007T171613Z: published; C01-C11, C14 and C17 pass, C15 warns 1 row (ATVI source-missing, acceptance #3), C16 warns 1 row (CPIAUCSL 2025-10-01 withdrawn by source). serving/CURRENT = 20261007T171613Z: 96,160 observations, 21 catalog rows; rerun added 0 rows (acceptance #2)
-- **Last session:** 2026-10-07: first live incremental load (run 20261007T153852Z, 17 tickers x 7 days, all `incremental`, overlap folds in exactly). Open issues list + capture rule. D22 (C11/C15 by series state), D23 (accept a correction by full re-pull; C14 current price vintage), D24 (XNYS calendar, reconciled 5,474 = 5,474), D25 (withdrawn value is a row; C16), D26 (C05 = raw files vs load log), D27 (C07 same-value dupes only), D28 (C08 contract inside the check file); C09 built; D29 (C10 without split exclusion); C11 + C15 per D22; C14 per D23; D30 (publish = write-once version folder + CURRENT pointer), first live publish; D31 (run manifest owned by `pharos refresh`); D32 (C01 = last publish, run-time or view-time clock); D33 (C02 warn / C17 error, fixed lags in sources.yaml). 139 tests pass
-- **Next action:** step 5: `pharos health` CLI (evaluates at view time with the wall clock) + `health/latest.md`
+- **Milestone:** M1, steps 1-5 and 3b of 10 built. Step 5: `pharos health` (recorded gate results + monitors re-run now), `health/latest.md`. Step 4: runner, C01-C11 and C14-C17, publish gate, run manifest, `pharos refresh`. C12 and C13 need the second price source and are built in step 7
+- **Health:** YELLOW at 2026-10-07 17:22 UTC (`pharos health`): C15 ATVI and C16 CPI Oct 2025, both documented expected states (#31). Live run 20261007T171613Z: published; C01-C11, C14 and C17 pass, C15 warns 1 row (ATVI source-missing, acceptance #3), C16 warns 1 row (CPIAUCSL 2025-10-01 withdrawn by source). serving/CURRENT = 20261007T171613Z: 96,160 observations, 21 catalog rows; rerun added 0 rows (acceptance #2)
+- **Last session:** 2026-10-07: first live incremental load (run 20261007T153852Z, 17 tickers x 7 days, all `incremental`, overlap folds in exactly). Open issues list + capture rule. D22 (C11/C15 by series state), D23 (accept a correction by full re-pull; C14 current price vintage), D24 (XNYS calendar, reconciled 5,474 = 5,474), D25 (withdrawn value is a row; C16), D26 (C05 = raw files vs load log), D27 (C07 same-value dupes only), D28 (C08 contract inside the check file); C09 built; D29 (C10 without split exclusion); C11 + C15 per D22; C14 per D23; D30 (publish = write-once version folder + CURRENT pointer), first live publish; D31 (run manifest owned by `pharos refresh`); D32 (C01 = last publish, run-time or view-time clock); D33 (C02 warn / C17 error, fixed lags in sources.yaml); D34 (`pharos health`). 148 tests pass
+- **Next action:** step 6: map design.md section 7's five faults onto the existing synthetic fault tests (#10 looks already met: tests use a synthetic run, never real data)
 - **Blockers / open questions:** none blocking. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
@@ -24,6 +24,8 @@
 | 24  | Accept path for a FRED same-key conflict (C14 on every FRED key)                               | A changed ALFRED vintage blocks publish forever                        | only if C14 fires  |
 | 25  | Price vintage is a DATE: two full pulls of one ticker on one day share a vintage               | Same-day accept re-pull leaves the conflict in place                   | step 4 (D23 build) |
 | 28  | C05 checks raw files by row count only; no content hash is recorded at write time              | A raw file rewritten with the same row count passes C05                | M1 (runs.py)       |
+| 31  | Documented expected states (C15 ATVI, C16 CPI Oct 2025) hold health at yellow permanently        | A yellow that never clears trains the eye to ignore yellow; acceptance #3 says green apart from them | step 8 (roll-up)   |
+| 32  | Status roll-up is overall only; design.md section 7 rolls up per source, then overall           | Health page traffic light per source has no data behind it             | step 8             |
 
 ---
 
@@ -44,7 +46,7 @@
 - [x] 3. Transform to staging (DuckDB SQL); series_catalog + observations; regenerate `catalog.duckdb` views
 - [x] 3b. Incremental Yahoo loader: watermark + overlap window, full re-pull on re-basing (step-2 scope found missing in step 3)
 - [x] 4. Checks C01–C16 in `checks/*.sql`; runner; write-audit-publish gate with atomic swap; run manifest
-- [ ] 5. `pharos health` CLI + `health/latest.md`
+- [x] 5. `pharos health` CLI + `health/latest.md`
 - [ ] 6. Fault-injection tests (5 faults, design.md §7)
 - [ ] 7. Opening-balance audit against the second source; record baseline
 - [ ] 8. Health page (traffic lights, coverage heatmap, row counts by run, run strip, failing checks, spot-check panel)

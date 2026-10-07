@@ -99,16 +99,23 @@ def parse(path: Path) -> Check:
                  header["description"], sql, path)
 
 
-def run_checks(run_id: str, directory: Path = CHECKS_DIR, now: datetime | None = None) -> Evaluation:
+def run_checks(run_id: str, directory: Path = CHECKS_DIR, now: datetime | None = None,
+               tables: Path | None = None, monitors_only: bool = False) -> Evaluation:
     """Evaluate every check against staging/<run_id>/ and append the results.
     `now` is the clock monitor checks measure against: the run's own time when
-    omitted (run time), the wall clock when the health CLI evaluates at view time."""
+    omitted (run time), the wall clock when the health CLI evaluates at view time.
+    At view time the health CLI passes `tables` (the published version) and
+    `monitors_only`: gate checks tested staged data that hasn't changed, so their
+    run-time results stand (D34). Results record which context produced them."""
     checks = discover(directory)
+    if monitors_only:
+        checks = [c for c in checks if not c.gate]
+    context = "view" if monitors_only else "run"
     con = duckdb.connect()
-    bind(con, run_id, now)
+    bind(con, run_id, now, tables)
     evaluated_at = datetime.now(timezone.utc)
 
-    results = [_evaluate(con, c, run_id, evaluated_at) for c in checks]
+    results = [_evaluate(con, c, run_id, evaluated_at, context) for c in checks]
     con.close()
 
     if any(r["status"] == "broken" for r in results):
@@ -120,15 +127,16 @@ def run_checks(run_id: str, directory: Path = CHECKS_DIR, now: datetime | None =
     return Evaluation(run_id, verdict, results, _write(results, run_id, evaluated_at))
 
 
-def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = None) -> None:
+def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = None,
+         tables: Path | None = None) -> None:
     """The names a check may query. Anything a check needs that isn't here is a
     runner change, not a path inside a SQL file."""
     runs = complete_runs()
     if run_id not in runs:
         raise CheckError(f"run {run_id} is not complete (a load record is missing)")
-    staged = data_root() / "staging" / run_id
+    staged = tables or data_root() / "staging" / run_id
     if not staged.is_dir():
-        raise CheckError(f"run {run_id} has not been staged: {staged} does not exist")
+        raise CheckError(f"tables for run {run_id} not found: {staged} does not exist")
 
     for table in ("observations", "series_catalog"):
         con.execute(f"CREATE VIEW {table} AS SELECT * FROM "
@@ -169,8 +177,8 @@ def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = Non
         con.execute("CREATE TABLE run_manifest (run_id VARCHAR, status VARCHAR, published_at TIMESTAMPTZ)")
 
 
-def _evaluate(con, check: Check, run_id: str, evaluated_at: datetime) -> dict:
-    result = {"run_id": run_id, "check_id": check.id, "severity": check.severity,
+def _evaluate(con, check: Check, run_id: str, evaluated_at: datetime, context: str) -> dict:
+    result = {"run_id": run_id, "context": context, "check_id": check.id, "severity": check.severity,
               "gate": check.gate, "description": check.description,
               "status": "broken", "failing_row_count": None, "sample": None, "error": None,
               "evaluated_at": evaluated_at}
@@ -191,14 +199,15 @@ def _evaluate(con, check: Check, run_id: str, evaluated_at: datetime) -> dict:
 def _write(results: list[dict], run_id: str, evaluated_at: datetime) -> Path:
     """One write-once file per evaluation, named for the run and the moment."""
     stamp = evaluated_at.strftime("%Y%m%dT%H%M%S%fZ")
-    target = data_root() / "health" / "check_results" / f"{run_id}__{stamp}.parquet"
+    context = results[0]["context"] if results else "run"
+    target = data_root() / "health" / "check_results" / f"{run_id}__{stamp}__{context}.parquet"
     target.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect()
-    con.execute("""CREATE TABLE r (run_id VARCHAR, check_id VARCHAR, severity VARCHAR, gate BOOLEAN,
+    con.execute("""CREATE TABLE r (run_id VARCHAR, context VARCHAR, check_id VARCHAR, severity VARCHAR, gate BOOLEAN,
                    description VARCHAR, status VARCHAR, failing_row_count BIGINT, sample VARCHAR,
                    error VARCHAR, evaluated_at TIMESTAMPTZ)""")
-    con.executemany("INSERT INTO r VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    [[r[k] for k in ("run_id", "check_id", "severity", "gate", "description", "status",
+    con.executemany("INSERT INTO r VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [[r[k] for k in ("run_id", "context", "check_id", "severity", "gate", "description", "status",
                                      "failing_row_count", "sample", "error", "evaluated_at")]
                      for r in results])
     con.execute(f"COPY r TO '{target.as_posix()}' (FORMAT parquet)")

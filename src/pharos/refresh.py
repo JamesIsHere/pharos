@@ -4,6 +4,7 @@ refresh() owns the whole run, so it is the one place that can say how a run
 ended. The manifest is written in a finally block: a crash in any step still
 leaves a record with status `failed` and the error, and the exception is
 re-raised so the caller (the nightly task) sees it too (design.md section 6.5).
+health/latest.md is rewritten after the manifest, so it reflects every run (D34).
 
 Manifest (D31): one write-once file per run, health/run_manifest/<run_id>.parquet,
 one row per raw dataset (yf/prices, fred/observations, fred/series) with the
@@ -22,6 +23,7 @@ from datetime import datetime, timezone
 
 import duckdb
 
+from pharos import health
 from pharos.loaders import fred, yahoo
 from pharos.paths import data_root
 from pharos.publish import Publication, publish
@@ -44,6 +46,7 @@ def refresh() -> tuple[str, Publication | None]:
         raise
     finally:
         write_manifest(run_id, started_at, publication, error)
+        health.evaluate()   # rewrites health/latest.md after every run, crashed ones too
     return run_id, publication
 
 

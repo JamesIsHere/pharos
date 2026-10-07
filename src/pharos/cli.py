@@ -87,6 +87,15 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_health(args: argparse.Namespace) -> int:
+    from pharos import health
+
+    h = health.evaluate()
+    print(health.render(h, color=sys.stdout.isatty()), end="")
+    print(f"wrote {health.write_latest(h)}")
+    return 1 if h.status == "red" else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pharos", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -104,6 +113,9 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("publish", help="run the checks on a staged run and publish it to serving/ if they pass")
     p.add_argument("--run", help="run ID to publish (default: the latest complete run)")
     p.set_defaults(func=cmd_publish)
+
+    p = sub.add_parser("health", help="judge what is being served, now: recorded gate results + monitors re-run")
+    p.set_defaults(func=cmd_health)
 
     p = sub.add_parser("refresh", help="load, stage, check and publish a new run; writes the run manifest")
     p.set_defaults(func=cmd_refresh)
