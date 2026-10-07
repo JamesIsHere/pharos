@@ -8,6 +8,10 @@ import pytest
 
 from pharos.checks import run_checks
 from pharos.paths import data_root
+from pharos.runs import write_raw
+from pharos.stage import stage
+
+RUN2 = "20261008T140000Z"
 
 
 def staged_file(run_id, table):
@@ -91,3 +95,45 @@ def test_withdrawn_value_warns_c16_and_passes_c04(staged_run):
     r = result(e, "C16")
     assert (r["status"], r["failing_row_count"]) == ("warn", 1)
     assert e.verdict == "passed"
+
+
+def raw_file(run_id, source="yf", dataset="prices"):
+    return data_root() / "raw" / source / dataset / f"{run_id}.parquet"
+
+
+def reland(run_from, run_to):
+    """Land run_to as an identical copy of run_from through the real writer."""
+    for source, dataset in [("yf", "prices"), ("fred", "observations"), ("fred", "series")]:
+        frame = duckdb.sql(f"SELECT * EXCLUDE (run_id, loaded_at) FROM "
+                           f"read_parquet('{raw_file(run_from, source, dataset).as_posix()}')").df()
+        write_raw(frame, source, dataset, run_to)
+
+
+def test_c05_recorded_file_missing_blocks(staged_run):
+    reland(staged_run, RUN2)
+    stage(RUN2)
+    raw_file(staged_run).unlink()
+    e = run_checks(RUN2)
+    r = result(e, "C05")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1)
+    assert "recorded file missing" in r["sample"]
+    assert e.verdict == "blocked"
+
+
+def test_c05_truncated_file_blocks(staged_run):
+    path = raw_file(staged_run)
+    con = duckdb.connect()
+    con.execute(f"CREATE TABLE t AS SELECT * FROM read_parquet('{path.as_posix()}')")
+    con.execute(f"COPY (SELECT * FROM t LIMIT 1) TO '{path.as_posix()}' (FORMAT parquet)")
+    con.close()
+    r = result(run_checks(staged_run), "C05")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1)
+    assert "row count changed" in r["sample"]
+
+
+def test_c05_file_without_record_blocks(staged_run):
+    stray = raw_file("20991231T000000Z")
+    stray.write_bytes(raw_file(staged_run).read_bytes())
+    r = result(run_checks(staged_run), "C05")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1)
+    assert "file has no load record" in r["sample"]

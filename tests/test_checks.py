@@ -109,7 +109,7 @@ def test_broken_check_fails_run_and_others_still_run(staged_run, checks_dir):
 
 def test_every_bound_name_is_queryable(staged_run, checks_dir):
     names = ["observations", "series_catalog", "raw_yf_prices", "raw_fred_observations",
-             "raw_fred_series", "loads", "watchlist_windows", "fred_expected", "required_series",
+             "raw_fred_series", "loads", "raw_files", "watchlist_windows", "fred_expected", "required_series",
              "trading_days", "this_run"]
     for i, name in enumerate(names):
         write_check(checks_dir, f"C{50 + i}", f"SELECT * FROM {name} WHERE false")

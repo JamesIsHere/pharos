@@ -11,8 +11,8 @@ the SQL:
 - Checks query names, never paths. One DuckDB connection binds this run's
   staged tables, the raw snapshots of every complete run up to it, the load
   records, the expected set from config (watchlist windows, FRED series,
-  required series per ticker), the XNYS trading calendar (D24) and a
-  one-row this_run table.
+  required series per ticker), every raw file on disk with its row count,
+  the XNYS trading calendar (D24) and a one-row this_run table.
 - A check whose SQL fails is `broken`, and a broken check fails the whole run.
   A control that didn't execute proves nothing, so publish treats `failed`
   like `blocked`: serving/ stays untouched.
@@ -137,6 +137,14 @@ def bind(con: duckdb.DuckDBPyConnection, run_id: str) -> None:
                     [(m,) for m in config.sources()["yahoo"]["required_series"]])
     loads = (data_root() / "health" / "loads").as_posix() + "/*.parquet"
     con.execute(f"CREATE VIEW loads AS SELECT * FROM read_parquet('{loads}')")
+
+    # every raw file on disk with the row count read from its own footer (C05)
+    con.execute("CREATE TABLE raw_files (source VARCHAR, dataset VARCHAR, run_id VARCHAR, "
+                "path VARCHAR, rows_on_disk BIGINT)")
+    for f in sorted((data_root() / "raw").glob("*/*/*.parquet")):
+        n = con.execute(f"SELECT sum(num_rows) FROM parquet_file_metadata('{f.as_posix()}')").fetchone()[0]
+        con.execute("INSERT INTO raw_files VALUES (?, ?, ?, ?, ?)",
+                    [f.parent.parent.name, f.parent.name, f.stem, f.as_posix(), n])
 
     calendar = xc.get_calendar("XNYS", start=config.sources()["backfill_start"])
     con.execute("CREATE TABLE trading_days (session DATE)")
