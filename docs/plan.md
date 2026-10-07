@@ -5,8 +5,8 @@
 - **Milestone:** M1, steps 1-9 and 3b of 10 built. Step 9 closed: Charts overlays mixed frequencies in composable panels, with range, rebase, log and URL state (acceptance #7); Home shows the watchlist with the status bar (acceptance #8). Next is step 10, launcher + nightly task
 - **Health:** GREEN at 2026-10-07 23:19 UTC (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261007T182814Z
 - **Last session:** 2026-10-07 (fourth session): steps 8 and 9 built. Health page (D43-D45), acknowledged expected states (D46, #31), FRED drawn at first release with estimated pre-ALFRED dates (D47, #39), Charts as composable panels (D48, #40). 228 tests pass
-- **Next action:** decide where #41 (exploration tools) lands, then step 10 (desktop launcher, nightly task; acceptance #9, #10)
-- **Blockers / open questions:** #41 placement (before or after step 10). #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
+- **Next action:** step 10 (desktop launcher, nightly task; acceptance #9, #10), which closes M1. Then M1.5, the exploration tools (#41)
+- **Blockers / open questions:** none open for step 10. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
 <!-- Every concern or finding not fixed in the turn it comes up goes here before that turn ends. IDs never change or get reused. Fixing an issue deletes its row in the same commit, and the commit message cites the ID; git history is the record. -->
@@ -22,7 +22,7 @@
 | 25  | Price vintage is a DATE: two full pulls of one ticker on one day share a vintage               | Same-day accept re-pull leaves the conflict in place                   | step 4 (D23 build) |
 | 28  | C05 checks raw files by row count only; no content hash is recorded at write time              | A raw file rewritten with the same row count passes C05                | M1 (runs.py)       |
 | 34  | A series added after the audit has no baseline row; C13 never compares it. Any re-baseline path built for this must also decide a size cap on isolated print disagreements: D41's shape rule passes one of any size, and C10 only catches moves over 40% (folded in from #37) | A watchlist addition can lose history with C13 green; a re-run audit could pass a large isolated bad print | before any watchlist change |
-| 41  | Exploration tools beyond overlay (James, 2026-10-07: 'quickly mix and match ... explore trends'): transforms (YoY %, rolling return, drawdown), ratio/spread of two series, rolling correlation, lead/lag shift, resampling to a common frequency. None is in M1 scope; each must be DuckDB SQL computed on obs_date and drawn at plot_date (D47) | Built ad hoc, a transform could compute on the plot timeline and smear revisions, or leak a value before its release | after step 9: placement decision |
+| 41  | Exploration tools beyond overlay (James, 2026-10-07: 'quickly mix and match ... explore trends'): transforms (YoY %, rolling return, drawdown), ratio/spread of two series, rolling correlation, lead/lag shift, resampling to a common frequency. None is in M1 scope; each must be DuckDB SQL computed on obs_date and drawn at plot_date (D47) | Built ad hoc, a transform could compute on the plot timeline and smear revisions, or leak a value before its release | M1.5, after step 10 (James, 2026-10-07) |
 
 ---
 
