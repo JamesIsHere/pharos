@@ -173,6 +173,20 @@ def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = Non
     run_at = datetime.strptime(run_id, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
     con.execute("CREATE TABLE this_run AS SELECT ? AS run_id, ?::TIMESTAMPTZ AS run_at",
                 [run_id, run_at])
+    # Yahoo vs Tiingo on sampled dates, one definition for C12 and the audit (D38).
+    # DuckDB binds a view when it is created, so broken inputs (a dropped column)
+    # fail here. That must reach the checks that use the view as `broken`, with
+    # the real message, not crash the whole evaluation: bind a view that raises it.
+    sample_sql = (PROJECT_ROOT / "src" / "pharos" / "transform" / "reconcile_sample.sql").read_text(encoding="utf-8")
+    try:
+        con.execute(f"CREATE VIEW reconcile_sample AS {sample_sql}")
+    except duckdb.Error as e:
+        message = f"reconcile_sample could not be built: {type(e).__name__}: {e}".replace("'", "''")
+        # same columns as the real view, so a check binds and the error() itself is what surfaces
+        con.execute(f"""CREATE VIEW reconcile_sample AS
+                        SELECT CAST(error('{message}') AS VARCHAR) AS ticker, NULL::DATE AS obs_date,
+                               NULL::DOUBLE AS yahoo_close, NULL::DOUBLE AS tiingo_close,
+                               NULL::DOUBLE AS tiingo_raw_close, NULL::DOUBLE AS rel_diff, NULL::VARCHAR AS pick""")
     con.execute("CREATE TABLE clock AS SELECT ?::TIMESTAMPTZ AS now", [now or run_at])
 
     # every run's manifest (D31); none before the first refresh. The run being

@@ -420,3 +420,69 @@ def test_c20_reference_behind_due_session_warns(staged_run):
     later = datetime(2026, 10, 8, 12, tzinfo=timezone.utc)      # 10-07 is due, Tiingo ends 10-06
     r = result(run_checks(staged_run, now=later), "C20")
     assert (r["status"], r["failing_row_count"]) == ("warn", 1)
+
+
+def test_c12_agreeing_sources_pass(staged_run):
+    assert result(run_checks(staged_run), "C12")["status"] == "pass"
+
+
+@pytest.mark.parametrize("factor, fires", [(1.006, True), (0.994, True), (1.004, False)])
+def test_c12_tolerance(staged_run, factor, fires):
+    rewrite_tiingo(staged_run, f"SELECT * REPLACE (close * {factor} AS close) FROM t")
+    r = result(run_checks(staged_run), "C12")
+    assert (r["status"], r["failing_row_count"]) == (("warn", 2) if fires else ("pass", 0))
+
+
+def test_c12_uses_tiingo_own_split_factor(staged_run):
+    # Tiingo raw: 20.0 the day before a 2-for-1 effective 10-06 (factor 2.0), then 11.0.
+    # Split-adjusted that is 10.0, matching Yahoo's adjusted 10.0: no warning.
+    rewrite_tiingo(staged_run, "SELECT * REPLACE (CASE WHEN obs_date = DATE '2026-10-05' THEN 20.0 ELSE close END AS close, "
+                               "CASE WHEN obs_date = DATE '2026-10-06' THEN 2.0 ELSE split_factor END AS split_factor) FROM t")
+    assert result(run_checks(staged_run), "C12")["status"] == "pass"
+    # the same raw close without the factor is an unadjusted split: 100% off
+    rewrite_tiingo(staged_run, "SELECT * REPLACE (1.0 AS split_factor) FROM t")
+    r = result(run_checks(staged_run), "C12")
+    assert (r["status"], r["failing_row_count"]) == ("warn", 1)
+
+
+def test_reconcile_sample_is_seeded_by_run_id(staged_run):
+    """30 common dates: 5 random + the latest, same draw for the same run_id,
+    a different draw for another."""
+    import duckdb as _duckdb
+    from pharos.checks import bind
+    days = [d.date() for d in __import__("exchange_calendars").get_calendar("XNYS")
+            .sessions_in_range("2026-08-24", "2026-10-06")][-30:]
+    tamper(staged_run, "observations", "SELECT * FROM t WHERE series_id <> 'yf:close:NVDA' UNION ALL "
+           "SELECT t.* REPLACE (d.day AS obs_date, d.day AS available_date) FROM t, "
+           f"(SELECT unnest([{', '.join(repr(str(d)) for d in days)}]::DATE[]) AS day) AS d "
+           "WHERE t.series_id = 'yf:close:NVDA' AND t.obs_date = DATE '2026-10-06'")
+    rewrite_tiingo(staged_run, "SELECT t.* REPLACE (d.day AS obs_date, 11.0 AS close) FROM t, "
+                   f"(SELECT unnest([{', '.join(repr(str(d)) for d in days)}]::DATE[]) AS day) AS d "
+                   "WHERE t.obs_date = DATE '2026-10-06'")
+
+    def draw(run_id):
+        con = _duckdb.connect()
+        bind(con, staged_run)
+        con.execute("UPDATE this_run SET run_id = ?", [run_id])
+        rows = con.execute("SELECT obs_date, pick FROM reconcile_sample ORDER BY obs_date").fetchall()
+        con.close()
+        return rows
+    a, b = draw(staged_run), draw("20261008T140000Z")
+    assert len(a) == 6 and sum(p == "latest" for _, p in a) == 1 and a[-1] == (days[-1], "latest")
+    assert draw(staged_run) == a and a != b
+
+
+def test_unbuildable_sample_makes_c12_broken_not_a_crash(staged_run):
+    tamper(staged_run, "observations", "SELECT * EXCLUDE (value) FROM t")
+    e = run_checks(staged_run)                       # returns: no exception
+    r = result(e, "C12")
+    assert r["status"] == "broken" and '"value" not found' in r["error"]   # the real cause, verbatim
+    assert e.verdict == "failed"
+
+
+def test_c12_no_common_dates_warns(staged_run):
+    # every Tiingo date shifted forward a day (10-05 -> 10-06 still overlaps, so
+    # keep only the shifted 10-07): nothing to compare must not pass silently
+    rewrite_tiingo(staged_run, "SELECT * REPLACE (obs_date + 1 AS obs_date) FROM t WHERE obs_date = DATE '2026-10-06'")
+    r = result(run_checks(staged_run), "C12")
+    assert (r["status"], r["failing_row_count"]) == ("warn", 1) and "no common dates" in r["sample"]
