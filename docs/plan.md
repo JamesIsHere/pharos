@@ -31,6 +31,7 @@
 | 23  | SEC available_date = next trading day after filing                                             | Same-day joins leak filings into that day's close                      | M2                 |
 | 24  | Accept path for a FRED same-key conflict (C14 on every FRED key)                               | A changed ALFRED vintage blocks publish forever                        | only if C14 fires  |
 | 25  | Price vintage is a DATE: two full pulls of one ticker on one day share a vintage               | Same-day accept re-pull leaves the conflict in place                   | step 4 (D23 build) |
+| 26  | C05 compares per-run raw row counts; incremental runs (D21) land far fewer rows                | C05 fires on every nightly run                                         | step 4 (C05)       |
 
 ---
 
