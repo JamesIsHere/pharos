@@ -3,52 +3,10 @@ follows severity, only an error-severity gate check blocks, a broken check
 fails the run without hiding the others, and every evaluation appends its own
 results file. Real checks (checks/*.sql) get their own fault tests."""
 
-from datetime import date
-
 import duckdb
-import pandas as pd
 import pytest
 
-from pharos import config
 from pharos.checks import CheckError, discover, run_checks
-from pharos.runs import write_raw
-from pharos.stage import stage
-
-RUN = "20261007T140000Z"
-
-
-@pytest.fixture
-def root(monkeypatch, tmp_path):
-    data = tmp_path / "data"
-    data.mkdir()
-    monkeypatch.setenv("PHAROS_TEST_MODE", "1")
-    monkeypatch.setenv("PHAROS_DATA_ROOT", str(data))
-    monkeypatch.setattr(config, "sources", lambda: {
-        "backfill_start": date(2026, 1, 1), "fred": {"series": ["GDP"]}})
-    monkeypatch.setattr(config, "watchlist", lambda: [
-        {"ticker": "NVDA", "yahoo_symbol": "NVDA", "active_from": None, "active_to": None}])
-    return data
-
-
-@pytest.fixture
-def staged_run(root):
-    """One complete run, staged: two NVDA closes and one GDP value."""
-    n = 2
-    write_raw(pd.DataFrame({
-        "ticker": ["NVDA"] * n, "yahoo_symbol": ["NVDA"] * n,
-        "obs_date": [date(2026, 10, 5), date(2026, 10, 6)],
-        "open": [10.0, 11.0], "high": [10.0, 11.0], "low": [10.0, 11.0], "close": [10.0, 11.0],
-        "adj_close": [10.0, 11.0], "volume": [100] * n, "dividends": [0.0] * n, "stock_splits": [0.0] * n,
-        "pull_start": [date(2026, 1, 1)] * n, "pull_end": [date(2026, 10, 7)] * n}), "yf", "prices", RUN)
-    write_raw(pd.DataFrame({"fred_id": ["GDP"], "obs_date": [date(2026, 4, 1)],
-                            "realtime_start": [date(2026, 7, 30)], "realtime_end": [date(9999, 12, 31)],
-                            "value": ["100.5"]}), "fred", "observations", RUN)
-    write_raw(pd.DataFrame({"fred_id": ["GDP"], "title": ["Gross Domestic Product"], "frequency_short": ["Q"],
-                            "seasonal_adjustment_short": ["SAAR"], "observation_start": ["1947-01-01"],
-                            "realtime_start": [date(1991, 12, 4)], "realtime_end": [date(9999, 12, 31)],
-                            "units": ["Billions of Dollars"]}), "fred", "series", RUN)
-    stage(RUN)
-    return RUN
 
 
 @pytest.fixture
@@ -151,7 +109,8 @@ def test_broken_check_fails_run_and_others_still_run(staged_run, checks_dir):
 
 def test_every_bound_name_is_queryable(staged_run, checks_dir):
     names = ["observations", "series_catalog", "raw_yf_prices", "raw_fred_observations",
-             "raw_fred_series", "loads", "watchlist_windows", "fred_expected", "trading_days", "this_run"]
+             "raw_fred_series", "loads", "watchlist_windows", "fred_expected", "required_series",
+             "trading_days", "this_run"]
     for i, name in enumerate(names):
         write_check(checks_dir, f"C{50 + i}", f"SELECT * FROM {name} WHERE false")
     e = run_checks(staged_run, checks_dir)

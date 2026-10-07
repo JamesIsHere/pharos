@@ -10,7 +10,8 @@ the SQL:
   run: a misconfigured control is never skipped.
 - Checks query names, never paths. One DuckDB connection binds this run's
   staged tables, the raw snapshots of every complete run up to it, the load
-  records, the expected set from config, the XNYS trading calendar (D24) and a
+  records, the expected set from config (watchlist windows, FRED series,
+  required series per ticker), the XNYS trading calendar (D24) and a
   one-row this_run table.
 - A check whose SQL fails is `broken`, and a broken check fails the whole run.
   A control that didn't execute proves nothing, so publish treats `failed`
@@ -131,6 +132,9 @@ def bind(con: duckdb.DuckDBPyConnection, run_id: str) -> None:
                     f"read_parquet('{(staged / f'{table}.parquet').as_posix()}')")
     bind_raw(con, [r for r in runs if r <= run_id])
     bind_config(con)
+    con.execute("CREATE TABLE required_series (measure VARCHAR)")
+    con.executemany("INSERT INTO required_series VALUES (?)",
+                    [(m,) for m in config.sources()["yahoo"]["required_series"]])
     loads = (data_root() / "health" / "loads").as_posix() + "/*.parquet"
     con.execute(f"CREATE VIEW loads AS SELECT * FROM read_parquet('{loads}')")
 
