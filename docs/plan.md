@@ -2,11 +2,11 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M1, steps 1-3 and 3b of 10 built (scaffold, loaders, staging, incremental Yahoo loader); step 4 next
-- **Health:** n/a (`pharos health` arrives in step 5). `pharos stage` on run 20261007T140923Z: 96,160 observations (11,050 FRED incl. 743 withdrawn-as-NULL, 85,110 Yahoo), 21 catalog rows, 0 duplicate keys; `catalog.duckdb` has 6 views
-- **Last session:** 2026-10-07: D19 (units per observation row), D20 (raw Yahoo rows carry pull window; price vintage = latest full pull), D21 (incremental Yahoo pulls with overlap basis check, pull_reason on every row), transform SQL x3, `stage.py` + `pharos stage`, `catalog.py`; 59 tests pass. Live dry run of D21 (no raw written): all 17 stored tickers classify incremental, overlap gap 0.0 on 7 dates; ATVI bootstraps every night (empty response, cheap)
-- **Next action:** step 4, checks C01-C15 in `checks/*.sql`, runner, write-audit-publish gate with atomic swap, run manifest. Live incremental load done (run 20261007T153852Z: 17 tickers x 7 days, all `incremental`; staged with the first run: still 96,160 rows, 0 duplicate keys). Next: build, starting with the check runner
-- **Blockers / open questions:** none blocking. #6 (D22) and #17 (D23) decided, built in step 4; #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
+- **Milestone:** M1, steps 1-3 and 3b of 10 built; step 4 in progress (check runner + C03, C04, C05, C06, C07, C16 built)
+- **Health:** n/a (`pharos health` arrives in step 5). Checks on live run 20261007T153852Z: verdict passed; C03-C07 pass, C16 warns 1 row (CPIAUCSL 2025-10-01 withdrawn by source). Staged: 96,160 observations, 21 catalog rows
+- **Last session:** 2026-10-07: first live incremental load (run 20261007T153852Z, 17 tickers x 7 days, all `incremental`, overlap folds in exactly). Open issues list + capture rule. D22 (C11/C15 by series state), D23 (accept a correction by full re-pull; C14 current price vintage), D24 (XNYS calendar, reconciled 5,474 = 5,474), D25 (withdrawn value is a row; C16), D26 (C05 = raw files vs load log), D27 (C07 same-value dupes only). `checks.py` runner; 92 tests pass
+- **Next action:** decide #30 (where the C08 schema contract lives; recommended: inside the check file as VALUES vs information_schema.columns), then C08, C09, C10, C11, C14, C15; then publish gate with atomic swap and run manifest; then C01, C02
+- **Blockers / open questions:** none blocking. #30 is the open decision. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
 <!-- Every concern or finding not fixed in the turn it comes up goes here before that turn ends. IDs never change or get reused. Fixing an issue deletes its row in the same commit, and the commit message cites the ID; git history is the record. -->
@@ -32,6 +32,7 @@
 | 24  | Accept path for a FRED same-key conflict (C14 on every FRED key)                               | A changed ALFRED vintage blocks publish forever                        | only if C14 fires  |
 | 25  | Price vintage is a DATE: two full pulls of one ticker on one day share a vintage               | Same-day accept re-pull leaves the conflict in place                   | step 4 (D23 build) |
 | 28  | C05 checks raw files by row count only; no content hash is recorded at write time              | A raw file rewritten with the same row count passes C05                | M1 (runs.py)       |
+| 30  | Where the C08 schema contract lives (check file, config file, or Python)                       | C08 cannot be written                                                  | step 4 (C08)       |
 
 ---
 
@@ -51,7 +52,7 @@
 - [x] 2. Loaders: yfinance (wrapped, schema-validated, explicit `auto_adjust`), FRED with vintages
 - [x] 3. Transform to staging (DuckDB SQL); series_catalog + observations; regenerate `catalog.duckdb` views
 - [x] 3b. Incremental Yahoo loader: watermark + overlap window, full re-pull on re-basing (step-2 scope found missing in step 3)
-- [ ] 4. Checks C01–C15 in `checks/*.sql`; runner; write-audit-publish gate with atomic swap; run manifest
+- [ ] 4. Checks C01–C16 in `checks/*.sql`; runner; write-audit-publish gate with atomic swap; run manifest
 - [ ] 5. `pharos health` CLI + `health/latest.md`
 - [ ] 6. Fault-injection tests (5 faults, design.md §7)
 - [ ] 7. Opening-balance audit against the second source; record baseline
