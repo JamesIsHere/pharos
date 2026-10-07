@@ -41,3 +41,53 @@ def test_c03_missing_catalog_series_blocks(staged_run, dropped):
     assert (r["status"], r["failing_row_count"]) == ("error", 1)
     assert dropped in r["sample"]
     assert e.verdict == "blocked"
+
+
+def test_c04_interior_price_hole_blocks(staged_run):
+    tamper(staged_run, "observations", "SELECT * FROM t WHERE NOT (series_id = 'yf:close:NVDA' "
+                                       "AND obs_date = DATE '2026-10-05')")
+    # NVDA's window starts at active_from 2026-10-05, so a missing first day is a hole
+    e = run_checks(staged_run)
+    r = result(e, "C04")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1)
+    assert '"obs_date": "2026-10-05"' in r["sample"]
+    assert e.verdict == "blocked"
+
+
+def test_c04_trailing_gap_is_not_a_hole(staged_run):
+    # the last day missing is lateness: C02's to report, not C04's
+    tamper(staged_run, "observations", "SELECT * FROM t WHERE NOT (series_id = 'yf:close:NVDA' "
+                                       "AND obs_date = DATE '2026-10-06')")
+    assert result(run_checks(staged_run), "C04")["status"] == "pass"
+
+
+def test_c04_macro_quarter_hole_blocks(staged_run):
+    # GDP has 2026-04-01; adding 2026-10-01 leaves 2026-07-01 missing between them
+    tamper(staged_run, "observations", "SELECT * FROM t UNION ALL "
+                                       "SELECT * REPLACE (DATE '2026-10-01' AS obs_date) FROM t "
+                                       "WHERE series_id = 'fred:GDP'")
+    r = result(run_checks(staged_run), "C04")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1)
+    assert '"obs_date": "2026-07-01"' in r["sample"]
+
+
+def test_c04_price_date_only_in_older_vintage_blocks(staged_run):
+    # a full re-pull (new vintage) lacks 2026-10-05; the old vintage still has it.
+    # Serving would fill the date from the old adjustment basis, so C04 must fire.
+    tamper(staged_run, "observations", """
+        SELECT * FROM t WHERE NOT (series_id = 'yf:close:NVDA' AND obs_date = DATE '2026-10-05')
+        UNION ALL
+        SELECT * REPLACE (vintage - 1 AS vintage) FROM t
+        WHERE series_id = 'yf:close:NVDA' AND obs_date = DATE '2026-10-05'""")
+    r = result(run_checks(staged_run), "C04")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1)
+
+
+def test_withdrawn_value_warns_c16_and_passes_c04(staged_run):
+    tamper(staged_run, "observations", "SELECT * REPLACE (CASE WHEN series_id = 'fred:GDP' THEN NULL "
+                                       "ELSE value END AS value) FROM t")
+    e = run_checks(staged_run)
+    assert result(e, "C04")["status"] == "pass"
+    r = result(e, "C16")
+    assert (r["status"], r["failing_row_count"]) == ("warn", 1)
+    assert e.verdict == "passed"

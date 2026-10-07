@@ -1,5 +1,6 @@
 """Shared fixtures: a throwaway data root with config pinned to one ticker and
-one FRED series, and one complete run landed and staged on top of it."""
+one FRED series, and one complete run landed and staged on top of it. Each
+series' window starts at its first row, so the clean run has no expected gaps."""
 
 from datetime import date
 
@@ -23,7 +24,7 @@ def root(monkeypatch, tmp_path):
         "backfill_start": date(2026, 1, 1), "fred": {"series": ["GDP"]},
         "yahoo": {"required_series": ["close"]}})
     monkeypatch.setattr(config, "watchlist", lambda: [
-        {"ticker": "NVDA", "yahoo_symbol": "NVDA", "active_from": None, "active_to": None}])
+        {"ticker": "NVDA", "yahoo_symbol": "NVDA", "active_from": date(2026, 10, 5), "active_to": None}])
     return data
 
 
@@ -41,7 +42,7 @@ def staged_run(root):
                             "realtime_start": [date(2026, 7, 30)], "realtime_end": [date(9999, 12, 31)],
                             "value": ["100.5"]}), "fred", "observations", RUN)
     write_raw(pd.DataFrame({"fred_id": ["GDP"], "title": ["Gross Domestic Product"], "frequency_short": ["Q"],
-                            "seasonal_adjustment_short": ["SAAR"], "observation_start": ["1947-01-01"],
+                            "seasonal_adjustment_short": ["SAAR"], "observation_start": ["2026-04-01"],
                             "realtime_start": [date(1991, 12, 4)], "realtime_end": [date(9999, 12, 31)],
                             "units": ["Billions of Dollars"]}), "fred", "series", RUN)
     stage(RUN)
