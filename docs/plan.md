@@ -5,8 +5,8 @@
 - **Milestone:** M1, steps 1-3 and 3b of 10 built (scaffold, loaders, staging, incremental Yahoo loader); step 4 next
 - **Health:** n/a (`pharos health` arrives in step 5). `pharos stage` on run 20261007T140923Z: 96,160 observations (11,050 FRED incl. 743 withdrawn-as-NULL, 85,110 Yahoo), 21 catalog rows, 0 duplicate keys; `catalog.duckdb` has 6 views
 - **Last session:** 2026-10-07: D19 (units per observation row), D20 (raw Yahoo rows carry pull window; price vintage = latest full pull), D21 (incremental Yahoo pulls with overlap basis check, pull_reason on every row), transform SQL x3, `stage.py` + `pharos stage`, `catalog.py`; 59 tests pass. Live dry run of D21 (no raw written): all 17 stored tickers classify incremental, overlap gap 0.0 on 7 dates; ATVI bootstraps every night (empty response, cheap)
-- **Next action:** step 4, checks C01-C14 in `checks/*.sql`, runner, write-audit-publish gate with atomic swap, run manifest. First run the real `pharos load` once to land the first incremental snapshot (exercises D21 on live data and gives step 4 two overlapping runs)
-- **Blockers / open questions:** #6 (ATVI blocks every publish via C11) and #17 (a real correction blocks publish forever) block step 4's gate. Full list in Open issues below; cite only IDs that appear there.
+- **Next action:** step 4, checks C01-C15 in `checks/*.sql`, runner, write-audit-publish gate with atomic swap, run manifest. Live incremental load done (run 20261007T153852Z: 17 tickers x 7 days, all `incremental`; staged with the first run: still 96,160 rows, 0 duplicate keys). Next decision: #17
+- **Blockers / open questions:** #17 (a real correction blocks publish forever) blocks step 4's gate design. #6 decided (D22), built with C11/C15. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
 <!-- Every concern or finding not fixed in the turn it comes up goes here before that turn ends. IDs never change or get reused. Fixing an issue deletes its row in the same commit, and the commit message cites the ID; git history is the record. -->
@@ -14,7 +14,7 @@
 | ID  | Issue                                                                                          | Effect if ignored                                                      | Resolves in        |
 |-----|------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|--------------------|
 | 4   | C10 skips known split dates                                                                    | Hides an unadjusted split, the one failure a split-date jump signals   | step 4 (C10)       |
-| 6   | No "ended" or "source-missing" state; ATVI has a catalog row and zero observations             | C11 blocks every publish; acceptance #3 fails                          | step 4 (C11)       |
+| 6   | No "ended" or "source-missing" state; ATVI has a catalog row and zero observations             | C11 blocks every publish; acceptance #3 fails                          | step 4 (D22)       |
 | 7   | Windows file locks on the serving/ swap (catalog.duckdb half done: fails loudly)               | Swap fails while DBeaver or the app holds the files                    | step 4 (publish)   |
 | 9   | Nightly refresh timing vs the Wednesday 06:00 workshop mirror                                  | Backup captures a half-written staging/                                | step 10            |
 | 10  | Fault tests run on a copy of real data                                                         | Not repeatable; CI on the public repo can't run them                   | step 6             |
@@ -49,7 +49,7 @@
 - [x] 2. Loaders: yfinance (wrapped, schema-validated, explicit `auto_adjust`), FRED with vintages
 - [x] 3. Transform to staging (DuckDB SQL); series_catalog + observations; regenerate `catalog.duckdb` views
 - [x] 3b. Incremental Yahoo loader: watermark + overlap window, full re-pull on re-basing (step-2 scope found missing in step 3)
-- [ ] 4. Checks C01–C14 in `checks/*.sql`; runner; write-audit-publish gate with atomic swap; run manifest
+- [ ] 4. Checks C01–C15 in `checks/*.sql`; runner; write-audit-publish gate with atomic swap; run manifest
 - [ ] 5. `pharos health` CLI + `health/latest.md`
 - [ ] 6. Fault-injection tests (5 faults, design.md §7)
 - [ ] 7. Opening-balance audit against the second source; record baseline
