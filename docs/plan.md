@@ -3,10 +3,10 @@
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
 - **Milestone:** M1, steps 1-6 and 3b of 10 built. Step 7 code complete, live run pending: Tiingo loader + wiring, C12, C13, C18-C20, `pharos audit` (all or nothing, D39). The step closes when a live audit records the baseline (acceptance #4)
-- **Health:** RED at 2026-10-07 (`pharos health`, session start): C18, no Tiingo rows for the published run (TIINGO_API_KEY not yet set). From this commit C13 also warns (no baseline recorded) until the audit passes live. C15 ATVI and C16 CPI Oct 2025 warn, documented expected states (#31). serving/CURRENT = 20261007T171613Z: 96,160 observations, 21 catalog rows
+- **Health:** YELLOW at 2026-10-07 18:30 UTC (`pharos health`): C12 (GOOGL 2006-03-15 off 49.95%, the 2014 share-class distribution, #35), C13 (no baseline recorded), C15 ATVI and C16 CPI Oct 2025 (documented expected states, #31). C18-C20 pass. serving/CURRENT = 20261007T182814Z
 - **Last session:** 2026-10-07 (third session): audit baseline rule decided (all or nothing), `pharos audit`, C13, shared transform/baseline_metrics.sql, reconcile_sample relabel (a drawn latest date stays random). D39. 194 tests pass
-- **Next action:** with TIINGO_API_KEY in .env: `pharos refresh` (lands Tiingo, verifies its shape, #33), `pharos health` (C18 clears, C12 live), then `pharos audit`. Pass: baseline recorded, step 7 done, C13 clears. Fail: read health/audit/ comparisons per ticker before changing anything
-- **Blockers / open questions:** BLOCKER for live step 7: TIINGO_API_KEY in .env (James has the token). #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
+- **Next action:** decide how the reconciliation treats GOOGL's 2014-04-03 distribution (#35), then rerun `pharos audit` to record the baseline. Live audit of 20261007T182814Z: 16 of 17 tickers within 0.04% (6 comparisons each, 5 random), GOOGL refused, no baseline recorded
+- **Blockers / open questions:** OPEN: #35, how the reconciliation treats the 2014 GOOGL distribution. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
 <!-- Every concern or finding not fixed in the turn it comes up goes here before that turn ends. IDs never change or get reused. Fixing an issue deletes its row in the same commit, and the commit message cites the ID; git history is the record. -->
@@ -23,8 +23,8 @@
 | 28  | C05 checks raw files by row count only; no content hash is recorded at write time              | A raw file rewritten with the same row count passes C05                | M1 (runs.py)       |
 | 31  | Documented expected states (C15 ATVI, C16 CPI Oct 2025) hold health at yellow permanently        | A yellow that never clears trains the eye to ignore yellow; acceptance #3 says green apart from them | step 8 (roll-up)   |
 | 32  | Status roll-up is overall only; design.md section 7 rolls up per source, then overall           | Health page traffic light per source has no data behind it             | step 8             |
-| 33  | Tiingo ROW_KEYS and date format come from its docs, not a live response (no key yet)            | First live pull may fail loud on a shape mismatch                      | step 7 (first pull)|
 | 34  | A series added after the audit has no baseline row; C13 never compares it                        | A watchlist addition can lose history with C13 green                   | before any watchlist change |
+| 35  | Tiingo books GOOGL's 2014-04-03 class C distribution as a $567.97 cash dividend, Yahoo as a 1.998 split; every GOOGL date before it differs ~50% | The audit refuses the baseline whenever a pre-2014 GOOGL date is drawn; C12 warns the same way | step 7 (before the baseline) |
 
 ---
 
