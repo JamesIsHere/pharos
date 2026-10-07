@@ -42,7 +42,7 @@ data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.du
 ### Data integrity
 - Parquet is the storage of record. The only `.duckdb` file is `catalog.duckdb`. It holds views over Parquet only, and the pipeline regenerates it.
 - `raw/` is append-only. Never update or delete raw rows. A revision is a new row with a new `vintage`.
-- Write-audit-publish: write to `staging/`, run checks, and swap into `serving/` only if no error-severity check fails. A failed or blocked run must leave `serving/` untouched.
+- Write-audit-publish: write to `staging/`, run checks, and swap into `serving/` only if no error-severity gate check fails. A failed or blocked run must leave `serving/` untouched.
 - Every observation carries `obs_date`, `available_date`, `vintage`, `run_id`.
 - Transformations are DuckDB SQL. Polars is used only for parsing at the edges and for handing results to the UI. Never write transformation logic in pandas; convert library pandas output at the boundary.
 - All data paths derive from `PHAROS_DATA_ROOT` (default: `data/`, gitignored). Never write data anywhere else, and never commit data.
@@ -60,7 +60,7 @@ data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.du
 - Secrets live in `.env` (gitignored) locally and in GitHub Secrets in CI. **The repo is public.** Never commit keys or data.
 
 ### Health
-- A check is a SQL file in `checks/` that returns failing rows. Zero rows means pass. Header comment: `id`, `severity` (error|warn), `description`.
+- A check is a SQL file in `checks/` that returns failing rows. Zero rows means pass. Header comment: `id`, `severity` (error|warn), `gate` (yes|no), `description`. Gate checks test the staged data and can block a publish; monitor checks (`gate: no`) test the world (staleness, lateness, drift) and never block (D17).
 - Any new source ships with completeness, uniqueness, and freshness checks in the same change.
 - Freshness is evaluated at view time, not only at run time. A pipeline that silently didn't run must show red.
 - Any new or changed check needs a fault-injection test in `tests/test_faults.py` proving it fires.

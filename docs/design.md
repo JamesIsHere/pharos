@@ -21,7 +21,7 @@ raw/       Parquet, append-only: what the source said, untouched
    |  DuckDB SQL: standardize, derive, as-of joins
    v
 staging/   candidate serving tables for this run
-   |  checks/*.sql  (audit)  --- any error -> run BLOCKED, serving/ untouched
+   |  checks/*.sql  (audit)  --- any gate check at error -> run BLOCKED, serving/ untouched
    v
 serving/   series_catalog + observations   <- the contract
 health/    run_manifest, check_results, baseline, latest.md
@@ -97,21 +97,25 @@ Splits and dividends per ticker: `ticker, event_date, type, ratio_or_amount, run
 Completeness requires a declared expectation. `config/watchlist.csv` plus each series' `active_from`/`active_to` IS the expectation, so it's part of the control system, not just config.
 
 ### Check catalog (v1)
-| id | assertion | severity | rule (query returns violating rows) |
-|---|---|---|---|
-| C01 | cutoff | error | last *successful* run older than 26h (evaluated at view time too) |
-| C02 | cutoff | warn→error | series latest obs_date behind expected (trading calendar / FRED release dates); warn at 1 period, error at 2 |
-| C03 | completeness | error | watchlist entity × required series with no series in catalog |
-| C04 | completeness | error | missing expected dates inside the active window (trading days via `exchange_calendars`; months/quarters for macro) |
-| C05 | completeness | error | raw row count lower than previous run (append-only invariant) |
-| C06 | completeness | error | rows landed ≠ rows downloaded (load control total) |
-| C07 | accuracy | error | duplicate `(series_id, obs_date, vintage)` |
-| C08 | accuracy | error | schema differs from contract (columns, types) |
-| C09 | validity | error | price ≤ 0; obs_date in future; obs_date > available_date |
-| C10 | validity | warn | abs(daily return) > 40% on split-adjusted close, excluding known split dates |
-| C11 | integrity | error | observations without catalog row, or catalog series without observations |
-| C12 | reconciliation | warn | sampled watchlist closes differ from second source by > 0.5% (split-adjusted close only; dividend-adjustment methods differ by source) |
-| C13 | baseline | warn | first_date moved later, or row_count below baseline, vs opening-balance audit |
+| id | assertion | severity | gate | rule (query returns violating rows) |
+|---|---|---|---|---|
+| C01 | cutoff | error | no | last *successful* run older than 26h (evaluated at view time too) |
+| C02 | cutoff | warn→error | no | series latest obs_date behind expected (trading calendar / FRED release dates); warn at 1 period, error at 2 |
+| C03 | completeness | error | yes | watchlist entity × required series with no series in catalog |
+| C04 | completeness | error | yes | missing expected dates inside the active window (trading days via `exchange_calendars`; months/quarters for macro) |
+| C05 | completeness | error | yes | raw row count lower than previous run (append-only invariant) |
+| C06 | completeness | error | yes | rows landed ≠ rows downloaded (load control total) |
+| C07 | accuracy | error | yes | duplicate `(series_id, obs_date, vintage)` |
+| C08 | accuracy | error | yes | schema differs from contract (columns, types) |
+| C09 | validity | error | yes | price ≤ 0; obs_date in future; obs_date > available_date |
+| C10 | validity | warn | yes | abs(daily return) > 40% on split-adjusted close, excluding known split dates |
+| C11 | integrity | error | yes | observations without catalog row, or catalog series without observations |
+| C12 | reconciliation | warn | no | sampled watchlist closes differ from second source by > 0.5% (split-adjusted close only; dividend-adjustment methods differ by source) |
+| C13 | baseline | warn | no | first_date moved later, or row_count below baseline, vs opening-balance audit |
+
+### Gate vs monitor
+- **Gate** checks assert facts about the staged data. An error-severity gate failure blocks the publish.
+- **Monitor** checks assert facts about the world (staleness, source lateness, second-source agreement, baseline drift). They are recorded in `check_results` and drive the status color, but never block a publish: blocking cannot fix them, and C01 at gate would lock the pipeline out after two missed nights.
 
 ### Status roll-up
 - **Green**: all checks pass and the last successful run is under 26h old.
@@ -207,3 +211,4 @@ Before trusting the first backfill:
 | D14 | 2026-10-07 | 18-name watchlist chosen to trip known traps | Demo set doubles as test coverage | Random or favorite names |
 | D15 | 2026-10-07 | Project name: Pharos (repo, package, CLI `pharos`) | Lighthouse of Alexandria: a light that lets you see far and signals safe/unsafe, like the health light; short and typeable as a CLI | Sentinel, Overwatch, Argus, Tycho, Benchmark |
 | D16 | 2026-10-07 | Data root is `data/` inside the repo folder, gitignored; `PHAROS_DATA_ROOT` stays the only path source | The weekly workshop mirror backs it up, and `raw/` is append-only and partly irreplaceable (old yfinance pulls); the real risk, committing data to a public repo, is closed by the ignore rule | Data root outside the repo (`D:\data\pharos`: not mirrored); sibling workshop folder (breaks the one-folder-per-project rule) |
+| D17 | 2026-10-07 | Checks are gate or monitor. Only gate checks (C03–C11) can block a publish; C01, C02, C12, C13 are monitor-only | C01 at gate deadlocks: after two missed nights every run is blocked, so the last success never gets newer. World-state checks can't be fixed by blocking; they only withhold valid data | Every error-severity check gates |
