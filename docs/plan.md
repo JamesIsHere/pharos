@@ -18,16 +18,16 @@
 - **Prices (yfinance):** daily split-adjusted close, plus split and dividend events, for the 18-name watchlist. Backfill from 2005-01-01 (configurable).
 - **Macro (FRED/ALFRED):** `GDP`, `GDPC1`, `CPIAUCSL`, all vintages.
 - **Second price source:** used for reconciliation only (C12) and the opening-balance audit.
-- **Health system:** checks C01–C13, health CLI, `latest.md`, health page, fault-injection tests.
+- **Health system:** checks C01–C14, health CLI, `latest.md`, health page, fault-injection tests.
 - **Dashboard:** Home, Health, and Charts pages. Desktop launcher. Nightly scheduled task.
 
 ### Build order
 - [ ] 1. Scaffold: uv project, layout, `PHAROS_DATA_ROOT`, `.env.example`, `config/watchlist.csv`
 - [ ] 2. Loaders: yfinance (wrapped, schema-validated, explicit `auto_adjust`), FRED with vintages
 - [ ] 3. Transform to staging (DuckDB SQL); series_catalog + observations; regenerate `catalog.duckdb` views
-- [ ] 4. Checks C01–C13 in `checks/*.sql`; runner; write-audit-publish gate with atomic swap; run manifest
+- [ ] 4. Checks C01–C14 in `checks/*.sql`; runner; write-audit-publish gate with atomic swap; run manifest
 - [ ] 5. `pharos health` CLI + `health/latest.md`
-- [ ] 6. Fault-injection tests (4 faults, design.md §7)
+- [ ] 6. Fault-injection tests (5 faults, design.md §7)
 - [ ] 7. Opening-balance audit against the second source; record baseline
 - [ ] 8. Health page (traffic lights, coverage heatmap, row counts by run, run strip, failing checks, spot-check panel)
 - [ ] 9. Home + Charts pages (overlay, date range buttons, rebase-to-100 default, log toggle, URL state)
@@ -35,10 +35,10 @@
 
 ### Acceptance criteria
 1. From an empty data root, `uv run pharos refresh` backfills every watchlist series and both macro groups.
-2. An immediate rerun adds zero rows and stays green (idempotent).
+2. An immediate rerun adds zero rows to `serving/` and stays green (idempotent; `raw/` gains only that run's snapshot file).
 3. `pharos health` is green, apart from documented expected states. ATVI shows as *ended*, not stale. If Yahoo no longer has ATVI history, that's reported explicitly as source-missing (warn). That's the survivorship finding, so it must be visible, not silent.
 4. Opening-balance audit: ≥5 random dates per ticker reconcile to the second source within 0.5% on split-adjusted close. Baseline recorded.
-5. All 4 fault-injection tests pass. Each fault shows the right color and appears on the health page or heatmap.
+5. All 5 fault-injection tests pass. Each fault shows the right color and appears on the health page or heatmap.
 6. Health page shows every element listed in design.md §7.
 7. Charts page: overlay ≥3 series of mixed frequency (daily price + quarterly GDP + monthly CPI), change the dates, rebase, toggle log. Reloading the URL restores the chart.
 8. Home opens to the watchlist chart with the status bar. It's never empty.

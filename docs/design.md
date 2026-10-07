@@ -17,7 +17,7 @@
 Sources (yfinance, FRED/ALFRED; later SEC, BEA)
    |  Python loaders: download, parse, schema-validate
    v
-raw/       Parquet, append-only: what the source said, untouched
+raw/       Parquet, one write-once file per source per run: everything downloaded, untouched
    |  DuckDB SQL: standardize, derive, as-of joins
    v
 staging/   candidate serving tables for this run
@@ -51,7 +51,7 @@ catalog.duckdb: views over serving/ and health/, for DBeaver
 |---|---|
 | series_id, obs_date, value | |
 | available_date | date the value became knowable: trade date (prices), vintage release date (macro), filing date (fundamentals) |
-| vintage | prices: pull date (a new vintage only on a full re-pull); macro: ALFRED `realtime_start`; fundamentals: accession filing date |
+| vintage | prices: date of the full-history pull that set the current split adjustment (nightly incremental rows inherit it; a new split starts a new one); macro: ALFRED `realtime_start`; fundamentals: accession filing date |
 | run_id, loaded_at | lineage |
 
 Primary key: `(series_id, obs_date, vintage)`. The serving view defaults to the latest vintage per `(series_id, obs_date)`. Point-in-time views filter `available_date <= as_of`.
@@ -86,10 +86,11 @@ Splits and dividends per ticker: `ticker, event_date, type, ratio_or_amount, run
 ## 6. Refresh pipeline rules
 1. **Rebuild where you can, increment where you must.** EDGAR and ALFRED are archives, so analysis tables are rebuilt from them. Prices are incremental, using a stored last-pulled watermark.
 2. **Revisions append.** New vintage rows, never updates.
-3. **Write-audit-publish with atomic swap.** A failed run leaves yesterday's serving data intact.
-4. **Run manifest every run**, including failed runs.
-5. **Idempotent.** Rerunning immediately adds zero rows and stays green.
-6. The nightly schedule is a Windows Task Scheduler entry with "run as soon as possible after a missed start" enabled. A failure raises a Windows toast via the BurntToast module.
+3. **Raw is a snapshot log.** Each run writes everything it downloaded to `raw/<source>/<run_id>.parquet` and never touches the file again. FRED/ALFRED lands the full vintage history every run; prices land the incremental window plus a few days of overlap. Deduplication on `(series_id, obs_date, vintage)` happens in staging, never at load.
+4. **Write-audit-publish with atomic swap.** A failed run leaves yesterday's serving data intact.
+5. **Run manifest every run**, including failed runs.
+6. **Idempotent.** Rerunning immediately adds zero rows to `serving/` and stays green. (`raw/` gains that run's snapshot file; that is the evidence trail, not a defect.)
+7. The nightly schedule is a Windows Task Scheduler entry with "run as soon as possible after a missed start" enabled. A failure raises a Windows toast via the BurntToast module.
 
 ## 7. Health system
 
@@ -112,6 +113,7 @@ Completeness requires a declared expectation. `config/watchlist.csv` plus each s
 | C11 | integrity | error | yes | observations without catalog row, or catalog series without observations |
 | C12 | reconciliation | warn | no | sampled watchlist closes differ from second source by > 0.5% (split-adjusted close only; dividend-adjustment methods differ by source) |
 | C13 | baseline | warn | no | first_date moved later, or row_count below baseline, vs opening-balance audit |
+| C14 | accuracy | error | yes | same `(series_id, obs_date, vintage)` with different values across raw snapshots (silent source correction) |
 
 ### Gate vs monitor
 - **Gate** checks assert facts about the staged data. An error-severity gate failure blocks the publish.
@@ -148,6 +150,7 @@ Before trusting the first backfill:
 2. Duplicate one day → C07 red, publish blocked, serving unchanged.
 3. Backdate the last successful run by 2 days → C01 red.
 4. Multiply one close by 10 → C10 warn.
+5. Change one past close in a later raw snapshot, same vintage → C14 red, publish blocked, serving unchanged.
 
 ## 8. Dashboard
 - **Pages:** Home (watchlist chart + status bar; never empty on open), Health, Charts.
@@ -212,3 +215,4 @@ Before trusting the first backfill:
 | D15 | 2026-10-07 | Project name: Pharos (repo, package, CLI `pharos`) | Lighthouse of Alexandria: a light that lets you see far and signals safe/unsafe, like the health light; short and typeable as a CLI | Sentinel, Overwatch, Argus, Tycho, Benchmark |
 | D16 | 2026-10-07 | Data root is `data/` inside the repo folder, gitignored; `PHAROS_DATA_ROOT` stays the only path source | The weekly workshop mirror backs it up, and `raw/` is append-only and partly irreplaceable (old yfinance pulls); the real risk, committing data to a public repo, is closed by the ignore rule | Data root outside the repo (`D:\data\pharos`: not mirrored); sibling workshop folder (breaks the one-folder-per-project rule) |
 | D17 | 2026-10-07 | Checks are gate or monitor. Only gate checks (C03–C11) can block a publish; C01, C02, C12, C13 are monitor-only | C01 at gate deadlocks: after two missed nights every run is blocked, so the last success never gets newer. World-state checks can't be fixed by blocking; they only withhold valid data | Every error-severity check gates |
+| D18 | 2026-10-07 | Raw is a write-once snapshot log per run; dedup in staging; price vintage = adjustment epoch; C14 catches same-key value conflicts | Append-only raw + full FRED re-pull + "rerun adds zero rows" + C06 couldn't all hold. Repeated source testimony is the audit trail; write-once files also protect the mirror backup | Land only new keys (loses evidence of what the source returned; transform logic at load time) |

@@ -41,7 +41,7 @@ data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.du
 
 ### Data integrity
 - Parquet is the storage of record. The only `.duckdb` file is `catalog.duckdb`. It holds views over Parquet only, and the pipeline regenerates it.
-- `raw/` is append-only. Never update or delete raw rows. A revision is a new row with a new `vintage`.
+- `raw/` is a snapshot log: one write-once file per source per run (`raw/<source>/<run_id>.parquet`). Never rewrite or delete a raw file. A revision is a new row with a new `vintage`. Deduplicate in staging, never at load.
 - Write-audit-publish: write to `staging/`, run checks, and swap into `serving/` only if no error-severity gate check fails. A failed or blocked run must leave `serving/` untouched.
 - Every observation carries `obs_date`, `available_date`, `vintage`, `run_id`.
 - Transformations are DuckDB SQL. Polars is used only for parsing at the edges and for handing results to the UI. Never write transformation logic in pandas; convert library pandas output at the boundary.
