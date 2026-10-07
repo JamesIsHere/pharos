@@ -150,3 +150,25 @@ def test_c06_control_total_mismatch_blocks(staged_run):
     r = result(e, "C06")
     assert (r["status"], r["failing_row_count"]) == ("error", 1)
     assert e.verdict == "blocked"
+
+
+def test_c07_duplicated_day_blocks(staged_run):
+    tamper(staged_run, "observations", "SELECT * FROM t UNION ALL SELECT * FROM t "
+                                       "WHERE series_id = 'yf:close:NVDA' AND obs_date = DATE '2026-10-05'")
+    e = run_checks(staged_run)
+    r = result(e, "C07")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1)
+    assert e.verdict == "blocked"
+
+
+def test_c07_rows_differing_only_in_units_block(staged_run):
+    tamper(staged_run, "observations", "SELECT * FROM t UNION ALL SELECT * REPLACE ('EUR' AS units) FROM t "
+                                       "WHERE series_id = 'yf:close:NVDA' AND obs_date = DATE '2026-10-05'")
+    assert result(run_checks(staged_run), "C07")["status"] == "error"
+
+
+def test_c07_ignores_value_conflict(staged_run):
+    # same key, different value: a source correction, C14's to report (D27)
+    tamper(staged_run, "observations", "SELECT * FROM t UNION ALL SELECT * REPLACE (value * 1.01 AS value) FROM t "
+                                       "WHERE series_id = 'yf:close:NVDA' AND obs_date = DATE '2026-10-05'")
+    assert result(run_checks(staged_run), "C07")["status"] == "pass"

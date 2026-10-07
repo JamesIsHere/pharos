@@ -32,7 +32,6 @@
 | 24  | Accept path for a FRED same-key conflict (C14 on every FRED key)                               | A changed ALFRED vintage blocks publish forever                        | only if C14 fires  |
 | 25  | Price vintage is a DATE: two full pulls of one ticker on one day share a vintage               | Same-day accept re-pull leaves the conflict in place                   | step 4 (D23 build) |
 | 28  | C05 checks raw files by row count only; no content hash is recorded at write time              | A raw file rewritten with the same row count passes C05                | M1 (runs.py)       |
-| 29  | C07 (duplicate key) also fires on value conflicts, which staging keeps for C14                 | After a D23 accept, C07 blocks forever on the old vintage              | step 4 (C07)       |
 
 ---
 
