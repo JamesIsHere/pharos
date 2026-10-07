@@ -13,7 +13,8 @@ published, or when the latest run did not publish (blocked or failed: serving
 is behind what was attempted); yellow on warnings only; green otherwise.
 
 health/latest.md is rewritten on every evaluation, so it always says what the
-last look found. It is plain text with aligned columns.
+last look found. It is plain text with aligned columns. The app evaluates
+with record=False: it writes neither latest.md nor check_results (D43).
 """
 
 import json
@@ -40,7 +41,7 @@ class Health:
     results: list[dict]            # one per check, gate (recorded) then monitor (now)
 
 
-def evaluate(now: datetime | None = None) -> Health:
+def evaluate(now: datetime | None = None, record: bool = True) -> Health:
     now = now or datetime.now(timezone.utc)
     manifest = _manifest()
     latest_run, latest_status = (manifest[-1]["run_id"], manifest[-1]["status"]) if manifest else (None, None)
@@ -53,7 +54,7 @@ def evaluate(now: datetime | None = None) -> Health:
         reasons.append("nothing has been published")
     else:
         results = _recorded_gate_results(version.name) + \
-            run_checks(version.name, now=now, tables=version, monitors_only=True).results
+            run_checks(version.name, now=now, tables=version, monitors_only=True, record=record).results
     if latest_status in ("blocked", "failed"):
         reasons.append(f"latest run {latest_run} {latest_status}: serving still shows {version.name if version else 'nothing'}")
 
@@ -67,7 +68,8 @@ def evaluate(now: datetime | None = None) -> Health:
 
     health = Health(status, reasons, now, version.name if version else None, published_at,
                     latest_run, latest_status, results)
-    write_latest(health)
+    if record:
+        write_latest(health)
     return health
 
 

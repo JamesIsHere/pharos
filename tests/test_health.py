@@ -101,6 +101,15 @@ def test_latest_md_is_rewritten(served):
     assert "Status:          RED" in (data_root() / "health" / "latest.md").read_text(encoding="utf-8")
 
 
+def test_unrecorded_evaluation_writes_nothing(served):
+    """The app evaluates every minute; it must leave health/ as it found it (D43)."""
+    health_dir = data_root() / "health"
+    before = {p: p.stat().st_mtime_ns for p in health_dir.rglob("*") if p.is_file()}
+    h = health.evaluate(at(10, 9, 12), record=False)
+    assert h.status == "red"                            # still judged, C01 at 45.5h
+    assert {p: p.stat().st_mtime_ns for p in health_dir.rglob("*") if p.is_file()} == before
+
+
 def test_reads_results_written_before_context_column(served):
     import duckdb
     for f in (data_root() / "health" / "check_results").glob("*.parquet"):

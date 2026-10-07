@@ -59,7 +59,7 @@ class Evaluation:
     run_id: str
     verdict: str          # passed | blocked | failed
     results: list[dict]
-    path: Path
+    path: Path | None     # None when record=False (D43)
 
 
 def discover(directory: Path = CHECKS_DIR) -> list[Check]:
@@ -99,13 +99,14 @@ def parse(path: Path) -> Check:
 
 
 def run_checks(run_id: str, directory: Path = CHECKS_DIR, now: datetime | None = None,
-               tables: Path | None = None, monitors_only: bool = False) -> Evaluation:
+               tables: Path | None = None, monitors_only: bool = False, record: bool = True) -> Evaluation:
     """Evaluate every check against staging/<run_id>/ and append the results.
     `now` is the clock monitor checks measure against: the run's own time when
     omitted (run time), the wall clock when the health CLI evaluates at view time.
     At view time the health CLI passes `tables` (the published version) and
     `monitors_only`: gate checks tested staged data that hasn't changed, so their
-    run-time results stand (D34). Results record which context produced them."""
+    run-time results stand (D34). Results record which context produced them.
+    The app passes record=False: it reads health/, never writes it (D43)."""
     checks = discover(directory)
     if monitors_only:
         checks = [c for c in checks if not c.gate]
@@ -123,7 +124,7 @@ def run_checks(run_id: str, directory: Path = CHECKS_DIR, now: datetime | None =
         verdict = "blocked"
     else:
         verdict = "passed"
-    return Evaluation(run_id, verdict, results, _write(results, run_id, evaluated_at))
+    return Evaluation(run_id, verdict, results, _write(results, run_id, evaluated_at) if record else None)
 
 
 def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = None,
