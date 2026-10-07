@@ -34,7 +34,7 @@ app/               Home.py, pages/1_Health.py, pages/2_Charts.py
 scripts/           PowerShell launcher + task registration
 tests/             incl. test_faults.py
 docs/              design.md, plan.md
-<PHAROS_DATA_ROOT>/  raw/ staging/ serving/ health/ catalog.duckdb   (outside the repo)
+data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.duckdb   (gitignored, never committed)
 ```
 
 ## Hard rules
@@ -45,7 +45,7 @@ docs/              design.md, plan.md
 - Write-audit-publish: write to `staging/`, run checks, and swap into `serving/` only if no error-severity check fails. A failed or blocked run must leave `serving/` untouched.
 - Every observation carries `obs_date`, `available_date`, `vintage`, `run_id`.
 - Transformations are DuckDB SQL. Polars is used only for parsing at the edges and for handing results to the UI. Never write transformation logic in pandas; convert library pandas output at the boundary.
-- All data paths derive from `PHAROS_DATA_ROOT`. Never write data inside the repo.
+- All data paths derive from `PHAROS_DATA_ROOT` (default: `data/`, gitignored). Never write data anywhere else, and never commit data.
 
 ### Time and joins
 - Join prices to fundamentals or macro with `ASOF JOIN` on `available_date`, never on period end.
