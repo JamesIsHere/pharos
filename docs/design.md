@@ -149,7 +149,7 @@ Before trusting the first backfill:
 - From then on, C13 watches for drift from that baseline.
 
 ### Fault injection (control effectiveness)
-`tests/test_faults.py` runs against a temp copy of the data root. Each fault must produce the expected color and appear on the health page:
+`tests/test_design_faults.py` drives each fault end to end through `refresh()` (load -> stage -> checks -> publish -> manifest) and `pharos health`, on a synthetic data root (never real data), injecting it where it would really happen. Each fault must produce the expected color and appear on the health page (step 8). Fault 2 has two halves: a duplicated bar in raw is absorbed by staging's dedup (C07 passes, publishes), and a duplicate that survives staging is injected into the staged table, where C07 guards the dedup. `tests/test_faults.py` keeps the per-check tests on staged tables:
 1. Delete one month of one ticker → C04 red, heatmap hole.
 2. Duplicate one day → C07 red, publish blocked, serving unchanged.
 3. Backdate the last successful run by 2 days → C01 red.
