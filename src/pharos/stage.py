@@ -94,15 +94,20 @@ def bind_raw(con, included: list[str]) -> None:
 
 
 def bind_config(con) -> None:
-    """The expected set, from config: watchlist windows and configured FRED series."""
+    """The expected set, from config: watchlist windows and configured FRED series,
+    each with the lag after which its next period is due (D33)."""
     cfg = config.sources()
     con.execute("CREATE TABLE watchlist_windows (ticker VARCHAR, yahoo_symbol VARCHAR, "
-                "first_expected DATE, active_to DATE)")
-    con.executemany("INSERT INTO watchlist_windows VALUES (?, ?, ?, ?)",
+                "first_expected DATE, active_to DATE, expected_lag_days INTEGER)")
+    con.executemany("INSERT INTO watchlist_windows VALUES (?, ?, ?, ?, ?)",
                     [(w["ticker"], w["yahoo_symbol"], w["active_from"] or cfg["backfill_start"],
-                      w["active_to"]) for w in config.watchlist()])
-    con.execute("CREATE TABLE fred_expected (fred_id VARCHAR)")
-    con.executemany("INSERT INTO fred_expected VALUES (?)", [(s,) for s in cfg["fred"]["series"]])
+                      w["active_to"], cfg["yahoo"]["expected_lag_days"]) for w in config.watchlist()])
+    lags = cfg["fred"]["expected_lag_days"]
+    missing = [s for s in cfg["fred"]["series"] if not isinstance(lags.get(s), int)]
+    if missing:
+        raise StageError(f"fred.expected_lag_days has no integer lag for {missing} (sources.yaml, D33)")
+    con.execute("CREATE TABLE fred_expected (fred_id VARCHAR, expected_lag_days INTEGER)")
+    con.executemany("INSERT INTO fred_expected VALUES (?, ?)", [(s, lags[s]) for s in cfg["fred"]["series"]])
 
 
 def _transform(con, name: str, raw_view: str) -> str:

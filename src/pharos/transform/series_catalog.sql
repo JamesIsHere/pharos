@@ -2,8 +2,9 @@
 --
 -- Inputs (views the runner binds):
 --   watchlist_windows  ticker, yahoo_symbol, first_expected (active_from, else
---                      backfill_start), active_to   <- config/watchlist.csv
---   fred_expected      fred_id                      <- config/sources.yaml fred.series
+--                      backfill_start), active_to, expected_lag_days
+--                      <- config/watchlist.csv + sources.yaml yahoo
+--   fred_expected      fred_id, expected_lag_days   <- config/sources.yaml fred
 --   raw_fred_series    FRED metadata history, every run
 --
 -- This is the expected set, built from config, not from what was downloaded:
@@ -15,8 +16,8 @@
 -- units here is the CURRENT units only. Each observation row carries the units
 -- of its own vintage (D19).
 --
--- expected_lag_days is NULL for now: price freshness needs the trading calendar
--- and GDP freshness needs FRED release dates (M1 open items). Step 4 fills it.
+-- expected_lag_days: days after a period ends by which it is due, from
+-- sources.yaml (D33). Prices count periods in XNYS sessions (C02, C17).
 
 WITH fred_current AS (
     -- the metadata window still open (realtime_end 9999-12-31), from the newest run
@@ -39,7 +40,7 @@ SELECT
     'raw'                           AS kind,
     first_expected                  AS active_from,
     active_to,
-    CAST(NULL AS INTEGER)           AS expected_lag_days
+    expected_lag_days
 FROM watchlist_windows
 
 UNION ALL
@@ -58,6 +59,6 @@ SELECT
     'raw',
     CAST(m.observation_start AS DATE),
     NULL,
-    CAST(NULL AS INTEGER)
+    e.expected_lag_days
 FROM fred_expected AS e
 LEFT JOIN fred_current AS m USING (fred_id)

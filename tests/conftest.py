@@ -21,8 +21,8 @@ def root(monkeypatch, tmp_path):
     monkeypatch.setenv("PHAROS_TEST_MODE", "1")
     monkeypatch.setenv("PHAROS_DATA_ROOT", str(data))
     monkeypatch.setattr(config, "sources", lambda: {
-        "backfill_start": date(2026, 1, 1), "fred": {"series": ["GDP"]},
-        "yahoo": {"required_series": ["close"]}})
+        "backfill_start": date(2026, 1, 1), "fred": {"series": ["GDP"], "expected_lag_days": {"GDP": 35}},
+        "yahoo": {"required_series": ["close"], "expected_lag_days": 0}})
     monkeypatch.setattr(config, "watchlist", lambda: [
         {"ticker": "NVDA", "yahoo_symbol": "NVDA", "active_from": date(2026, 10, 5), "active_to": None}])
     return data

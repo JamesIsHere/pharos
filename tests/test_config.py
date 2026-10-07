@@ -60,3 +60,11 @@ def test_sources_yahoo_settings_explicit():
 def test_sources_fred_series_unique():
     series = load_sources()["fred"]["series"]
     assert series and len(series) == len(set(series))
+
+
+def test_every_fred_series_has_an_expected_lag():
+    cfg = load_sources()
+    lags = cfg["fred"]["expected_lag_days"]
+    assert sorted(lags) == sorted(cfg["fred"]["series"])
+    assert all(isinstance(v, int) and v >= 0 for v in lags.values())
+    assert isinstance(cfg["yahoo"]["expected_lag_days"], int)

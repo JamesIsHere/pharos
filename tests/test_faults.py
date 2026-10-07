@@ -3,6 +3,8 @@ to catch. A clean staged run passes first, so a check that fires on clean data
 can't hide behind its fault test. Faults are injected into the staged tables
 of a tiny synthetic run (conftest.py), never into real data."""
 
+import json
+
 import duckdb
 import pytest
 
@@ -324,3 +326,53 @@ def test_c01_evaluated_at_view_time(staged_run):
     assert result(run_checks(staged_run), "C01")["status"] == "pass"
     later = datetime(2026, 10, 8, 16, 0, tzinfo=timezone.utc)   # 27h after the publish
     assert result(run_checks(staged_run, now=later), "C01")["status"] == "error"
+
+
+def freshness(evaluation):
+    """(C02 status, C17 status, series ids each reports)."""
+    out = []
+    for cid in ("C02", "C17"):
+        r = result(evaluation, cid)
+        assert r["error"] is None, r["error"]
+        ids = sorted({row["series_id"] for row in json.loads(r["sample"])}) if r["sample"] else []
+        out += [r["status"], ids]
+    return tuple(out)
+
+
+def at(day, hour=12):
+    from datetime import datetime, timezone
+    return datetime(2026, *day, hour, tzinfo=timezone.utc)
+
+
+# fixture: NVDA closes 2026-10-05 (Mon) and 10-06 (Tue); GDP 2026-04-01 (Q2), lag 35
+@pytest.mark.parametrize("now, expected", [
+    (None,         ("pass", [], "pass", [])),                          # run 10-07: due 10-06, GDP Q2
+    (at((10, 8)),  ("warn", ["yf:close:NVDA"], "pass", [])),          # 10-07 due: 1 session
+    (at((10, 9)),  ("pass", [], "error", ["yf:close:NVDA"])),         # 10-07, 10-08: 2 sessions
+    (at((11, 4)),  ("pass", [], "error", ["yf:close:NVDA"])),         # GDP: Q3 due from 11-05
+    (at((11, 5)),  ("warn", ["fred:GDP"], "error", ["yf:close:NVDA"])),  # Sep 30 + 35 = Nov 4 < Nov 5
+])
+def test_c02_c17_periods_behind(staged_run, now, expected):
+    e = run_checks(staged_run, now=now)
+    assert freshness(e) == expected
+    assert e.verdict == "passed"   # monitors never block
+
+
+def test_c02_weekend_is_not_late(staged_run):
+    # latest close Friday 10-02; on Monday 10-05 the only due session is Friday's
+    tamper(staged_run, "observations", "SELECT * REPLACE (CASE WHEN series_id = 'yf:close:NVDA' "
+                                       "THEN obs_date - 4 ELSE obs_date END AS obs_date) FROM t")
+    assert freshness(run_checks(staged_run, now=at((10, 5))))[0::2] == ("pass", "pass")
+    assert freshness(run_checks(staged_run, now=at((10, 6))))[0] == "warn"   # Monday's close now due
+
+
+def test_c17_unknown_frequency_fails_loud(staged_run):
+    tamper(staged_run, "series_catalog", "SELECT * REPLACE (CASE WHEN series_id = 'fred:GDP' THEN 'W' "
+                                         "ELSE frequency END AS frequency) FROM t")
+    assert freshness(run_checks(staged_run))[2:] == ("error", ["fred:GDP"])
+
+
+def test_c02_ended_series_is_out_of_scope(staged_run):
+    tamper(staged_run, "series_catalog", "SELECT * REPLACE (CASE WHEN series_id = 'yf:close:NVDA' "
+                                         "THEN DATE '2026-10-06' ELSE active_to END AS active_to) FROM t")
+    assert freshness(run_checks(staged_run, now=at((10, 9))))[2:] == ("pass", [])

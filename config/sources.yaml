@@ -16,6 +16,8 @@ yahoo:
   overlap_days: 10
   # Series every watchlist ticker must have (check C03).
   required_series: [close]
+  # A session's close is expected from the next UTC calendar day (checks C02, C17).
+  expected_lag_days: 0
 
 fred:
   # Pulled with every vintage (ALFRED). Names, units and frequency come from
@@ -24,3 +26,11 @@ fred:
     - GDP        # nominal GDP, quarterly, SAAR
     - GDPC1      # real GDP, quarterly, SAAR
     - CPIAUCSL   # CPI, all urban consumers, monthly, seasonally adjusted
+  # Days after a period ends by which its first release is expected (checks C02,
+  # C17; D33). Measured first-release lags 2023-2026: CPIAUCSL median 12 days,
+  # GDP and GDPC1 median 30; a few days of slack on top. Every series above must
+  # have one, or staging stops.
+  expected_lag_days:
+    GDP: 35
+    GDPC1: 35
+    CPIAUCSL: 15
