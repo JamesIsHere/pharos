@@ -184,3 +184,35 @@ def test_c08_schema_drift_blocks(staged_run, table, select, problem):
     r = result(run_checks(staged_run), "C08")
     assert (r["status"], r["failing_row_count"]) == ("error", 1)
     assert problem in r["sample"]
+
+
+NVDA_DAY = "series_id = 'yf:close:NVDA' AND obs_date = DATE '2026-10-05'"
+
+
+@pytest.mark.parametrize("change, rule", [
+    ("0.0 AS value", "price <= 0"),
+    ("-1.0 AS value", "price <= 0"),
+    # run date is 2026-10-07; available_date moves too so only one rule breaks
+    ("DATE '2026-10-08' AS obs_date, DATE '2026-10-08' AS available_date", "obs_date after run date"),
+    ("DATE '2026-10-04' AS available_date", "obs_date after available_date"),
+])
+def test_c09_impossible_price_row_blocks(staged_run, change, rule):
+    tamper(staged_run, "observations",
+           f"SELECT * REPLACE ({change}) FROM t WHERE {NVDA_DAY} UNION ALL SELECT * FROM t WHERE NOT ({NVDA_DAY})")
+    e = run_checks(staged_run)
+    r = result(e, "C09")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1)
+    assert rule in r["sample"]
+    assert e.verdict == "blocked"
+
+
+def test_c09_negative_macro_value_passes(staged_run):
+    tamper(staged_run, "observations", "SELECT * REPLACE (CASE WHEN series_id = 'fred:GDP' THEN -100.5 "
+                                       "ELSE value END AS value) FROM t")
+    assert result(run_checks(staged_run), "C09")["status"] == "pass"
+
+
+def test_c09_withdrawn_price_passes(staged_run):
+    tamper(staged_run, "observations",
+           f"SELECT * REPLACE (CASE WHEN {NVDA_DAY} THEN NULL ELSE value END AS value) FROM t")
+    assert result(run_checks(staged_run), "C09")["status"] == "pass"
