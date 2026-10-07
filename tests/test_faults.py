@@ -216,3 +216,25 @@ def test_c09_withdrawn_price_passes(staged_run):
     tamper(staged_run, "observations",
            f"SELECT * REPLACE (CASE WHEN {NVDA_DAY} THEN NULL ELSE value END AS value) FROM t")
     assert result(run_checks(staged_run), "C09")["status"] == "pass"
+
+
+NVDA_DAY2 = "series_id = 'yf:close:NVDA' AND obs_date = DATE '2026-10-06'"
+
+
+@pytest.mark.parametrize("factor, fires", [(0.5, True), (1.5, True), (1.3, False), (0.7, False)])
+def test_c10_price_jump_warns(staged_run, factor, fires):
+    # day 1 closes at 10.0; 0.5 is an unadjusted 2-for-1 split, the signature C10 must not exclude (D29)
+    tamper(staged_run, "observations",
+           f"SELECT * REPLACE (CASE WHEN {NVDA_DAY2} THEN 10.0 * {factor} ELSE value END AS value) FROM t")
+    e = run_checks(staged_run)
+    r = result(e, "C10")
+    assert (r["status"], r["failing_row_count"]) == (("warn", 1) if fires else ("pass", 0))
+    assert e.verdict == "passed"  # warn never blocks
+
+
+def test_c10_ignores_jump_in_older_vintage(staged_run):
+    tamper(staged_run, "observations",
+           "SELECT * FROM t UNION ALL SELECT * REPLACE (vintage - 30 AS vintage, "
+           f"CASE WHEN {NVDA_DAY2} THEN value * 3 ELSE value END AS value) "
+           "FROM t WHERE series_id = 'yf:close:NVDA'")
+    assert result(run_checks(staged_run), "C10")["status"] == "pass"
