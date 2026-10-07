@@ -1,7 +1,8 @@
 """Regenerates catalog.duckdb: views over the Parquet layers, for DBeaver.
 
 catalog.duckdb holds views only, never data (D1), so it is rebuilt from scratch
-each time and nothing is lost by deleting it. Views use absolute paths: DuckDB
+each time and nothing is lost by deleting it. Serving views follow serving/CURRENT
+(D30), so the catalog is rebuilt after every publish. Views use absolute paths: DuckDB
 resolves a relative path against the client's working directory, which for
 DBeaver is not the project.
 
@@ -16,6 +17,7 @@ from pathlib import Path
 import duckdb
 
 from pharos.paths import data_root
+from pharos.publish import current_version
 
 RAW_DATASETS = [("yf", "prices"), ("fred", "observations"), ("fred", "series")]
 
@@ -36,6 +38,10 @@ def views() -> dict[str, str]:
     if staged:
         for table in ("observations", "series_catalog"):
             out[f"staging_{table}"] = _read(staged[-1] / f"{table}.parquet")
+    version = current_version()
+    if version is not None:
+        for table in ("observations", "series_catalog"):
+            out[f"serving_{table}"] = _read(version / f"{table}.parquet")
     loads = root / "health" / "loads"
     if any(loads.glob("*.parquet")):
         out["health_loads"] = _read(loads / "*.parquet")

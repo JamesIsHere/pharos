@@ -102,10 +102,15 @@ def raw_file(run_id, source="yf", dataset="prices"):
 
 
 def reland(run_from, run_to):
-    """Land run_to as an identical copy of run_from through the real writer."""
+    """Land run_to as an identical copy of run_from through the real writer.
+    .df() turns DATE into TIMESTAMP, which C08 rightly blocks, so DATE columns go back to dates."""
     for source, dataset in [("yf", "prices"), ("fred", "observations"), ("fred", "series")]:
-        frame = duckdb.sql(f"SELECT * EXCLUDE (run_id, loaded_at) FROM "
-                           f"read_parquet('{raw_file(run_from, source, dataset).as_posix()}')").df()
+        rel = duckdb.sql(f"SELECT * EXCLUDE (run_id, loaded_at) FROM "
+                         f"read_parquet('{raw_file(run_from, source, dataset).as_posix()}')")
+        frame = rel.df()
+        for column, kind in zip(rel.columns, rel.types):
+            if str(kind) == "DATE":
+                frame[column] = frame[column].dt.date
         write_raw(frame, source, dataset, run_to)
 
 
