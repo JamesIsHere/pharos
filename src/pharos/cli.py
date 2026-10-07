@@ -102,9 +102,15 @@ def cmd_audit(args: argparse.Namespace) -> int:
     a = audit()
     print(f"audit of published run {a.run_id}: {'passed' if a.passed else 'FAILED'}")
     print(f"comparisons {a.comparisons}")
+    def line(f):
+        when = f" {f['obs_date']} rel_diff {f['rel_diff']:+.4%}" if f["obs_date"] else ""
+        return f"  {f['ticker']:<6} {f['problem']}{when}"
+    print(f"{len(a.disagreements)} isolated print disagreements (reported, not blocking):")
+    for f in a.disagreements:
+        print(line(f))
+    print(f"{len(a.failures)} blocking:")
     for f in a.failures:
-        when = f" {f['obs_date']} ({f['pick']}) rel_diff {f['rel_diff']:+.4%}" if f["obs_date"] else ""
-        print(f"  {f['ticker']:<6} {f['problem']}{when}")
+        print(line(f))
     if not a.passed:
         print("no baseline recorded")
         return 1

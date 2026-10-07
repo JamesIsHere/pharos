@@ -179,8 +179,10 @@ def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = Non
     if reclassified:                                  # executemany refuses an empty list
         con.executemany("INSERT INTO reclassified VALUES (?, ?)", reclassified)
     # Views shared by a check and the opening-balance audit, one SQL file each:
-    # Yahoo vs Tiingo on sampled dates (C12, D38) and per-series baseline
-    # metrics (C13, D39).
+    # Yahoo vs Tiingo on every common date (the audit, D41) and C12's draw from
+    # it (D38), and per-series baseline metrics (C13, D39).
+    _bind_shared(con, "reconcile_all", "ticker VARCHAR, obs_date DATE, yahoo_close DOUBLE, "
+                 "tiingo_close DOUBLE, tiingo_raw_close DOUBLE, rel_diff DOUBLE")
     _bind_shared(con, "reconcile_sample", "ticker VARCHAR, obs_date DATE, yahoo_close DOUBLE, "
                  "tiingo_close DOUBLE, tiingo_raw_close DOUBLE, rel_diff DOUBLE, pick VARCHAR")
     _bind_shared(con, "baseline_metrics", "series_id VARCHAR, first_date DATE, last_date DATE, row_count BIGINT")

@@ -1,5 +1,6 @@
-"""Opening-balance audit (D39): a baseline is recorded only when every active
-ticker reconciles on at least 5 random dates; every comparison is written
+"""Opening-balance audit (D39, D41): every common date is compared; an
+isolated day over 0.5% is reported, anything else over it blocks, and so does
+an active ticker with fewer than 5 dates compared. Every comparison is written
 either way. Synthetic data only: one ticker with 11 XNYS sessions, plus GDP."""
 
 from datetime import date
@@ -55,45 +56,58 @@ def read(path):
     return duckdb.sql(f"SELECT * FROM read_parquet('{path.as_posix()}') ORDER BY ALL").fetchall()
 
 
+def off(*days, by=1.006):
+    """Tiingo closes with the given sessions off by `by`."""
+    return [(100 + 0.5 * i) * (by if d in days else 1) for i, d in enumerate(SESSIONS)]
+
+
 def test_agreeing_sources_record_the_baseline(published):
     land()
     a = audit()
-    assert a.passed and a.failures == [] and a.baseline.name == f"{RUN}.parquet"
-    rows = duckdb.sql(f"SELECT ticker, pick, problem FROM read_parquet('{a.comparisons.as_posix()}')").fetchall()
-    assert len(rows) == 6 and sum(p == "random" for _, p, _ in rows) == 5
-    assert all(problem is None for _, _, problem in rows)
+    assert a.passed and a.failures == [] and a.disagreements == [] and a.baseline.name == f"{RUN}.parquet"
+    rows = duckdb.sql(f"SELECT problem FROM read_parquet('{a.comparisons.as_posix()}')").fetchall()
+    assert rows == [(None,)] * len(SESSIONS)                # every common date compared
     assert [r[:4] for r in read(a.baseline)] == [
         ("fred:GDP", date(2026, 4, 1), date(2026, 4, 1), 1),
         ("yf:close:NVDA", SESSIONS[0], SESSIONS[-1], len(SESSIONS))]
 
 
-def test_one_date_over_tolerance_records_nothing_but_writes_every_comparison(published):
-    land()
-    sampled = [r[1] for r in duckdb.sql(
-        f"SELECT ticker, obs_date FROM read_parquet('{audit().comparisons.as_posix()}')").fetchall()]
-    # start over with Tiingo 0.6% off on one sampled date (same run_id, same draw)
-    for p in sorted(published.rglob("*"), reverse=True):
-        p.unlink() if p.is_file() else p.rmdir()
-    off = sampled[0]
-    land(tiingo_closes=[(100 + 0.5 * i) * (1.006 if d == off else 1) for i, d in enumerate(SESSIONS)])
+def test_isolated_day_is_reported_and_does_not_block(published):
+    land(tiingo_closes=off(SESSIONS[5]))
+    a = audit()
+    assert a.passed and a.failures == []
+    assert [(f["ticker"], f["obs_date"], f["problem"]) for f in a.disagreements] == [
+        ("NVDA", SESSIONS[5], "print disagreement")]
+
+
+@pytest.mark.parametrize("days", [(SESSIONS[5], SESSIONS[6]), (SESSIONS[0],), (SESSIONS[-1],)],
+                         ids=["two consecutive", "first date", "last date"])
+def test_disagreement_that_is_not_isolated_blocks(published, days):
+    land(tiingo_closes=off(*days))
     a = audit()
     assert not a.passed and a.baseline is None and not any(baseline_dir().glob("*.parquet"))
-    assert [(f["ticker"], f["obs_date"], f["problem"]) for f in a.failures] == [("NVDA", off, "over tolerance")]
-    assert len(read(a.comparisons)) == 6                    # the passing comparisons are recorded too
+    assert [(f["obs_date"], f["problem"]) for f in a.failures] == [(d, "disagreement not isolated") for d in days]
+    assert len(read(a.comparisons)) == len(SESSIONS)        # the passing comparisons are recorded too
 
 
-def test_fewer_than_5_random_dates_records_nothing(published):
+def test_within_tolerance_does_not_count(published):
+    land(tiingo_closes=off(SESSIONS[5], SESSIONS[6], by=1.004))
+    a = audit()
+    assert a.passed and a.disagreements == []
+
+
+def test_fewer_than_5_common_dates_records_nothing(published):
     land(tiingo_days=SESSIONS[:4])
     a = audit()
     assert not a.passed
-    assert [(f["ticker"], f["problem"]) for f in a.failures] == [("NVDA", "only 4 random dates compared")]
+    assert [(f["ticker"], f["problem"]) for f in a.failures] == [("NVDA", "only 4 common dates compared")]
 
 
 def test_active_ticker_missing_from_tiingo_records_nothing(published):
     land(tiingo_ticker="MSFT")                   # Tiingo answered, but not for NVDA
     a = audit()
     assert not a.passed
-    assert [(f["ticker"], f["problem"]) for f in a.failures] == [("NVDA", "only 0 random dates compared")]
+    assert [(f["ticker"], f["problem"]) for f in a.failures] == [("NVDA", "only 0 common dates compared")]
 
 
 def test_ended_ticker_is_not_required(published, monkeypatch):
@@ -121,4 +135,4 @@ def test_cli_exit_code(published, capsys):
     land(tiingo_days=SESSIONS[:4])
     assert cli.main(["audit"]) == 1
     out = capsys.readouterr().out
-    assert "FAILED" in out and "no baseline recorded" in out and "only 4 random dates" in out
+    assert "FAILED" in out and "no baseline recorded" in out and "only 4 common dates" in out

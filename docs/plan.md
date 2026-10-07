@@ -2,11 +2,11 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M1, steps 1-6 and 3b of 10 built. Step 7 code complete, live run pending: Tiingo loader + wiring, C12, C13, C18-C20, `pharos audit` (all or nothing, D39). The step closes when a live audit records the baseline (acceptance #4)
-- **Health:** YELLOW at 2026-10-07 18:30 UTC (`pharos health`): C12 (GOOGL 2006-03-15, fixed by D40 in this commit; clears next evaluation), C13 (no baseline recorded), C15 ATVI and C16 CPI Oct 2025 (documented expected states, #31). C18-C20 pass. serving/CURRENT = 20261007T182814Z
-- **Last session:** 2026-10-07 (third session): audit rule decided (all or nothing, D39), `pharos audit`, C13, baseline_metrics.sql; first live Tiingo pull (#33 closed); GOOGL 2014 distribution reclassified via config/corporate_actions.csv (D40, #35 closed); full-population reconciliation found 38 single-day disagreements (#36). 199 tests pass
-- **Next action:** decide how the audit handles the 38 single-day disagreements (#36), then `pharos audit` to record the baseline. The audit is held until then: on this draw it would pass and record a baseline over known disagreements
-- **Blockers / open questions:** OPEN: #36, the audit's treatment of known single-day disagreements. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
+- **Milestone:** M1, steps 1-7 and 3b of 10 built. Step 7 closed live: baseline recorded from run 20261007T182814Z (acceptance #4). Next is step 8, the health page
+- **Health:** YELLOW at 2026-10-07 18:39 UTC (`pharos health`): only the documented expected states, C15 ATVI and C16 CPI Oct 2025 (#31); acceptance #3 holds. C12, C13, C18-C20 pass. serving/CURRENT = 20261007T182814Z
+- **Last session:** 2026-10-07 (third session): step 7 done. `pharos audit` (D39), full-population shape rule (D41), C13, GOOGL 2014 distribution reclassified (D40). Live: Tiingo landed (#33 closed), audit compared 85,110 dates, 38 isolated print disagreements reported (#36 closed), baseline recorded for 20 series. 203 tests pass
+- **Next action:** decide #37 (size cap on isolated print disagreements, or accept), then step 8, the health page
+- **Blockers / open questions:** OPEN: #37. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
 <!-- Every concern or finding not fixed in the turn it comes up goes here before that turn ends. IDs never change or get reused. Fixing an issue deletes its row in the same commit, and the commit message cites the ID; git history is the record. -->
@@ -24,7 +24,7 @@
 | 31  | Documented expected states (C15 ATVI, C16 CPI Oct 2025) hold health at yellow permanently        | A yellow that never clears trains the eye to ignore yellow; acceptance #3 says green apart from them | step 8 (roll-up)   |
 | 32  | Status roll-up is overall only; design.md section 7 rolls up per source, then overall           | Health page traffic light per source has no data behind it             | step 8             |
 | 34  | A series added after the audit has no baseline row; C13 never compares it                        | A watchlist addition can lose history with C13 green                   | before any watchlist change |
-| 36  | Full population of 20261007T182814Z: 38 of ~88,000 common dates on 10 tickers differ by 0.50-1.40%, each an isolated day (neighbors agree exactly), clustered on shared dates (2006-01-18 x5 tickers, 2006-06-09 x4) | The 5-date sample finds them by luck (~3.5% per audit), so the baseline would usually record over known disagreements; which source is right is unknown | step 7 (before the baseline) |
+| 37  | The audit's shape rule passes an isolated print disagreement of any size; C10 only catches moves over 40% | One bad isolated print between 0.5% and 40% is reported but never blocks | before step 8 |
 
 ---
 
@@ -47,7 +47,7 @@
 - [x] 4. Checks C01–C16 in `checks/*.sql`; runner; write-audit-publish gate with atomic swap; run manifest
 - [x] 5. `pharos health` CLI + `health/latest.md`
 - [x] 6. Fault-injection tests (5 faults, design.md §7)
-- [ ] 7. Opening-balance audit against the second source; record baseline
+- [x] 7. Opening-balance audit against the second source; record baseline
 - [ ] 8. Health page (traffic lights, coverage heatmap, row counts by run, run strip, failing checks, spot-check panel)
 - [ ] 9. Home + Charts pages (overlay, date range buttons, rebase-to-100 default, log toggle, URL state)
 - [ ] 10. Desktop launcher (`open-dashboard.ps1`, shortcut, lighthouse .ico; there is no lighthouse emoji, so draw one) + `register-tasks.ps1` (nightly refresh, run-after-missed-start, BurntToast on failure)
