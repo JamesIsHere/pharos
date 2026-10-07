@@ -49,7 +49,8 @@ catalog.duckdb: views over serving/ and health/, for DBeaver
 ### observations
 | column | notes |
 |---|---|
-| series_id, obs_date, value | |
+| series_id, obs_date, value | value NULL = the vintage withdrew the value (FRED "."); kept so "latest vintage" can't resurrect a withdrawn number. Serving drops NULLs only after picking the latest vintage |
+| units | units in force for this row's vintage (macro: from the FRED metadata window containing the vintage). Can differ from `series_catalog.units`, which is the current units (D19) |
 | available_date | date the value became knowable: trade date (prices), vintage release date (macro), filing date (fundamentals) |
 | vintage | prices: date of the full-history pull that set the current split adjustment (nightly incremental rows inherit it; a new split starts a new one); macro: ALFRED `realtime_start`; fundamentals: accession filing date |
 | run_id, loaded_at | lineage |
@@ -216,3 +217,4 @@ Before trusting the first backfill:
 | D16 | 2026-10-07 | Data root is `data/` inside the repo folder, gitignored; `PHAROS_DATA_ROOT` stays the only path source | The weekly workshop mirror backs it up, and `raw/` is append-only and partly irreplaceable (old yfinance pulls); the real risk, committing data to a public repo, is closed by the ignore rule | Data root outside the repo (`D:\data\pharos`: not mirrored); sibling workshop folder (breaks the one-folder-per-project rule) |
 | D17 | 2026-10-07 | Checks are gate or monitor. Only gate checks (C03–C11) can block a publish; C01, C02, C12, C13 are monitor-only | C01 at gate deadlocks: after two missed nights every run is blocked, so the last success never gets newer. World-state checks can't be fixed by blocking; they only withhold valid data | Every error-severity check gates |
 | D18 | 2026-10-07 | Raw is a write-once snapshot log per run; dedup in staging; price vintage = adjustment epoch; C14 catches same-key value conflicts | Append-only raw + full FRED re-pull + "rerun adds zero rows" + C06 couldn't all hold. Repeated source testimony is the audit trail; write-once files also protect the mirror backup | Land only new keys (loses evidence of what the source returned; transform logic at load time) |
+| D19 | 2026-10-07 | `units` lives on every observation row, set by the vintage's metadata window; `series_catalog.units` is the current units only | Units change across vintages (GDPC1 has 8 base years, CPIAUCSL rebased 1967 -> 1982-84 at the 1988-02-26 vintage). Catalog-only units mislabel point-in-time and revision reads, and fail silently | Separate units-history table joined on vintage (every consumer must remember the join); one series_id per units regime (breaks one series, many vintages, D13) |
