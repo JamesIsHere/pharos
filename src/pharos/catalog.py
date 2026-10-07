@@ -45,6 +45,9 @@ def views() -> dict[str, str]:
     loads = root / "health" / "loads"
     if any(loads.glob("*.parquet")):
         out["health_loads"] = _read(loads / "*.parquet")
+    manifests = root / "health" / "run_manifest"
+    if any(manifests.glob("*.parquet")):
+        out["health_run_manifest"] = _read(manifests / "*.parquet")
     return out
 
 

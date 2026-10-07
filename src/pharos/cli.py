@@ -69,6 +69,24 @@ def cmd_publish(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_refresh(args: argparse.Namespace) -> int:
+    from pharos import catalog
+    from pharos.refresh import refresh
+
+    run_id, pub = refresh()
+    e = pub.evaluation
+    print(f"run {run_id}: checks {e.verdict}  ({e.path})")
+    for r in e.results:
+        if r["status"] != "pass":
+            print(f"  {r['check_id']} {r['status']:<6} {r['failing_row_count'] or '':>6}  {r['error'] or r['description']}")
+    if pub.version is None:
+        print("not published: serving/ is unchanged")
+        return 1
+    print(f"published {pub.version}")
+    print(f"catalog {catalog.rebuild()}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pharos", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -86,6 +104,9 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("publish", help="run the checks on a staged run and publish it to serving/ if they pass")
     p.add_argument("--run", help="run ID to publish (default: the latest complete run)")
     p.set_defaults(func=cmd_publish)
+
+    p = sub.add_parser("refresh", help="load, stage, check and publish a new run; writes the run manifest")
+    p.set_defaults(func=cmd_refresh)
 
     args = parser.parse_args(argv)
     return args.func(args)
