@@ -19,7 +19,7 @@ import duckdb
 from pharos.paths import data_root
 from pharos.publish import current_version
 
-RAW_DATASETS = [("yf", "prices"), ("fred", "observations"), ("fred", "series")]
+RAW_DATASETS = [("yf", "prices"), ("fred", "observations"), ("fred", "series"), ("tiingo", "prices")]
 
 
 class CatalogLockedError(RuntimeError):

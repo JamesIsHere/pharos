@@ -33,6 +33,7 @@ def loaders(staged_run, monkeypatch):
         copy_raw(staged_run, "fred", "observations", run)
         copy_raw(staged_run, "fred", "series", run)
     monkeypatch.setattr(refresh_mod.fred, "load_macro", fred)
+    monkeypatch.setattr(refresh_mod.tiingo, "load_prices", lambda run: copy_raw(staged_run, "tiingo", "prices", run))
     return monkeypatch
 
 
@@ -46,11 +47,13 @@ def test_published_run(loaders):
     run_id, pub = refresh_mod.refresh()
     assert run_id == RUN2 and current_version() == pub.version
     rows = manifest()
-    assert [(r["source"], r["dataset"]) for r in rows] == [("fred", "observations"), ("fred", "series"), ("yf", "prices")]
+    assert [(r["source"], r["dataset"]) for r in rows] == [("fred", "observations"), ("fred", "series"),
+                                                          ("tiingo", "prices"), ("yf", "prices")]
     assert {r["status"] for r in rows} == {"published"}
     assert all(r["published_at"] is not None and r["error"] is None for r in rows)
-    assert [(r["rows_downloaded"], r["rows_landed"]) for r in rows] == [(1, 1), (1, 1), (2, 2)]
-    assert [str(r["latest_obs_date"]) for r in rows] == ["2026-04-01", "None", "2026-10-06"]
+    assert [(r["rows_downloaded"], r["rows_landed"]) for r in rows] == [(1, 1), (1, 1), (2, 2), (2, 2)]
+    assert [str(r["latest_obs_date"]) for r in rows] == ["2026-04-01", "None", "2026-10-06", "2026-10-06"]
+    assert all(r["dataset_error"] is None for r in rows)
     # C01 only: nothing was published before this run (D32)
     assert (rows[0]["checks_error"], rows[0]["checks_broken"]) == (1, 0)
     assert rows[0]["started_at"] <= rows[0]["finished_at"] == rows[0]["published_at"]
@@ -81,3 +84,29 @@ def test_crash_writes_failed_manifest_and_reraises(loaders):
     assert by_ds[("fred", "observations")]["rows_landed"] is None  # never loaded
     assert all(r["latest_obs_date"] is None for r in rows)         # never staged
     assert current_version() is None
+
+
+def test_tiingo_failure_still_publishes_and_health_shows_it(loaders):
+    def down(run):
+        raise ConnectionError("Tiingo unreachable")
+    loaders.setattr(refresh_mod.tiingo, "load_prices", down)
+    run_id, pub = refresh_mod.refresh()                     # no exception: the run goes on (D37)
+    assert pub.version is not None and current_version() == pub.version
+    by_ds = {(r["source"], r["dataset"]): r for r in manifest()}
+    assert {r["status"] for r in by_ds.values()} == {"published"}
+    assert "Tiingo unreachable" in by_ds[("tiingo", "prices")]["dataset_error"]
+    assert by_ds[("tiingo", "prices")]["rows_landed"] is None
+    assert all(r["error"] is None for r in by_ds.values())
+    assert by_ds[("yf", "prices")]["dataset_error"] is None
+    from datetime import datetime, timezone
+    from pharos import health
+    h = health.evaluate(datetime(2026, 10, 8, 15, tzinfo=timezone.utc))
+    assert h.status == "red"
+    assert next(r for r in h.results if r["check_id"] == "C18")["status"] == "error"
+
+
+def test_reference_load_record_does_not_change_completeness(staged_run):
+    # the fixture run has a Tiingo load record on top of the three required ones (D36)
+    from pharos.stage import complete_runs
+    assert len(list(data_root().glob("health/loads/*tiingo*"))) == 1
+    assert complete_runs() == [staged_run]

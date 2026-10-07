@@ -38,8 +38,12 @@ class StageError(RuntimeError):
 def complete_runs() -> list[str]:
     """Run IDs with a load record for every dataset, oldest first."""
     records = (data_root() / "health" / "loads").as_posix() + "/*.parquet"
+    # only the required datasets count: a reference load (Tiingo) neither makes
+    # nor breaks a run's completeness (D36)
+    required = ", ".join(f"'{s}/{d}'" for s, d in DATASETS)
     rows = duckdb.sql(
         f"""SELECT run_id FROM read_parquet('{records}')
+            WHERE source || '/' || dataset IN ({required})
             GROUP BY run_id
             HAVING count(DISTINCT source || '/' || dataset) = {len(DATASETS)}
             ORDER BY run_id""").fetchall()

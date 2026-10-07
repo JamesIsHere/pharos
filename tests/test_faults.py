@@ -4,6 +4,7 @@ can't hide behind its fault test. Faults are injected into the staged tables
 of a tiny synthetic run (conftest.py), never into real data."""
 
 import json
+from datetime import date
 
 import duckdb
 import pytest
@@ -376,3 +377,46 @@ def test_c02_ended_series_is_out_of_scope(staged_run):
     tamper(staged_run, "series_catalog", "SELECT * REPLACE (CASE WHEN series_id = 'yf:close:NVDA' "
                                          "THEN DATE '2026-10-06' ELSE active_to END AS active_to) FROM t")
     assert freshness(run_checks(staged_run, now=at((10, 9))))[2:] == ("pass", [])
+
+
+def rewrite_tiingo(run_id, select):
+    """Rewrite this run's Tiingo raw file as `select` over its rows (named t).
+    C05 also fires (the file no longer matches its load record); only C18-C20 are asserted."""
+    path = raw_file(run_id, "tiingo", "prices")
+    con = duckdb.connect()
+    con.execute(f"CREATE TABLE t AS SELECT * FROM read_parquet('{path.as_posix()}')")
+    con.execute(f"COPY ({select}) TO '{path.as_posix()}' (FORMAT parquet)")
+    con.close()
+
+
+def test_c18_c19_c20_pass_on_clean_run(staged_run):
+    e = run_checks(staged_run)
+    assert [result(e, c)["status"] for c in ("C18", "C19", "C20")] == ["pass", "pass", "pass"]
+
+
+def test_c18_missing_reference_file_is_red(staged_run):
+    raw_file(staged_run, "tiingo", "prices").unlink()
+    r = result(run_checks(staged_run), "C18")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1)
+    assert "NVDA" in r["sample"]
+
+
+def test_c18_ended_ticker_is_not_expected(staged_run, monkeypatch):
+    raw_file(staged_run, "tiingo", "prices").unlink()
+    from pharos import config
+    monkeypatch.setattr(config, "watchlist", lambda: [
+        {"ticker": "NVDA", "yahoo_symbol": "NVDA", "active_from": date(2026, 10, 5), "active_to": date(2026, 10, 6)}])
+    assert result(run_checks(staged_run), "C18")["status"] == "pass"
+
+
+def test_c19_duplicate_reference_day_is_red(staged_run):
+    rewrite_tiingo(staged_run, "SELECT * FROM t UNION ALL (SELECT * FROM t LIMIT 1)")
+    r = result(run_checks(staged_run), "C19")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1)
+
+
+def test_c20_reference_behind_due_session_warns(staged_run):
+    from datetime import datetime, timezone
+    later = datetime(2026, 10, 8, 12, tzinfo=timezone.utc)      # 10-07 is due, Tiingo ends 10-06
+    r = result(run_checks(staged_run, now=later), "C20")
+    assert (r["status"], r["failing_row_count"]) == ("warn", 1)

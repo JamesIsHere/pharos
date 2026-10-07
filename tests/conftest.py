@@ -14,6 +14,23 @@ from pharos.stage import stage
 RUN = "20261007T140000Z"
 
 
+@pytest.fixture(autouse=True)
+def no_tiingo_network(monkeypatch):
+    """No test reaches Tiingo: an empty key makes the loader refuse, and .env
+    loading never overrides a variable that is already set."""
+    monkeypatch.setenv("TIINGO_API_KEY", "")
+
+
+def tiingo_rows(ticker, days, closes):
+    n = len(days)
+    return pd.DataFrame({"ticker": [ticker] * n, "tiingo_symbol": [ticker.replace(".", "-")] * n,
+                         "obs_date": days, "open": closes, "high": closes, "low": closes, "close": closes,
+                         "volume": [100] * n, "adj_open": closes, "adj_high": closes, "adj_low": closes,
+                         "adj_close": closes, "adj_volume": [100] * n, "div_cash": [0.0] * n,
+                         "split_factor": [1.0] * n, "pull_start": [date(2026, 1, 1)] * n,
+                         "pull_end": [days[-1]] * n})
+
+
 @pytest.fixture
 def root(monkeypatch, tmp_path):
     data = tmp_path / "data"
@@ -30,7 +47,8 @@ def root(monkeypatch, tmp_path):
 
 @pytest.fixture
 def staged_run(root):
-    """One complete run, staged: two NVDA closes and one GDP value."""
+    """One complete run, staged: two NVDA closes and one GDP value, plus the same
+    two NVDA closes from the reference source (Tiingo)."""
     n = 2
     write_raw(pd.DataFrame({
         "ticker": ["NVDA"] * n, "yahoo_symbol": ["NVDA"] * n,
@@ -45,5 +63,6 @@ def staged_run(root):
                             "seasonal_adjustment_short": ["SAAR"], "observation_start": ["2026-04-01"],
                             "realtime_start": [date(1991, 12, 4)], "realtime_end": [date(9999, 12, 31)],
                             "units": ["Billions of Dollars"]}), "fred", "series", RUN)
+    write_raw(tiingo_rows("NVDA", [date(2026, 10, 5), date(2026, 10, 6)], [10.0, 11.0]), "tiingo", "prices", RUN)
     stage(RUN)
     return RUN

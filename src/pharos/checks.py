@@ -142,6 +142,14 @@ def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = Non
         con.execute(f"CREATE VIEW {table} AS SELECT * FROM "
                     f"read_parquet('{(staged / f'{table}.parquet').as_posix()}')")
     bind_raw(con, [r for r in runs if r <= run_id])
+    # the reference source, this run's file only (D37); a run without one binds
+    # an empty table of the same shape, so C18 reports the gap instead of breaking
+    tiingo = data_root() / "raw" / "tiingo" / "prices" / f"{run_id}.parquet"
+    if tiingo.exists():
+        con.execute(f"CREATE VIEW raw_tiingo_prices AS SELECT * FROM read_parquet('{tiingo.as_posix()}')")
+    else:
+        con.execute("CREATE TABLE raw_tiingo_prices (ticker VARCHAR, tiingo_symbol VARCHAR, obs_date DATE, "
+                    "close DOUBLE, split_factor DOUBLE, div_cash DOUBLE)")
     bind_config(con)
     con.execute("CREATE TABLE required_series (measure VARCHAR)")
     con.executemany("INSERT INTO required_series VALUES (?)",

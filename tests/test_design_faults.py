@@ -23,6 +23,7 @@ from pharos.paths import data_root
 from pharos.publish import current_version
 from pharos.runs import write_raw
 from pharos.stage import stage
+from conftest import tiingo_rows
 
 RUN1, RUN2 = "20261007T140000Z", "20261008T140000Z"
 FIRST = date(2026, 8, 3)
@@ -54,6 +55,9 @@ def run(monkeypatch, run_id, prices):
     monkeypatch.setattr(refresh_mod, "new_run_id", lambda: run_id)
     monkeypatch.setattr(refresh_mod.yahoo, "load_prices", lambda r: write_raw(prices, "yf", "prices", r))
     monkeypatch.setattr(refresh_mod.fred, "load_macro", fred_raw)
+    days = sorted(set(prices["obs_date"]))
+    monkeypatch.setattr(refresh_mod.tiingo, "load_prices", lambda r: write_raw(
+        tiingo_rows("NVDA", days, [100 + 0.5 * i for i in range(len(days))]), "tiingo", "prices", r))
     return refresh_mod.refresh()[1]
 
 
@@ -104,6 +108,7 @@ def test_fault_2_duplicate_day(published):
     run3 = "20261009T140000Z"
     write_raw(bars(SESSIONS[-5:], full=False), "yf", "prices", run3)
     fred_raw(run3)
+    write_raw(tiingo_rows("NVDA", SESSIONS[-5:], [1.0] * 5), "tiingo", "prices", run3)
     stage(run3)
     tamper(run3, "observations", "SELECT * FROM t UNION ALL (SELECT * FROM t "
                                  f"WHERE series_id = 'yf:close:NVDA' AND obs_date = DATE '{day}' LIMIT 1)")
