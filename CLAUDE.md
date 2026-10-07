@@ -8,7 +8,7 @@ Pharos (named for the lighthouse of Alexandria) is a local-first data platform: 
 
 ## Session protocol
 1. Start: run `uv run pharos health`. If anything is red, fix the data first. Never build features on red.
-2. During: one milestone at a time. If a design decision changes, add a row to the decision log in `docs/design.md` in the same commit.
+2. During: one milestone at a time. If a design decision changes, add a row to the decision log in `docs/design.md` in the same commit. Any concern or finding not fixed in the turn it comes up gets a row in "Open issues" in `docs/plan.md` before that turn ends; fixing one deletes the row and the commit cites its ID.
 3. End: update the status block at the top of `docs/plan.md`, then commit. The commit message says what changed and why. Git history is the log; don't create separate log or state files.
 
 ## Stack
