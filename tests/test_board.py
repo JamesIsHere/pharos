@@ -188,23 +188,48 @@ def chart_page(published, params):
 
 
 def traces(page):
+    """Each drawn line: (series, color, line shape, y axis) in drawing order."""
     spec = json.loads(page.get("plotly_chart")[0].proto.spec)
-    return {t["name"]: (t["line"]["color"], t["line"]["shape"]) for t in spec["data"]}
+    return [(t["name"], t["line"]["color"], t["line"]["shape"], t["yaxis"]) for t in spec["data"]]
 
 
-def test_charts_restore_from_url_with_slot_colors(published):
-    from_url = {"s": ",fred:GDP,yf:close:NVDA", "r": "Max", "rebase": "0", "log": "1"}
+def panels_in_url(page):
+    """The p parameters; AppTest hands back a single one as a plain string."""
+    p = page.query_params["p"]
+    return [p] if isinstance(p, str) else list(p)
+
+
+def axes(page):
+    layout = json.loads(page.get("plotly_chart")[0].proto.spec)["layout"]
+    return [layout[k].get("type", "linear") for k in sorted(k for k in layout if k.startswith("yaxis"))]
+
+
+def test_charts_restore_panels_from_url_with_slot_colors(published):
+    from_url = {"s": ",fred:GDP,yf:close:NVDA", "r": "Max", "p": ["l~fred:GDP", "r~yf:close:NVDA"]}
     page = chart_page(published, from_url)
-    assert traces(page) == {"fred:GDP": ("#eb6834", "hv"), "yf:close:NVDA": ("#1baf7a", "linear")}
-    assert (page.toggle[0].value, page.toggle[1].value) == (False, True)
-    assert dict(page.query_params) == from_url
+    assert traces(page) == [("fred:GDP", "#eb6834", "hv", "y"), ("yf:close:NVDA", "#1baf7a", "linear", "y2")]
+    assert axes(page) == ["log", "linear"]                      # log is per panel
+    assert [t.value for t in page.toggle] == [False, True, True, False]
+    assert {k: page.query_params[k] for k in ("s", "r")} == {"s": from_url["s"], "r": "Max"}
+    assert panels_in_url(page) == from_url["p"]
 
 
 def test_charts_removing_a_series_keeps_the_others_colors(published):
-    page = chart_page(published, {"s": "yf:close:NVDA,fred:GDP"})
+    page = chart_page(published, {"s": "yf:close:NVDA,fred:GDP", "p": ["r~yf:close:NVDA,fred:GDP"]})
     page.multiselect[0].unselect("yf:close:NVDA").run()
-    assert traces(page) == {"fred:GDP": ("#eb6834", "hv")}
+    assert traces(page) == [("fred:GDP", "#eb6834", "hv", "y")]
     assert page.query_params["s"] == ",fred:GDP"
+
+
+def test_charts_add_and_remove_panels(published):
+    page = chart_page(published, {"p": ["r~yf:close:NVDA"]})
+    next(b for b in page.button if b.label == "Add panel").click().run()
+    page.multiselect[1].select("fred:GDP").run()
+    assert [t[0] for t in traces(page)] == ["yf:close:NVDA", "fred:GDP"]
+    assert panels_in_url(page) == ["r~yf:close:NVDA", "r~fred:GDP"]
+    next(b for b in page.button if b.label == "Remove").click().run()
+    assert traces(page) == [("fred:GDP", "#eb6834", "hv", "y")]   # GDP keeps its slot
+    assert panels_in_url(page) == ["r~fred:GDP"]
 
 
 def test_home_renders_the_watchlist(published):
