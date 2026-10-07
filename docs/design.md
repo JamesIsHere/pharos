@@ -28,7 +28,7 @@ health/    run_manifest, check_results, baseline, latest.md
    |
    v
 Streamlit app (DuckDB queries -> Plotly charts)
-catalog.duckdb: views over serving/ and health/, for DBeaver
+catalog.duckdb: views over raw/, the latest staging/, serving/ and health/, for DBeaver
 ```
 
 ## 3. Data model

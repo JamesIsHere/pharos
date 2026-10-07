@@ -39,6 +39,7 @@ def cmd_load(args: argparse.Namespace) -> int:
 def cmd_stage(args: argparse.Namespace) -> int:
     import duckdb
 
+    from pharos import catalog
     from pharos.stage import stage
 
     target = stage(args.run)
@@ -46,6 +47,7 @@ def cmd_stage(args: argparse.Namespace) -> int:
     for table in ("series_catalog", "observations"):
         n = duckdb.sql(f"SELECT count(*) FROM read_parquet('{(target / f'{table}.parquet').as_posix()}')").fetchone()[0]
         print(f"  {table:<15} {n:>9,} rows")
+    print(f"catalog {catalog.rebuild()}")
     return 0
 
 
