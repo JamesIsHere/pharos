@@ -4,8 +4,8 @@
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
 - **Milestone:** M1, steps 1-7 and 3b of 10 built. Step 7 closed live: baseline recorded from run 20261007T182814Z (acceptance #4). Next is step 8, the health page
 - **Health:** YELLOW at 2026-10-07 18:39 UTC (`pharos health`): only the documented expected states, C15 ATVI and C16 CPI Oct 2025 (#31); acceptance #3 holds. C12, C13, C18-C20 pass. serving/CURRENT = 20261007T182814Z
-- **Last session:** 2026-10-07 (third session): step 7 done. `pharos audit` (D39), full-population shape rule (D41), C13, GOOGL 2014 distribution reclassified (D40). Live: Tiingo landed (#33 closed), audit compared 85,110 dates, 38 isolated print disagreements reported (#36 closed), baseline recorded for 20 series. 203 tests pass
-- **Next action:** step 8, the health page (design.md section 7 contents; #32 per-source roll-up lands with it)
+- **Last session:** 2026-10-07 (third session): step 7 done (D39-D41, baseline recorded live); per-source roll-up dropped for one overall status with every failing row recorded (D42, #32 closed). 203 tests pass
+- **Next action:** step 8, the health page (design.md section 7 as amended by D42: one overall light, failing rows grouped by source)
 - **Blockers / open questions:** none open for step 8. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
@@ -22,7 +22,6 @@
 | 25  | Price vintage is a DATE: two full pulls of one ticker on one day share a vintage               | Same-day accept re-pull leaves the conflict in place                   | step 4 (D23 build) |
 | 28  | C05 checks raw files by row count only; no content hash is recorded at write time              | A raw file rewritten with the same row count passes C05                | M1 (runs.py)       |
 | 31  | Documented expected states (C15 ATVI, C16 CPI Oct 2025) hold health at yellow permanently        | A yellow that never clears trains the eye to ignore yellow; acceptance #3 says green apart from them | step 8 (roll-up)   |
-| 32  | Status roll-up is overall only; design.md section 7 rolls up per source, then overall           | Health page traffic light per source has no data behind it             | step 8             |
 | 34  | A series added after the audit has no baseline row; C13 never compares it. Any re-baseline path built for this must also decide a size cap on isolated print disagreements: D41's shape rule passes one of any size, and C10 only catches moves over 40% (folded in from #37) | A watchlist addition can lose history with C13 green; a re-run audit could pass a large isolated bad print | before any watchlist change |
 
 ---

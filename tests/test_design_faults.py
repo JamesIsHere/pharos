@@ -11,6 +11,7 @@ Synthetic data only (open issue #10): one ticker with two months of XNYS
 sessions and one FRED series, so the suite runs anywhere, CI included.
 """
 
+import json
 from datetime import date, datetime, timedelta, timezone
 
 import exchange_calendars as xc
@@ -94,6 +95,8 @@ def test_fault_1_month_missing_from_a_full_pull_blocks(published):
     before = serving_bytes()
     pub = run(published, RUN2, bars([d for d in SESSIONS if d.month != 9]))
     assert status(pub, "C04") == ("error", len(september))   # every September session is a hole
+    c04 = next(r for r in pub.evaluation.results if r["check_id"] == "C04")
+    assert sorted(r["obs_date"] for r in json.loads(c04["sample"])) == [str(d) for d in september]   # every row kept (D42)
     assert pub.version is None and serving_bytes() == before
     h = health.evaluate(at(10, 8, 15))
     assert h.status == "red" and h.published_run == RUN1

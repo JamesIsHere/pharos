@@ -38,7 +38,6 @@ from pharos.stage import bind_config, bind_raw, complete_runs
 
 CHECKS_DIR = PROJECT_ROOT / "checks"
 HEADER_FIELDS = ("id", "severity", "gate", "description")
-SAMPLE_ROWS = 5
 
 
 class CheckError(RuntimeError):
@@ -238,7 +237,8 @@ def _evaluate(con, check: Check, run_id: str, evaluated_at: datetime, context: s
 
     n = con.execute("SELECT count(*) FROM failing").fetchone()[0]
     cols = [d[0] for d in con.execute("SELECT * FROM failing LIMIT 0").description]
-    sample = con.execute(f"SELECT * FROM failing LIMIT {SAMPLE_ROWS}").fetchall()
+    # every failing row, not a sample: the detail beneath the status (D42)
+    sample = con.execute("SELECT * FROM failing").fetchall()
     result.update(status="pass" if n == 0 else check.severity, failing_row_count=n,
                   sample=json.dumps([dict(zip(cols, row)) for row in sample], default=str) if n else None)
     return result
