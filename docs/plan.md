@@ -5,7 +5,7 @@
 - **Milestone:** M1, step 1 of 10 built (scaffold)
 - **Health:** n/a (no data yet)
 - **Last session:** 2026-10-07: design review (D16-D18), backup made add-only for raw, step 1 built file by file; 13 tests pass
-- **Next action:** step 2, loaders. First verify yfinance (`auto_adjust=False` columns) and FRED/ALFRED paging limits against current docs
+- **Next action:** step 2, loaders: write `src/pharos/loaders/yahoo.py` (+ test), then `loaders/fred.py` (+ test), then `pharos load`. Verified 2026-10-07: yfinance 1.7.0 `auto_adjust=False` returns Open/High/Low/Close/Adj Close/Volume/Dividends/Stock Splits, NY-tz dates, Close split-adjusted; FRED all-vintage pull fits one request per series (GDP 3,263 rows / 415 vintages, GDPC1 4,425 / 419, CPIAUCSL 3,362 / 669; limits 100,000 rows, 2,000 vintages). Queued for transform: GDPC1 base-year change across vintages (2012 -> 2017 chained dollars, 2023-09-28) makes cross-vintage comparison a units error
 - **Blockers / open questions:** watchlist `cik` left blank until M2 (needs SEC download; plan said M1). Review concerns queued: 4 (C10 split exclusion), 6 (ended/source-missing states), 7 (Windows swap locks), 9 (refresh vs mirror timing), 10 (synthetic fault-test data), 11 (C02 dual severity), 12 (split-adjusted look-ahead), 13 (`.env*` ignore), SEC available_date = next trading day after filing (M2)
 
 ---
