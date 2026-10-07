@@ -36,6 +36,19 @@ def cmd_load(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_stage(args: argparse.Namespace) -> int:
+    import duckdb
+
+    from pharos.stage import stage
+
+    target = stage(args.run)
+    print(f"staged {target}")
+    for table in ("series_catalog", "observations"):
+        n = duckdb.sql(f"SELECT count(*) FROM read_parquet('{(target / f'{table}.parquet').as_posix()}')").fetchone()[0]
+        print(f"  {table:<15} {n:>9,} rows")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pharos", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -45,6 +58,10 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("load", help="download every source into a new raw snapshot")
     p.set_defaults(func=cmd_load)
+
+    p = sub.add_parser("stage", help="build staging/<run_id>/ from the raw snapshots")
+    p.add_argument("--run", help="run ID to stage (default: the latest complete run)")
+    p.set_defaults(func=cmd_stage)
 
     args = parser.parse_args(argv)
     return args.func(args)
