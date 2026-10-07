@@ -137,3 +137,16 @@ def test_c05_file_without_record_blocks(staged_run):
     r = result(run_checks(staged_run), "C05")
     assert (r["status"], r["failing_row_count"]) == ("error", 1)
     assert "file has no load record" in r["sample"]
+
+
+def test_c06_control_total_mismatch_blocks(staged_run):
+    record = data_root() / "health" / "loads" / f"{staged_run}__yf__prices.parquet"
+    con = duckdb.connect()
+    con.execute(f"CREATE TABLE t AS SELECT * FROM read_parquet('{record.as_posix()}')")
+    con.execute(f"COPY (SELECT * REPLACE (rows_downloaded + 1 AS rows_downloaded) FROM t) "
+                f"TO '{record.as_posix()}' (FORMAT parquet)")
+    con.close()
+    e = run_checks(staged_run)
+    r = result(e, "C06")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1)
+    assert e.verdict == "blocked"
