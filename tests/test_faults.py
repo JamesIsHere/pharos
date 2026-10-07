@@ -292,3 +292,35 @@ def test_c14_same_key_different_value(staged_run, rows, status):
     assert r["status"] == status
     if status == "error":
         assert r["failing_row_count"] == 1
+
+
+def manifest_row(run_id, status, published_at):
+    path = data_root() / "health" / "run_manifest" / f"{run_id}.parquet"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    duckdb.execute(f"COPY (SELECT ?::VARCHAR AS run_id, ?::VARCHAR AS status, ?::TIMESTAMPTZ AS published_at) "
+                   f"TO '{path.as_posix()}' (FORMAT parquet)", [run_id, status, published_at])
+
+
+# the fixture run is 2026-10-07 14:00 UTC
+@pytest.mark.parametrize("manifests, status", [
+    ([], "error"),                                                              # never published
+    ([("20261006T150000Z", "published", "2026-10-06 15:00:00+00")], "pass"),       # 23h
+    ([("20261006T110000Z", "published", "2026-10-06 11:00:00+00")], "error"),      # 27h
+    # a blocked run doesn't reset the clock (D32)
+    ([("20261006T110000Z", "published", "2026-10-06 11:00:00+00"),
+      ("20261007T130000Z", "blocked", None)], "error"),
+])
+def test_c01_last_publish_age(staged_run, manifests, status):
+    for m in manifests:
+        manifest_row(*m)
+    e = run_checks(staged_run)
+    assert result(e, "C01")["status"] == status
+    assert e.verdict == "passed"   # monitor: never blocks
+
+
+def test_c01_evaluated_at_view_time(staged_run):
+    from datetime import datetime, timezone
+    manifest_row("20261007T130000Z", "published", "2026-10-07 13:00:00+00")
+    assert result(run_checks(staged_run), "C01")["status"] == "pass"
+    later = datetime(2026, 10, 8, 16, 0, tzinfo=timezone.utc)   # 27h after the publish
+    assert result(run_checks(staged_run, now=later), "C01")["status"] == "error"

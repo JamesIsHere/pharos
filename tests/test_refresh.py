@@ -51,7 +51,8 @@ def test_published_run(loaders):
     assert all(r["published_at"] is not None and r["error"] is None for r in rows)
     assert [(r["rows_downloaded"], r["rows_landed"]) for r in rows] == [(1, 1), (1, 1), (2, 2)]
     assert [str(r["latest_obs_date"]) for r in rows] == ["2026-04-01", "None", "2026-10-06"]
-    assert rows[0]["checks_error"] == rows[0]["checks_broken"] == 0
+    # C01 only: nothing was published before this run (D32)
+    assert (rows[0]["checks_error"], rows[0]["checks_broken"]) == (1, 0)
     assert rows[0]["started_at"] <= rows[0]["finished_at"] == rows[0]["published_at"]
 
 

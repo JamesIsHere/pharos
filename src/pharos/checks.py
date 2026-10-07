@@ -12,7 +12,8 @@ the SQL:
   staged tables, the raw snapshots of every complete run up to it, the load
   records, the expected set from config (watchlist windows, FRED series,
   required series per ticker), every raw file on disk with its row count,
-  the XNYS trading calendar (D24) and a one-row this_run table.
+  the XNYS trading calendar (D24), the run manifests (D31), a one-row this_run
+  table and a one-row clock (run time, or the wall clock at view time).
 - A check whose SQL fails is `broken`, and a broken check fails the whole run.
   A control that didn't execute proves nothing, so publish treats `failed`
   like `blocked`: serving/ stays untouched.
@@ -98,11 +99,13 @@ def parse(path: Path) -> Check:
                  header["description"], sql, path)
 
 
-def run_checks(run_id: str, directory: Path = CHECKS_DIR) -> Evaluation:
-    """Evaluate every check against staging/<run_id>/ and append the results."""
+def run_checks(run_id: str, directory: Path = CHECKS_DIR, now: datetime | None = None) -> Evaluation:
+    """Evaluate every check against staging/<run_id>/ and append the results.
+    `now` is the clock monitor checks measure against: the run's own time when
+    omitted (run time), the wall clock when the health CLI evaluates at view time."""
     checks = discover(directory)
     con = duckdb.connect()
-    bind(con, run_id)
+    bind(con, run_id, now)
     evaluated_at = datetime.now(timezone.utc)
 
     results = [_evaluate(con, c, run_id, evaluated_at) for c in checks]
@@ -117,7 +120,7 @@ def run_checks(run_id: str, directory: Path = CHECKS_DIR) -> Evaluation:
     return Evaluation(run_id, verdict, results, _write(results, run_id, evaluated_at))
 
 
-def bind(con: duckdb.DuckDBPyConnection, run_id: str) -> None:
+def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = None) -> None:
     """The names a check may query. Anything a check needs that isn't here is a
     runner change, not a path inside a SQL file."""
     runs = complete_runs()
@@ -154,6 +157,16 @@ def bind(con: duckdb.DuckDBPyConnection, run_id: str) -> None:
     run_at = datetime.strptime(run_id, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
     con.execute("CREATE TABLE this_run AS SELECT ? AS run_id, ?::TIMESTAMPTZ AS run_at",
                 [run_id, run_at])
+    con.execute("CREATE TABLE clock AS SELECT ?::TIMESTAMPTZ AS now", [now or run_at])
+
+    # every run's manifest (D31); none before the first refresh. The run being
+    # checked has no manifest yet: refresh writes it after publish.
+    manifests = data_root() / "health" / "run_manifest"
+    if any(manifests.glob("*.parquet")):
+        con.execute(f"CREATE VIEW run_manifest AS SELECT * FROM "
+                    f"read_parquet('{manifests.as_posix()}/*.parquet', union_by_name = true)")
+    else:
+        con.execute("CREATE TABLE run_manifest (run_id VARCHAR, status VARCHAR, published_at TIMESTAMPTZ)")
 
 
 def _evaluate(con, check: Check, run_id: str, evaluated_at: datetime) -> dict:
