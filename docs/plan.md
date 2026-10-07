@@ -2,10 +2,10 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M1, step 1 of 10 built (scaffold)
-- **Health:** n/a (no data yet)
-- **Last session:** 2026-10-07: design review (D16-D18), backup made add-only for raw, step 1 built file by file; 13 tests pass
-- **Next action:** step 2: write `src/pharos/loaders/fred.py` (+ test), then `pharos load` (first real snapshot into data/raw happens only then). yahoo.py done: test download 2026-10-07 = 85,110 rows, 17 of 18 tickers; ATVI returns nothing (Yahoo deleted its history: the survivorship finding, to surface as warn in step 4). Verified: watchlist dates TSLA/META/CART match Yahoo first rows; NVDA 10:1 2024-06-10 split-adjusted. FRED all-vintage pull fits one request per series (GDP 3,263 rows / 415 vintages, GDPC1 4,425 / 419, CPIAUCSL 3,362 / 669; limits 100,000 rows, 2,000 vintages). Queued for transform: GDPC1 base-year change across vintages (2012 -> 2017 chained dollars, 2023-09-28) makes cross-vintage comparison a units error
+- **Milestone:** M1, steps 1-2 of 10 built (scaffold, loaders)
+- **Health:** n/a (`pharos health` arrives in step 5); first raw snapshot run 20261007T140923Z: yf/prices 85,110, fred/observations 11,050, fred/series 19 rows, downloaded = written for all three
+- **Last session:** 2026-10-07: FRED loader (all vintages + metadata history), `pharos load`, first real snapshot; 41 tests pass
+- **Next action:** step 3, transform to staging. Inputs and findings it must honor: (a) units change across vintages, so join each FRED vintage to the `raw/fred/series` row whose realtime window contains its realtime_start (GDPC1 has 8 units regimes, 1987 dollars -> chained 2017; CPIAUCSL 2, 1967=100 -> 1982-1984=100 at the 1988-02-26 vintage); (b) FRED `value` is raw text, "." = missing, parse in staging; (c) a run is complete only when all its raw files exist (loaders write separately); (d) ATVI absent from prices, recorded only by absence, so step 4 compares watchlist vs tickers present; (e) Yahoo volume is split-adjusted and prices carry float32 precision (~7 significant digits), so cross-source comparisons need a tolerance
 - **Blockers / open questions:** watchlist `cik` left blank until M2 (needs SEC download; plan said M1). Review concerns queued: 4 (C10 split exclusion), 6 (ended/source-missing states), 7 (Windows swap locks), 9 (refresh vs mirror timing), 10 (synthetic fault-test data), 11 (C02 dual severity), 12 (split-adjusted look-ahead), SEC available_date = next trading day after filing (M2)
 
 ---
@@ -23,7 +23,7 @@
 
 ### Build order
 - [x] 1. Scaffold: uv project, layout, `PHAROS_DATA_ROOT`, `.env.example`, `config/watchlist.csv`
-- [ ] 2. Loaders: yfinance (wrapped, schema-validated, explicit `auto_adjust`), FRED with vintages
+- [x] 2. Loaders: yfinance (wrapped, schema-validated, explicit `auto_adjust`), FRED with vintages
 - [ ] 3. Transform to staging (DuckDB SQL); series_catalog + observations; regenerate `catalog.duckdb` views
 - [ ] 4. Checks C01–C14 in `checks/*.sql`; runner; write-audit-publish gate with atomic swap; run manifest
 - [ ] 5. `pharos health` CLI + `health/latest.md`
