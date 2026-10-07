@@ -2,11 +2,11 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M1, steps 1-8 and 3b of 10 built. Step 8 closed: the health page shows every section 7 element (acceptance #6) and all five faults on the page (acceptance #5). Next is step 9, Home + Charts
-- **Health:** GREEN at 2026-10-07 23:19 UTC (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged in config/expected_states.csv (D46, #31 closed), so acceptance #3 now reads literally. serving/CURRENT = 20261007T182814Z
-- **Last session:** 2026-10-07 (fourth session): step 8 built. App evaluates health without writing (D43); heatmap and C04 share expected_dates.sql, spot checks seeded by run_id (D44); blocked-run section (D45, #38 closed); acknowledged expected states (D46, #31 closed). 220 tests pass
-- **Next action:** step 9, Home + Charts pages (overlay of mixed frequencies, date range buttons, rebase-to-100 default, log toggle, URL state; acceptance #7, #8)
-- **Blockers / open questions:** none open for step 9. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
+- **Milestone:** M1, steps 1-9 and 3b of 10 built. Step 9 closed: Charts overlays mixed frequencies in composable panels, with range, rebase, log and URL state (acceptance #7); Home shows the watchlist with the status bar (acceptance #8). Next is step 10, launcher + nightly task
+- **Health:** GREEN at 2026-10-07 23:19 UTC (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261007T182814Z
+- **Last session:** 2026-10-07 (fourth session): steps 8 and 9 built. Health page (D43-D45), acknowledged expected states (D46, #31), FRED drawn at first release with estimated pre-ALFRED dates (D47, #39), Charts as composable panels (D48, #40). 228 tests pass
+- **Next action:** decide where #41 (exploration tools) lands, then step 10 (desktop launcher, nightly task; acceptance #9, #10)
+- **Blockers / open questions:** #41 placement (before or after step 10). #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
 <!-- Every concern or finding not fixed in the turn it comes up goes here before that turn ends. IDs never change or get reused. Fixing an issue deletes its row in the same commit, and the commit message cites the ID; git history is the record. -->
@@ -47,7 +47,7 @@
 - [x] 6. Fault-injection tests (5 faults, design.md §7)
 - [x] 7. Opening-balance audit against the second source; record baseline
 - [x] 8. Health page (traffic lights, coverage heatmap, row counts by run, run strip, failing checks, spot-check panel)
-- [ ] 9. Home + Charts pages (overlay, date range buttons, rebase-to-100 default, log toggle, URL state)
+- [x] 9. Home + Charts pages (overlay, date range buttons, rebase-to-100 default, log toggle, URL state)
 - [ ] 10. Desktop launcher (`open-dashboard.ps1`, shortcut, lighthouse .ico; there is no lighthouse emoji, so draw one) + `register-tasks.ps1` (nightly refresh, run-after-missed-start, BurntToast on failure)
 
 ### Acceptance criteria
