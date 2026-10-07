@@ -2,11 +2,11 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M1, steps 1-7 and 3b of 10 built. Step 7 closed live: baseline recorded from run 20261007T182814Z (acceptance #4). Next is step 8, the health page
-- **Health:** YELLOW at 2026-10-07 18:39 UTC (`pharos health`): only the documented expected states, C15 ATVI and C16 CPI Oct 2025 (#31); acceptance #3 holds. C12, C13, C18-C20 pass. serving/CURRENT = 20261007T182814Z
-- **Last session:** 2026-10-07 (third session): step 7 done (D39-D41, baseline recorded live); per-source roll-up dropped for one overall status with every failing row recorded (D42, #32 closed). 203 tests pass
-- **Next action:** step 8, the health page (design.md section 7 as amended by D42: one overall light, failing rows grouped by source)
-- **Blockers / open questions:** none open for step 8. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
+- **Milestone:** M1, steps 1-8 and 3b of 10 built. Step 8 closed: the health page shows every section 7 element (acceptance #6) and all five faults on the page (acceptance #5). Next is step 9, Home + Charts
+- **Health:** GREEN at 2026-10-07 23:19 UTC (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged in config/expected_states.csv (D46, #31 closed), so acceptance #3 now reads literally. serving/CURRENT = 20261007T182814Z
+- **Last session:** 2026-10-07 (fourth session): step 8 built. App evaluates health without writing (D43); heatmap and C04 share expected_dates.sql, spot checks seeded by run_id (D44); blocked-run section (D45, #38 closed); acknowledged expected states (D46, #31 closed). 220 tests pass
+- **Next action:** step 9, Home + Charts pages (overlay of mixed frequencies, date range buttons, rebase-to-100 default, log toggle, URL state; acceptance #7, #8)
+- **Blockers / open questions:** none open for step 9. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
 <!-- Every concern or finding not fixed in the turn it comes up goes here before that turn ends. IDs never change or get reused. Fixing an issue deletes its row in the same commit, and the commit message cites the ID; git history is the record. -->
@@ -45,7 +45,7 @@
 - [x] 5. `pharos health` CLI + `health/latest.md`
 - [x] 6. Fault-injection tests (5 faults, design.md §7)
 - [x] 7. Opening-balance audit against the second source; record baseline
-- [ ] 8. Health page (traffic lights, coverage heatmap, row counts by run, run strip, failing checks, spot-check panel)
+- [x] 8. Health page (traffic lights, coverage heatmap, row counts by run, run strip, failing checks, spot-check panel)
 - [ ] 9. Home + Charts pages (overlay, date range buttons, rebase-to-100 default, log toggle, URL state)
 - [ ] 10. Desktop launcher (`open-dashboard.ps1`, shortcut, lighthouse .ico; there is no lighthouse emoji, so draw one) + `register-tasks.ps1` (nightly refresh, run-after-missed-start, BurntToast on failure)
 
