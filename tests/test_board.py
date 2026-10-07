@@ -5,6 +5,7 @@ group by the source they name (D42); the page renders from a served root and
 the app never writes health/ (D43)."""
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import duckdb
@@ -84,3 +85,25 @@ def test_health_page_renders_and_writes_nothing(published):
                                               "Last 30 runs", "Spot checks"]
     assert len(page.error) + len(page.warning) + len(page.success) == 1       # the status bar
     assert {p: p.stat().st_mtime_ns for p in health_dir.rglob("*") if p.is_file()} == before
+
+
+def test_acknowledged_state_is_green_on_the_page_and_listed(published):
+    """D46 on the page: the bar is green, and C16 still appears among the
+    checks, as acknowledged, with its note on the row."""
+    from pharos import config
+    from test_design_faults import bar, health_page
+    from test_faults import GDP_ACK
+    monkeypatch = published
+    path = current_version() / "observations.parquet"
+    con = duckdb.connect()
+    con.execute(f"CREATE TABLE t AS SELECT * FROM read_parquet('{path.as_posix()}')")
+    con.execute(f"COPY (SELECT * REPLACE (CASE WHEN series_id = 'fred:GDP' THEN NULL ELSE value END AS value) "
+                f"FROM t) TO '{path.as_posix()}' (FORMAT parquet)")
+    con.close()
+    monkeypatch.setattr(config, "expected_states", lambda: [GDP_ACK])
+    page = health_page(monkeypatch, datetime(2026, 10, 7, 15, tzinfo=timezone.utc))
+    assert bar(page) == "green"
+    checks = page.dataframe[0].value
+    assert checks[["check", "status"]].values.tolist() == [["C16", "acknowledged"]]
+    assert page.dataframe[1].value["acknowledged"].tolist() == ["test: withdrawn"]
+    assert [m.value for m in page.metric][3].split(" / ")[1:] == ["1", "0", "0"]

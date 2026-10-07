@@ -14,7 +14,10 @@ run-level fields repeated. Long, not wide: a new source adds rows, not columns.
   NULL when the run died before that dataset loaded.
 - latest_obs_date comes from this run's staged observations, by source; NULL
   for fred/series (metadata has no obs_date) and for an unstaged run.
-- Check counts are per run, not per source: a check spans sources.
+- Check counts are per run, not per source: a check spans sources. They count
+  after acknowledgment (D46): a warn check whose rows are all reviewed expected
+  states counts in checks_acknowledged, not checks_warn, so the run strip agrees
+  with health. check_results keep each check's own status.
 - published_at is set only when the run published. Its maximum over all
   manifests is last_published_at, the app's cache key.
 """
@@ -40,6 +43,7 @@ def refresh() -> tuple[str, Publication | None]:
     started_at = datetime.now(timezone.utc)
     publication, error, reference_errors = None, None, {}
     try:
+        health.acknowledgments()   # a bad config/expected_states.csv fails the run before it loads
         yahoo.load_prices(run_id)
         fred.load_macro(run_id)
         try:
@@ -69,8 +73,8 @@ def write_manifest(run_id: str, started_at: datetime, publication: Publication |
     else:
         status = publication.evaluation.verdict   # blocked | failed (a broken check)
 
-    counts = {"pass": 0, "warn": 0, "error": 0, "broken": 0}
-    for r in publication.evaluation.results if publication else []:
+    counts = {"pass": 0, "warn": 0, "error": 0, "broken": 0, "acknowledged": 0}
+    for r in health.acknowledge(publication.evaluation.results) if publication else []:
         counts[r["status"]] += 1
 
     root = data_root()
@@ -108,6 +112,7 @@ def write_manifest(run_id: str, started_at: datetime, publication: Publication |
                    CASE WHEN ds.dataset <> 'series' THEN t.latest_obs_date END AS latest_obs_date,
                    ?::INTEGER AS checks_pass, ?::INTEGER AS checks_warn,
                    ?::INTEGER AS checks_error, ?::INTEGER AS checks_broken,
+                   ?::INTEGER AS checks_acknowledged,
                    ?::VARCHAR AS error, ds.dataset_error
             FROM ds
             LEFT JOIN loads AS l USING (source, dataset)
@@ -115,5 +120,5 @@ def write_manifest(run_id: str, started_at: datetime, publication: Publication |
             ORDER BY ds.source, ds.dataset
         ) TO '""" + target.as_posix() + "' (FORMAT parquet)",
         [run_id, started_at, finished_at, status, finished_at if status == "published" else None,
-         counts["pass"], counts["warn"], counts["error"], counts["broken"], error])
+         counts["pass"], counts["warn"], counts["error"], counts["broken"], counts["acknowledged"], error])
     con.close()

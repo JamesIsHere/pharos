@@ -41,3 +41,20 @@ def corporate_actions() -> list[dict]:
     if len(set(keys)) != len(keys):
         raise ValueError(f"corporate_actions.csv: repeated rows {sorted(k for k in keys if keys.count(k) > 1)}")
     return rows
+
+
+def expected_states() -> list[dict]:
+    """Reviewed acknowledgments of warn-check rows (D46): each names one failing
+    row by check_id, series_id and obs_date (blank: the row has no obs_date).
+    Fails loudly on a missing note, a bad date or a repeated row; whether the
+    check exists and only warns is health's to verify, against checks/."""
+    with open(CONFIG_DIR / "expected_states.csv", newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    for r in rows:
+        if not r["note"].strip():
+            raise ValueError(f"expected_states.csv: {r['check_id']} {r['series_id']} has no note")
+        r["obs_date"] = date.fromisoformat(r["obs_date"]).isoformat() if r["obs_date"] else None
+    keys = [(r["check_id"], r["series_id"], r["obs_date"]) for r in rows]
+    if len(set(keys)) != len(keys):
+        raise ValueError(f"expected_states.csv: repeated rows {sorted(k for k in keys if keys.count(k) > 1)}")
+    return rows

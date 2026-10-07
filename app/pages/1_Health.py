@@ -47,14 +47,15 @@ if h.latest_run_status in ("blocked", "failed"):
     st.divider()
 
 # --- Overall traffic light -------------------------------------------------
-counts = {s: sum(r["status"] == s for r in h.results) for s in ("pass", "warn", "error", "broken")}
+counts = {s: sum(r["status"] == s for r in h.results) for s in ("pass", "acknowledged", "warn", "error", "broken")}
 summary = frame("summary")
 sources = list(summary.iter_rows(named=True)) if summary is not None else []
-cols = st.columns([1, 1.6, 1, 1.3] + [1.4] * len(sources))
+cols = st.columns([1, 1.6, 1, 1.9] + [1.4] * len(sources))
 cols[0].metric("Status", h.status.upper())
 cols[1].metric("Last successful run", f"{h.published_at.astimezone():%Y-%m-%d %H:%M}" if h.published_at else "never")
 cols[2].metric("Rows served", f"{summary['rows'].sum():,}" if summary is not None else "0")
-cols[3].metric("Checks pass / warn / fail", f"{counts['pass']} / {counts['warn']} / {counts['error'] + counts['broken']}")
+cols[3].metric("Checks pass / acknowledged / warn / fail",
+               f"{counts['pass']} / {counts['acknowledged']} / {counts['warn']} / {counts['error'] + counts['broken']}")
 for col, r in zip(cols[4:], sources):
     col.metric(f"Latest {r['source']} observation", f"{r['latest_obs_date']}")
 

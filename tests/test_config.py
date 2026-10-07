@@ -86,3 +86,25 @@ def test_live_corporate_actions_parse():
     from datetime import date
     from pharos import config
     assert ("GOOGL", date(2014, 4, 3)) in [(r["ticker"], r["event_date"]) for r in config.corporate_actions()]
+
+
+def test_expected_states_fail_loudly(tmp_path, monkeypatch):
+    import pytest
+    from pharos import config
+    monkeypatch.setattr(config, "CONFIG_DIR", tmp_path)
+    head = "check_id,series_id,obs_date,note\n"
+    (tmp_path / "expected_states.csv").write_text(head + "C16,fred:GDP,2026-04-01,x\nC16,fred:GDP,2026-04-01,y\n")
+    with pytest.raises(ValueError, match="repeated"):
+        config.expected_states()
+    (tmp_path / "expected_states.csv").write_text(head + "C15,yf:close:ATVI,, \n")
+    with pytest.raises(ValueError, match="no note"):
+        config.expected_states()
+    (tmp_path / "expected_states.csv").write_text(head + "C16,fred:GDP,2026-13-01,x\n")
+    with pytest.raises(ValueError):
+        config.expected_states()
+
+
+def test_live_expected_states_name_warn_checks():
+    from pharos import health
+    assert [(s["check_id"], s["series_id"], s["obs_date"]) for s in health.acknowledgments()] == [
+        ("C15", "yf:close:ATVI", None), ("C16", "fred:CPIAUCSL", "2025-10-01")]

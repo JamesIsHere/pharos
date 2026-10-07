@@ -110,3 +110,35 @@ def test_reference_load_record_does_not_change_completeness(staged_run):
     from pharos.stage import complete_runs
     assert len(list(data_root().glob("health/loads/*tiingo*"))) == 1
     assert complete_runs() == [staged_run]
+
+
+def test_manifest_counts_an_acknowledged_warn_apart(loaders, staged_run):
+    """FRED withdraws GDP 2026-04-01 in a new vintage ('.'): C16 warns at run
+    time. Acknowledged, it counts in checks_acknowledged, not checks_warn, so
+    the run strip agrees with health (D46). check_results keep C16's own warn."""
+    from pharos import config
+
+    def fred(run):
+        copy_raw(staged_run, "fred", "observations", run, "SELECT * EXCLUDE (run_id, loaded_at) FROM r UNION ALL "
+                 "SELECT * EXCLUDE (run_id, loaded_at) REPLACE ('.' AS value, DATE '2026-08-28' AS realtime_start) FROM r")
+        copy_raw(staged_run, "fred", "series", run)
+    loaders.setattr(refresh_mod.fred, "load_macro", fred)
+    loaders.setattr(config, "expected_states", lambda: [
+        {"check_id": "C16", "series_id": "fred:GDP", "obs_date": "2026-04-01", "note": "test"}])
+    _, pub = refresh_mod.refresh()
+    recorded = {r["check_id"]: r["status"] for r in pub.evaluation.results}
+    assert recorded["C16"] == "warn"
+    row = manifest()[0]
+    assert (row["status"], row["checks_acknowledged"]) == ("published", 1)
+    assert row["checks_warn"] == sum(s == "warn" for s in recorded.values()) - 1
+
+
+def test_bad_expected_states_fails_the_run_before_loading(loaders):
+    from pharos import config
+    loaders.setattr(config, "expected_states", lambda: [
+        {"check_id": "C04", "series_id": "fred:GDP", "obs_date": None, "note": "test"}])
+    with pytest.raises(ValueError, match="only a warn check"):
+        refresh_mod.refresh()
+    rows = manifest()
+    assert {r["status"] for r in rows} == {"failed"} and "only a warn check" in rows[0]["error"]
+    assert all(r["rows_landed"] is None for r in rows)

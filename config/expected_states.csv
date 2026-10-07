@@ -1,0 +1,3 @@
+check_id,series_id,obs_date,note
+C15,yf:close:ATVI,,"Activision Blizzard, ended 2023-10-12; Yahoo returns no history for it. The survivorship finding, kept visible as source-missing (acceptance #3, D22)"
+C16,fred:CPIAUCSL,2025-10-01,"FRED's only vintage of this date (2025-12-18) is '.': the source says the value will not exist (D25)"

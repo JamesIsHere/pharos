@@ -12,6 +12,14 @@ Roll-up (design.md section 7): red on any error or broken check, on nothing
 published, or when the latest run did not publish (blocked or failed: serving
 is behind what was attempted); yellow on warnings only; green otherwise.
 
+Acknowledged expected states (D46): config/expected_states.csv names reviewed
+rows of warn checks (ATVI's missing history, a value FRED withdrew). A warn
+check whose every failing row is acknowledged reports `acknowledged` and
+doesn't turn health yellow; its rows stay listed, each carrying its note. A new
+row still warns, and an acknowledgment that matches no failing row warns as
+check `expected_states`, so the file can't go stale quietly. Error checks
+can't be acknowledged. The recorded check_results keep the check's own status.
+
 health/latest.md is rewritten on every evaluation, so it always says what the
 last look found. It is plain text with aligned columns. The app evaluates
 with record=False: it writes neither latest.md nor check_results (D43).
@@ -24,6 +32,7 @@ from pathlib import Path
 
 import duckdb
 
+from pharos import config
 from pharos.checks import discover, run_checks
 from pharos.paths import data_root
 from pharos.publish import current_version
@@ -55,6 +64,7 @@ def evaluate(now: datetime | None = None, record: bool = True) -> Health:
     else:
         results = _recorded_gate_results(version.name) + \
             run_checks(version.name, now=now, tables=version, monitors_only=True, record=record).results
+        results = acknowledge(results)
     if latest_status in ("blocked", "failed"):
         reasons.append(f"latest run {latest_run} {latest_status}: serving still shows {version.name if version else 'nothing'}")
 
@@ -71,6 +81,60 @@ def evaluate(now: datetime | None = None, record: bool = True) -> Health:
     if record:
         write_latest(health)
     return health
+
+
+STATES_CHECK = "expected_states"
+
+
+def acknowledgments() -> list[dict]:
+    """config/expected_states.csv, each row checked against checks/: the check
+    must exist and warn. Acknowledging an error would hide a defect in the data."""
+    checks = {c.id: c for c in discover()}
+    states = config.expected_states()
+    for s in states:
+        check = checks.get(s["check_id"])
+        if check is None:
+            raise ValueError(f"expected_states.csv: no check {s['check_id']!r} in checks/")
+        if check.severity != "warn":
+            raise ValueError(f"expected_states.csv: {s['check_id']} is {check.severity}-severity; "
+                             "only a warn check's rows can be acknowledged")
+    return states
+
+
+def acknowledge(results: list[dict]) -> list[dict]:
+    """The results with acknowledged rows marked, plus the expected_states
+    check: warn when an acknowledgment matched no failing row (D46). A row
+    matches on (series_id, obs_date); a broken check's rows are unknown, so its
+    acknowledgments are neither applied nor called stale."""
+    if not results:
+        return results
+    states = acknowledgments()
+    out, matched = [], set()
+    for r in results:
+        notes = {(s["series_id"], s["obs_date"]): s["note"] for s in states if s["check_id"] == r["check_id"]}
+        if not notes or r["status"] == "broken":
+            matched |= {(r["check_id"], *k) for k in notes} if r["status"] == "broken" else set()
+            out.append(r)
+            continue
+        rows = json.loads(r["sample"]) if r["sample"] else []
+        for row in rows:
+            key = (row.get("series_id"), row.get("obs_date"))
+            row["acknowledged"] = notes.get(key)
+            if key in notes:
+                matched.add((r["check_id"], *key))
+        n = sum(row["acknowledged"] is not None for row in rows)
+        status = "acknowledged" if r["status"] == "warn" and n == len(rows) else r["status"]
+        out.append({**r, "status": status, "sample": json.dumps(rows) if rows else r["sample"]})
+    stale = [{"check_id": s["check_id"], "series_id": s["series_id"], "obs_date": s["obs_date"], "note": s["note"]}
+             for s in states if (s["check_id"], s["series_id"], s["obs_date"]) not in matched]
+    last = results[-1]                    # a monitor: evaluate() lists gate results first
+    out.append({"run_id": last["run_id"], "context": last.get("context"), "check_id": STATES_CHECK,
+                "severity": "warn", "gate": False,
+                "description": "acknowledged expected state that no longer fails: remove it from config/expected_states.csv",
+                "status": "warn" if stale else "pass", "failing_row_count": len(stale),
+                "sample": json.dumps(stale) if stale else None, "error": None,
+                "evaluated_at": max((r["evaluated_at"] for r in results if r["evaluated_at"]), default=None)})
+    return out
 
 
 def _manifest() -> list[dict]:

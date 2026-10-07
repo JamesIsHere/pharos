@@ -584,3 +584,66 @@ def test_c12_listed_distribution_missing_from_tiingo_warns(staged_run, monkeypat
     r = result(run_checks(staged_run), "C12")         # Tiingo has no distribution that day
     assert (r["status"], r["failing_row_count"]) == ("warn", 1)
     assert "reclassified distribution not in Tiingo" in r["sample"]
+
+
+# --- expected_states: reviewed acknowledgments of warn rows (D46) -------------
+
+GDP_ACK = {"check_id": "C16", "series_id": "fred:GDP", "obs_date": "2026-04-01", "note": "test: withdrawn"}
+
+
+def serve(run_id, select=None):
+    """Publish the staged run (after `select` over its observations, if given),
+    with a manifest and a matching baseline, so health judges it served."""
+    from pharos.publish import publish
+    if select:
+        tamper(run_id, "observations", select)
+    assert publish(run_id).version is not None
+    manifest_row(run_id, "published", "2026-10-07 14:30:00+00")
+    record_baseline(CLEAN_BASELINE)
+
+
+def view(monkeypatch, states):
+    """Health at 15:00 on publish day (every freshness check passes) under `states`."""
+    from datetime import datetime, timezone
+    from pharos import config, health
+    monkeypatch.setattr(config, "expected_states", lambda: states)
+    h = health.evaluate(datetime(2026, 10, 7, 15, tzinfo=timezone.utc), record=False)
+    return h, {r["check_id"]: r for r in h.results}
+
+
+WITHDRAW_GDP = "SELECT * REPLACE (CASE WHEN series_id = 'fred:GDP' THEN NULL ELSE value END AS value) FROM t"
+
+
+def test_acknowledged_withdrawn_value_is_green_and_stays_listed(staged_run, monkeypatch):
+    serve(staged_run, WITHDRAW_GDP)
+    h, r = view(monkeypatch, [])
+    assert (h.status, r["C16"]["status"]) == ("yellow", "warn")
+    h, r = view(monkeypatch, [GDP_ACK])
+    assert (h.status, h.reasons) == ("green", [])
+    assert (r["C16"]["status"], r["C16"]["failing_row_count"]) == ("acknowledged", 1)
+    assert json.loads(r["C16"]["sample"])[0]["acknowledged"] == "test: withdrawn"
+    assert r["expected_states"]["status"] == "pass"
+
+
+def test_new_row_beside_an_acknowledged_one_still_warns(staged_run, monkeypatch):
+    serve(staged_run, "SELECT * REPLACE (CASE WHEN series_id = 'fred:GDP' OR obs_date = DATE '2026-10-05' "
+                      "THEN NULL ELSE value END AS value) FROM t")
+    h, r = view(monkeypatch, [GDP_ACK])
+    assert h.status == "yellow" and h.reasons == [f"C16 warn: {r['C16']['description']}"]
+    rows = {row["series_id"]: row["acknowledged"] for row in json.loads(r["C16"]["sample"])}
+    assert rows == {"fred:GDP": "test: withdrawn", "yf:close:NVDA": None}
+
+
+def test_stale_acknowledgment_warns(staged_run, monkeypatch):
+    serve(staged_run)                                       # nothing withdrawn: the acknowledgment matches nothing
+    h, r = view(monkeypatch, [GDP_ACK])
+    assert h.status == "yellow" and r["C16"]["status"] == "pass"
+    assert (r["expected_states"]["status"], r["expected_states"]["failing_row_count"]) == ("warn", 1)
+    assert json.loads(r["expected_states"]["sample"])[0]["series_id"] == "fred:GDP"
+
+
+@pytest.mark.parametrize("check_id, message", [("C04", "only a warn check"), ("C99", "no check 'C99'")])
+def test_only_a_warn_check_can_be_acknowledged(staged_run, monkeypatch, check_id, message):
+    serve(staged_run)
+    with pytest.raises(ValueError, match=message):
+        view(monkeypatch, [{**GDP_ACK, "check_id": check_id}])
