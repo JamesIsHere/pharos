@@ -12,6 +12,9 @@ Rules applied here (CLAUDE.md, Sources):
 - obs_date is the New York calendar date of the bar, never a UTC conversion.
 - The download ends before today (New York time), so a bar still trading is
   never stored as a close.
+- Every row carries the window it was pulled with: pull_start (inclusive) and
+  pull_end (exclusive). A pull that starts at the ticker's first expected date
+  is a full-history pull, which sets the price vintage (D18, D20).
 """
 
 from datetime import date, datetime
@@ -69,7 +72,11 @@ def load_prices(run_id: str):
     for row in config.watchlist():
         start = row["active_from"] or cfg["backfill_start"]
         bars = fetch(row["yahoo_symbol"], start, end, auto_adjust)
-        frames.append(normalize(bars, row["ticker"], row["yahoo_symbol"]))
+        frame = normalize(bars, row["ticker"], row["yahoo_symbol"])
+        if not frame.empty:
+            frame["pull_start"] = start
+            frame["pull_end"] = end
+        frames.append(frame)
 
     download = pd.concat([f for f in frames if not f.empty], ignore_index=True) \
         if any(not f.empty for f in frames) else pd.DataFrame()

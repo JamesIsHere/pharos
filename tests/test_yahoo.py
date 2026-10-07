@@ -93,6 +93,10 @@ def test_load_prices_windows_and_empty_ticker(root, monkeypatch):
         f"SELECT ticker, count(*) FROM read_parquet('{path.as_posix()}') GROUP BY 1 ORDER BY 1"
     ).fetchall()
     assert tickers == [("CART", 2), ("NVDA", 2)]
+    windows = duckdb.sql(
+        f"SELECT DISTINCT ticker, pull_start, pull_end FROM read_parquet('{path.as_posix()}') ORDER BY 1"
+    ).fetchall()
+    assert windows == [("CART", date(2023, 9, 19), today_ny), ("NVDA", date(2005, 1, 1), today_ny)]
 
 
 def test_drift_in_any_ticker_writes_nothing(root, monkeypatch):
