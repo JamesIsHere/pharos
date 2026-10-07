@@ -68,3 +68,21 @@ def test_every_fred_series_has_an_expected_lag():
     assert sorted(lags) == sorted(cfg["fred"]["series"])
     assert all(isinstance(v, int) and v >= 0 for v in lags.values())
     assert isinstance(cfg["yahoo"]["expected_lag_days"], int)
+
+
+def test_corporate_actions_fail_loudly(tmp_path, monkeypatch):
+    import pytest
+    from pharos import config
+    monkeypatch.setattr(config, "CONFIG_DIR", tmp_path)
+    (tmp_path / "corporate_actions.csv").write_text("ticker,event_date,note\nGOOGL,2014-04-03,x\nGOOGL,2014-04-03,y\n")
+    with pytest.raises(ValueError, match="repeated"):
+        config.corporate_actions()
+    (tmp_path / "corporate_actions.csv").write_text("ticker,event_date,note\nGOOGL,2014-04-03, \n")
+    with pytest.raises(ValueError, match="no note"):
+        config.corporate_actions()
+
+
+def test_live_corporate_actions_parse():
+    from datetime import date
+    from pharos import config
+    assert ("GOOGL", date(2014, 4, 3)) in [(r["ticker"], r["event_date"]) for r in config.corporate_actions()]

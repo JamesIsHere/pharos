@@ -173,6 +173,11 @@ def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = Non
     run_at = datetime.strptime(run_id, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
     con.execute("CREATE TABLE this_run AS SELECT ? AS run_id, ?::TIMESTAMPTZ AS run_at",
                 [run_id, run_at])
+    # reviewed Tiingo distributions the reconciliation treats as splits (D40)
+    con.execute("CREATE TABLE reclassified (ticker VARCHAR, event_date DATE)")
+    reclassified = [(r["ticker"], r["event_date"]) for r in config.corporate_actions()]
+    if reclassified:                                  # executemany refuses an empty list
+        con.executemany("INSERT INTO reclassified VALUES (?, ?)", reclassified)
     # Views shared by a check and the opening-balance audit, one SQL file each:
     # Yahoo vs Tiingo on sampled dates (C12, D38) and per-series baseline
     # metrics (C13, D39).

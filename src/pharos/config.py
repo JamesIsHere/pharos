@@ -1,4 +1,4 @@
-"""Reads the two config files. Every module gets config from here, so there is one
+"""Reads the config files. Every module gets config from here, so there is one
 parser and one interpretation of each field."""
 
 import csv
@@ -24,4 +24,20 @@ def watchlist() -> list[dict]:
     for r in rows:
         r["active_from"] = date.fromisoformat(r["active_from"]) if r["active_from"] else None
         r["active_to"] = date.fromisoformat(r["active_to"]) if r["active_to"] else None
+    return rows
+
+
+def corporate_actions() -> list[dict]:
+    """Reviewed reclassifications for the reference source (D40): each row is a
+    Tiingo cash distribution the reconciliation treats as a split. Fails loudly
+    on a bad date or a repeated row; an unlisted distribution stays a dividend."""
+    with open(CONFIG_DIR / "corporate_actions.csv", newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    for r in rows:
+        if not r["note"].strip():
+            raise ValueError(f"corporate_actions.csv: {r['ticker']} {r['event_date']} has no note")
+        r["event_date"] = date.fromisoformat(r["event_date"])
+    keys = [(r["ticker"], r["event_date"]) for r in rows]
+    if len(set(keys)) != len(keys):
+        raise ValueError(f"corporate_actions.csv: repeated rows {sorted(k for k in keys if keys.count(k) > 1)}")
     return rows

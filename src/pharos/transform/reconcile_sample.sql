@@ -4,6 +4,7 @@
 --   observations       staged or published observations (Yahoo: yf:close:<ticker>)
 --   raw_tiingo_prices  this run's Tiingo snapshot (D36)
 --   this_run           run_id, the sampling seed
+--   reclassified       (ticker, event_date) from config/corporate_actions.csv (D40)
 --
 -- Used by C12 (nightly, rows over tolerance) and the opening-balance audit
 -- (every sampled row, recorded). One file, so the two can't drift apart.
@@ -12,6 +13,8 @@
 -- Tiingo: split-adjusted close derived from Tiingo alone (D35): raw close
 -- divided by the product of Tiingo's split factors on later dates. A factor
 -- applies from its own date onward, so a date's own factor doesn't adjust it.
+-- A reviewed distribution (D40) becomes a factor from Tiingo's own numbers:
+-- previous close / (previous close - div_cash), so the basis stays Tiingo's.
 --
 -- Sample per ticker, among dates both sources have: 5 dates ranked by
 -- hash(run_id, ticker, date), so each run draws fresh dates and any run's draw
@@ -27,12 +30,21 @@ WITH yahoo AS (
     )
     WHERE value IS NOT NULL
 ),
+factors AS (
+    SELECT p.ticker, p.obs_date, p.close,
+           CASE WHEN r.ticker IS NOT NULL
+                THEN lag(p.close) OVER w / (lag(p.close) OVER w - p.div_cash)
+                ELSE p.split_factor END AS factor
+    FROM raw_tiingo_prices AS p
+    LEFT JOIN reclassified AS r ON r.ticker = p.ticker AND r.event_date = p.obs_date
+    WINDOW w AS (PARTITION BY p.ticker ORDER BY p.obs_date)
+),
 tiingo AS (
     SELECT ticker, obs_date, close AS tiingo_raw_close,
-           close / coalesce(exp(sum(ln(split_factor)) OVER (
+           close / coalesce(exp(sum(ln(factor)) OVER (
                PARTITION BY ticker ORDER BY obs_date
                ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING)), 1.0) AS tiingo_close
-    FROM raw_tiingo_prices
+    FROM factors
 ),
 both_sources AS (
     SELECT y.ticker, y.obs_date, y.yahoo_close, t.tiingo_close, t.tiingo_raw_close

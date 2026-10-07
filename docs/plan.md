@@ -3,10 +3,10 @@
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
 - **Milestone:** M1, steps 1-6 and 3b of 10 built. Step 7 code complete, live run pending: Tiingo loader + wiring, C12, C13, C18-C20, `pharos audit` (all or nothing, D39). The step closes when a live audit records the baseline (acceptance #4)
-- **Health:** YELLOW at 2026-10-07 18:30 UTC (`pharos health`): C12 (GOOGL 2006-03-15 off 49.95%, the 2014 share-class distribution, #35), C13 (no baseline recorded), C15 ATVI and C16 CPI Oct 2025 (documented expected states, #31). C18-C20 pass. serving/CURRENT = 20261007T182814Z
-- **Last session:** 2026-10-07 (third session): audit baseline rule decided (all or nothing), `pharos audit`, C13, shared transform/baseline_metrics.sql, reconcile_sample relabel (a drawn latest date stays random). D39. 194 tests pass
-- **Next action:** decide how the reconciliation treats GOOGL's 2014-04-03 distribution (#35), then rerun `pharos audit` to record the baseline. Live audit of 20261007T182814Z: 16 of 17 tickers within 0.04% (6 comparisons each, 5 random), GOOGL refused, no baseline recorded
-- **Blockers / open questions:** OPEN: #35, how the reconciliation treats the 2014 GOOGL distribution. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
+- **Health:** YELLOW at 2026-10-07 18:30 UTC (`pharos health`): C12 (GOOGL 2006-03-15, fixed by D40 in this commit; clears next evaluation), C13 (no baseline recorded), C15 ATVI and C16 CPI Oct 2025 (documented expected states, #31). C18-C20 pass. serving/CURRENT = 20261007T182814Z
+- **Last session:** 2026-10-07 (third session): audit rule decided (all or nothing, D39), `pharos audit`, C13, baseline_metrics.sql; first live Tiingo pull (#33 closed); GOOGL 2014 distribution reclassified via config/corporate_actions.csv (D40, #35 closed); full-population reconciliation found 38 single-day disagreements (#36). 199 tests pass
+- **Next action:** decide how the audit handles the 38 single-day disagreements (#36), then `pharos audit` to record the baseline. The audit is held until then: on this draw it would pass and record a baseline over known disagreements
+- **Blockers / open questions:** OPEN: #36, the audit's treatment of known single-day disagreements. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
 <!-- Every concern or finding not fixed in the turn it comes up goes here before that turn ends. IDs never change or get reused. Fixing an issue deletes its row in the same commit, and the commit message cites the ID; git history is the record. -->
@@ -24,7 +24,7 @@
 | 31  | Documented expected states (C15 ATVI, C16 CPI Oct 2025) hold health at yellow permanently        | A yellow that never clears trains the eye to ignore yellow; acceptance #3 says green apart from them | step 8 (roll-up)   |
 | 32  | Status roll-up is overall only; design.md section 7 rolls up per source, then overall           | Health page traffic light per source has no data behind it             | step 8             |
 | 34  | A series added after the audit has no baseline row; C13 never compares it                        | A watchlist addition can lose history with C13 green                   | before any watchlist change |
-| 35  | Tiingo books GOOGL's 2014-04-03 class C distribution as a $567.97 cash dividend, Yahoo as a 1.998 split; every GOOGL date before it differs ~50% | The audit refuses the baseline whenever a pre-2014 GOOGL date is drawn; C12 warns the same way | step 7 (before the baseline) |
+| 36  | Full population of 20261007T182814Z: 38 of ~88,000 common dates on 10 tickers differ by 0.50-1.40%, each an isolated day (neighbors agree exactly), clustered on shared dates (2006-01-18 x5 tickers, 2006-06-09 x4) | The 5-date sample finds them by luck (~3.5% per audit), so the baseline would usually record over known disagreements; which source is right is unknown | step 7 (before the baseline) |
 
 ---
 

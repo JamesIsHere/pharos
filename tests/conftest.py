@@ -42,6 +42,7 @@ def root(monkeypatch, tmp_path):
         "yahoo": {"required_series": ["close"], "expected_lag_days": 0}})
     monkeypatch.setattr(config, "watchlist", lambda: [
         {"ticker": "NVDA", "yahoo_symbol": "NVDA", "active_from": date(2026, 10, 5), "active_to": None}])
+    monkeypatch.setattr(config, "corporate_actions", lambda: [])
     return data
 
 

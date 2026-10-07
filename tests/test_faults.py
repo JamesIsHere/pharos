@@ -555,3 +555,32 @@ def test_two_baselines_stop_the_run(staged_run):
     from pharos.checks import CheckError
     with pytest.raises(CheckError, match="more than one baseline"):
         run_checks(staged_run)
+
+
+DISTRIBUTION = ("SELECT * REPLACE (CASE WHEN obs_date = DATE '2026-10-05' THEN 20.0 ELSE close END AS close, "
+                "CASE WHEN obs_date = DATE '2026-10-06' THEN 10.0 ELSE div_cash END AS div_cash) FROM t")
+
+
+def test_c12_unlisted_large_distribution_still_fires(staged_run):
+    # Tiingo raw 20.0, then a 10.0 cash distribution on 10-06: unlisted, it stays
+    # a dividend and 10-05 compares 20.0 with Yahoo's 10.0
+    rewrite_tiingo(staged_run, DISTRIBUTION)
+    r = result(run_checks(staged_run), "C12")
+    assert (r["status"], r["failing_row_count"]) == ("warn", 1) and "over tolerance" in r["sample"]
+
+
+def test_c12_listed_distribution_becomes_tiingo_own_factor(staged_run, monkeypatch):
+    from pharos import config
+    monkeypatch.setattr(config, "corporate_actions", lambda: [
+        {"ticker": "NVDA", "event_date": date(2026, 10, 6), "note": "test"}])
+    rewrite_tiingo(staged_run, DISTRIBUTION)          # factor 20 / (20 - 10) = 2: 10-05 adjusts to 10.0
+    assert result(run_checks(staged_run), "C12")["status"] == "pass"
+
+
+def test_c12_listed_distribution_missing_from_tiingo_warns(staged_run, monkeypatch):
+    from pharos import config
+    monkeypatch.setattr(config, "corporate_actions", lambda: [
+        {"ticker": "NVDA", "event_date": date(2026, 10, 6), "note": "test"}])
+    r = result(run_checks(staged_run), "C12")         # Tiingo has no distribution that day
+    assert (r["status"], r["failing_row_count"]) == ("warn", 1)
+    assert "reclassified distribution not in Tiingo" in r["sample"]
