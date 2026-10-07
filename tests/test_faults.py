@@ -238,3 +238,33 @@ def test_c10_ignores_jump_in_older_vintage(staged_run):
            f"CASE WHEN {NVDA_DAY2} THEN value * 3 ELSE value END AS value) "
            "FROM t WHERE series_id = 'yf:close:NVDA'")
     assert result(run_checks(staged_run), "C10")["status"] == "pass"
+
+
+def test_c11_orphan_observation_blocks(staged_run):
+    tamper(staged_run, "observations", "SELECT * FROM t UNION ALL SELECT * REPLACE ('yf:close:FAKE' AS series_id) "
+                                       f"FROM t WHERE {NVDA_DAY}")
+    e = run_checks(staged_run)
+    r = result(e, "C11")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1)
+    assert "without catalog row" in r["sample"]
+    assert e.verdict == "blocked"
+
+
+@pytest.mark.parametrize("active_to, c11, c15", [
+    ("NULL", "error", "pass"),                 # active, no rows: blocks
+    ("DATE '2026-10-07'", "error", "pass"),    # ends on the run date: still active
+    ("DATE '2026-10-06'", "pass", "warn"),     # ended: source-missing, monitor only
+])
+def test_series_without_observations_by_state(staged_run, active_to, c11, c15):
+    tamper(staged_run, "observations", "SELECT * FROM t WHERE series_id <> 'yf:close:NVDA'")
+    tamper(staged_run, "series_catalog", f"SELECT * REPLACE (CASE WHEN series_id = 'yf:close:NVDA' "
+                                         f"THEN {active_to} ELSE active_to END AS active_to) FROM t")
+    e = run_checks(staged_run)
+    assert (result(e, "C11")["status"], result(e, "C15")["status"]) == (c11, c15)
+
+
+def test_c11_ended_series_with_observations_passes_c15(staged_run):
+    tamper(staged_run, "series_catalog", "SELECT * REPLACE (CASE WHEN series_id = 'yf:close:NVDA' "
+                                         "THEN DATE '2026-10-06' ELSE active_to END AS active_to) FROM t")
+    e = run_checks(staged_run)
+    assert (result(e, "C11")["status"], result(e, "C15")["status"]) == ("pass", "pass")

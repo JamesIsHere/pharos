@@ -111,8 +111,8 @@ Completeness requires a declared expectation. `config/watchlist.csv` plus each s
 | C08 | accuracy | error | yes | schema differs from contract (columns, types) |
 | C09 | validity | error | yes | price ≤ 0; obs_date in future; obs_date > available_date |
 | C10 | validity | warn | yes | abs(daily return) > 40% on split-adjusted close, current vintage per series, no dates excluded (D29) |
-| C11 | integrity | error | yes | observations without catalog row, or an active catalog series (`active_to` NULL or in the future) without observations |
-| C15 | completeness | warn | no | ended catalog series (`active_to` in the past) without observations: reported as source-missing (D22) |
+| C11 | integrity | error | yes | observations without catalog row, or an active catalog series (`active_to` NULL or on/after the run's UTC date) without observations |
+| C15 | completeness | warn | no | ended catalog series (`active_to` before the run's UTC date) without observations: reported as source-missing (D22) |
 | C16 | validity | warn | no | value withdrawn by the source (NULL) in the latest vintage, inside the active window (D25) |
 | C12 | reconciliation | warn | no | sampled watchlist closes differ from second source by > 0.5% (split-adjusted close only; dividend-adjustment methods differ by source) |
 | C13 | baseline | warn | no | first_date moved later, or row_count below baseline, vs opening-balance audit |

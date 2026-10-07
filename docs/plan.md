@@ -2,10 +2,10 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M1, steps 1-3 and 3b of 10 built; step 4 in progress (check runner + C03, C04, C05, C06, C07, C08, C09, C10, C16 built)
-- **Health:** n/a (`pharos health` arrives in step 5). Checks on live run 20261007T153852Z: verdict passed; C03-C10 pass, C16 warns 1 row (CPIAUCSL 2025-10-01 withdrawn by source). Staged: 96,160 observations, 21 catalog rows
-- **Last session:** 2026-10-07: first live incremental load (run 20261007T153852Z, 17 tickers x 7 days, all `incremental`, overlap folds in exactly). Open issues list + capture rule. D22 (C11/C15 by series state), D23 (accept a correction by full re-pull; C14 current price vintage), D24 (XNYS calendar, reconciled 5,474 = 5,474), D25 (withdrawn value is a row; C16), D26 (C05 = raw files vs load log), D27 (C07 same-value dupes only), D28 (C08 contract inside the check file); C09 built; D29 (C10 without split exclusion). `checks.py` runner; 106 tests pass
-- **Next action:** C11, C14, C15; then publish gate with atomic swap and run manifest; then C01, C02
+- **Milestone:** M1, steps 1-3 and 3b of 10 built; step 4 in progress (check runner + C03, C04, C05, C06, C07, C08, C09, C10, C11, C15, C16 built)
+- **Health:** n/a (`pharos health` arrives in step 5). Checks on live run 20261007T153852Z: verdict passed; C03-C11 pass, C15 warns 1 row (ATVI source-missing, acceptance #3), C16 warns 1 row (CPIAUCSL 2025-10-01 withdrawn by source). Staged: 96,160 observations, 21 catalog rows
+- **Last session:** 2026-10-07: first live incremental load (run 20261007T153852Z, 17 tickers x 7 days, all `incremental`, overlap folds in exactly). Open issues list + capture rule. D22 (C11/C15 by series state), D23 (accept a correction by full re-pull; C14 current price vintage), D24 (XNYS calendar, reconciled 5,474 = 5,474), D25 (withdrawn value is a row; C16), D26 (C05 = raw files vs load log), D27 (C07 same-value dupes only), D28 (C08 contract inside the check file); C09 built; D29 (C10 without split exclusion); C11 + C15 per D22. `checks.py` runner; 111 tests pass
+- **Next action:** C14; then publish gate with atomic swap and run manifest; then C01, C02
 - **Blockers / open questions:** none blocking. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
@@ -13,7 +13,6 @@
 
 | ID  | Issue                                                                                          | Effect if ignored                                                      | Resolves in        |
 |-----|------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|--------------------|
-| 6   | No "ended" or "source-missing" state; ATVI has a catalog row and zero observations             | C11 blocks every publish; acceptance #3 fails                          | step 4 (D22)       |
 | 7   | Windows file locks on the serving/ swap (catalog.duckdb half done: fails loudly)               | Swap fails while DBeaver or the app holds the files                    | step 4 (publish)   |
 | 9   | Nightly refresh timing vs the Wednesday 06:00 workshop mirror                                  | Backup captures a half-written staging/                                | step 10            |
 | 10  | Fault tests run on a copy of real data                                                         | Not repeatable; CI on the public repo can't run them                   | step 6             |
