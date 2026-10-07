@@ -5,8 +5,8 @@
 - **Milestone:** M1, steps 1-3 and 3b of 10 built (scaffold, loaders, staging, incremental Yahoo loader); step 4 next
 - **Health:** n/a (`pharos health` arrives in step 5). `pharos stage` on run 20261007T140923Z: 96,160 observations (11,050 FRED incl. 743 withdrawn-as-NULL, 85,110 Yahoo), 21 catalog rows, 0 duplicate keys; `catalog.duckdb` has 6 views
 - **Last session:** 2026-10-07: D19 (units per observation row), D20 (raw Yahoo rows carry pull window; price vintage = latest full pull), D21 (incremental Yahoo pulls with overlap basis check, pull_reason on every row), transform SQL x3, `stage.py` + `pharos stage`, `catalog.py`; 59 tests pass. Live dry run of D21 (no raw written): all 17 stored tickers classify incremental, overlap gap 0.0 on 7 dates; ATVI bootstraps every night (empty response, cheap)
-- **Next action:** step 4, checks C01-C15 in `checks/*.sql`, runner, write-audit-publish gate with atomic swap, run manifest. Live incremental load done (run 20261007T153852Z: 17 tickers x 7 days, all `incremental`; staged with the first run: still 96,160 rows, 0 duplicate keys). Next decision: #17
-- **Blockers / open questions:** #17 (a real correction blocks publish forever) blocks step 4's gate design. #6 decided (D22), built with C11/C15. Full list in Open issues below; cite only IDs that appear there.
+- **Next action:** step 4, checks C01-C15 in `checks/*.sql`, runner, write-audit-publish gate with atomic swap, run manifest. Live incremental load done (run 20261007T153852Z: 17 tickers x 7 days, all `incremental`; staged with the first run: still 96,160 rows, 0 duplicate keys). Next: #20 (trading calendar for C04), then build
+- **Blockers / open questions:** none blocking. #6 (D22) and #17 (D23) decided, built in step 4; #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
 <!-- Every concern or finding not fixed in the turn it comes up goes here before that turn ends. IDs never change or get reused. Fixing an issue deletes its row in the same commit, and the commit message cites the ID; git history is the record. -->
@@ -23,13 +23,15 @@
 | 14  | Yahoo prices carry float32 precision (~7 significant digits)                                   | Cross-source comparison without a tolerance fails falsely              | step 7 (C12)       |
 | 15  | Yahoo stock_splits carries non-splits (GOOGL 2014-04-03 1.998, O 2021-11-15 1.032)             | Split re-pull rule and C10 exclusion fire on non-splits                | step 4 (C10)       |
 | 16  | COST $15 special dividend on 2023-12-27                                                        | Looks like a price jump to C10                                         | step 4 (C10)       |
-| 17  | Under dedup rule A a real source correction blocks publish forever (old raw file stays)        | One Yahoo correction freezes serving/; needs a deliberate accept path  | step 4 (C14)       |
+| 17  | Under dedup rule A a real source correction blocks publish forever (old raw file stays)        | One Yahoo correction freezes serving/; needs a deliberate accept path  | step 4 (D23)       |
 | 18  | expected_lag_days is NULL in series_catalog                                                    | C02 has nothing to measure freshness against                           | step 4 (C02)       |
 | 19  | GDP freshness: drive expected release dates from FRED's release-dates endpoint                 | A hard-coded lag misfires when releases slip                           | step 4 (C02)       |
 | 20  | Trading calendar: confirm exchange_calendars or an equivalent                                  | C04 and C02 can't know which trading days to expect                    | step 4 (C04)       |
 | 21  | Second price source not chosen (Tiingo / Alpha Vantage / Stooq)                                | C12 and the opening-balance audit can't run                            | step 7             |
 | 22  | Watchlist cik column blank                                                                     | Tickers can't map to SEC filers                                        | M2                 |
 | 23  | SEC available_date = next trading day after filing                                             | Same-day joins leak filings into that day's close                      | M2                 |
+| 24  | Accept path for a FRED same-key conflict (C14 on every FRED key)                               | A changed ALFRED vintage blocks publish forever                        | only if C14 fires  |
+| 25  | Price vintage is a DATE: two full pulls of one ticker on one day share a vintage               | Same-day accept re-pull leaves the conflict in place                   | step 4 (D23 build) |
 
 ---
 
