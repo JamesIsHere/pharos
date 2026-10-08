@@ -233,7 +233,11 @@ def test_charts_add_and_remove_panels(published):
 
 
 def test_home_renders_the_watchlist(published):
+    from pharos import health
+    from test_design_faults import at
     monkeypatch = published
+    real = health.evaluate                                      # pinned: the synthetic data is fresh only on 10-07
+    monkeypatch.setattr(health, "evaluate", lambda now_=None, record=True: real(at(10, 7, 15), record=record))
     monkeypatch.syspath_prepend(str(CHARTS_PAGE.parents[1]))
     st.cache_data.clear(); st.cache_resource.clear()
     page = AppTest.from_file(str(PROJECT_ROOT / "app" / "Home.py"), default_timeout=60).run()
