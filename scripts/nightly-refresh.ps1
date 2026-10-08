@@ -1,7 +1,7 @@
 # nightly-refresh.ps1 -- what the scheduled task runs (design.md section 6, rule 7).
-# Runs `uv run pharos refresh`, keeps its output in data/logs/, and raises a
-# Windows toast (BurntToast) when the run does not publish. The exit code is
-# the refresh's, so Task Scheduler's "Last Run Result" tells the same story.
+# Runs `uv run pharos refresh` and keeps its output in data/logs/. The exit
+# code is the refresh's, so Task Scheduler's "Last Run Result" tells the same
+# story. There is no notification: a failure shows on the dashboard (D50).
 #
 # Workshop mirror guard (open issue #9, D49): the weekly robocopy mirror
 # (task "Workshop Mirror", Wednesday 06:00, 8 copy threads) must not copy
@@ -52,12 +52,4 @@ try {
     Pop-Location
 }
 Write-Log "exit $code"
-
-if ($code -ne 0) {
-    Import-Module BurntToast
-    $last = (Get-Content $log | Where-Object { $_.Trim() } | Select-Object -Last 2) -join "`n"
-    New-BurntToastNotification -AppLogo (Join-Path $PSScriptRoot 'pharos.ico') `
-        -Text 'Pharos nightly refresh failed', $last, "Log: $log"
-    Write-Log 'toast raised'
-}
 exit $code

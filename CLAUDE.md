@@ -22,7 +22,7 @@ uv run pharos health                 # pass/warn/fail table; rewrites <data>/hea
 uv run pytest                      # unit tests + fault-injection tests
 uv run streamlit run app/Home.py   # dashboard (dev)
 scripts\open-dashboard.ps1         # what the desktop icon runs
-scripts\register-tasks.ps1         # registers the nightly refresh in Task Scheduler
+scripts\register-tasks.ps1         # registers the nightly refresh in Task Scheduler + the desktop icon
 ```
 
 ## Layout

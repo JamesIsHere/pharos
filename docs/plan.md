@@ -2,11 +2,11 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M1, steps 1-9 and 3b of 10 built. Step 9 closed: Charts overlays mixed frequencies in composable panels, with range, rebase, log and URL state (acceptance #7); Home shows the watchlist with the status bar (acceptance #8). Next is step 10, launcher + nightly task
-- **Health:** GREEN at 2026-10-07 23:19 UTC (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261007T182814Z
-- **Last session:** 2026-10-07 (fourth session): steps 8 and 9 built. Health page (D43-D45), acknowledged expected states (D46, #31), FRED drawn at first release with estimated pre-ALFRED dates (D47, #39), Charts as composable panels (D48, #40). 228 tests pass
-- **Next action:** step 10 (desktop launcher, nightly task; acceptance #9, #10), which closes M1. Then M1.5, the exploration tools (#41)
-- **Blockers / open questions:** none open for step 10. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
+- **Milestone:** M1 built: steps 1-10 and 3b. Step 10 closed: desktop icon + Edge app window (cold ~5.7s, warm 0.88s; acceptance #9), nightly task at 01:30 with the mirror guard (D49), failures shown on the dashboard, not toasted (D50; acceptance #10). M1 is done after 7 consecutive green nightly runs: 1 of 7 (2026-10-08 01:30, run 20261008T053003Z)
+- **Health:** GREEN at 2026-10-08 (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261008T053003Z
+- **Last session:** 2026-10-07/08 (fifth session): step 10 built. Launcher, icon, nightly task, mirror guard (D49, #9); toast dropped because toasts are off machine-wide (D50, #42); Home test pinned to its clock (it broke when the date rolled). 228 tests pass
+- **Next action:** M1.5, the exploration tools (#41), while the nightly streak accrues. Check each morning's `data/logs/nightly-*.log` or the status bar
+- **Blockers / open questions:** none. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
 <!-- Every concern or finding not fixed in the turn it comes up goes here before that turn ends. IDs never change or get reused. Fixing an issue deletes its row in the same commit, and the commit message cites the ID; git history is the record. -->
@@ -22,7 +22,6 @@
 | 28  | C05 checks raw files by row count only; no content hash is recorded at write time              | A raw file rewritten with the same row count passes C05                | M1 (runs.py)       |
 | 34  | A series added after the audit has no baseline row; C13 never compares it. Any re-baseline path built for this must also decide a size cap on isolated print disagreements: D41's shape rule passes one of any size, and C10 only catches moves over 40% (folded in from #37) | A watchlist addition can lose history with C13 green; a re-run audit could pass a large isolated bad print | before any watchlist change |
 | 41  | Exploration tools beyond overlay (James, 2026-10-07: 'quickly mix and match ... explore trends'): transforms (YoY %, rolling return, drawdown), ratio/spread of two series, rolling correlation, lead/lag shift, resampling to a common frequency. None is in M1 scope; each must be DuckDB SQL computed on obs_date and drawn at plot_date (D47) | Built ad hoc, a transform could compute on the plot timeline and smear revisions, or leak a value before its release | M1.5, after step 10 (James, 2026-10-07) |
-| 42  | Failure toast not yet seen: the fault run through the scheduled task logged 'toast raised' with no error, but no banner appeared (a full-screen game was in front) and BurntToast's `Get-BTHistory` returns 0 even for an interactive probe toast | Acceptance #10's toast half is unproven; a silent nightly failure would surface only as C01 red | step 10 |
 
 ---
 
@@ -48,7 +47,7 @@
 - [x] 7. Opening-balance audit against the second source; record baseline
 - [x] 8. Health page (traffic lights, coverage heatmap, row counts by run, run strip, failing checks, spot-check panel)
 - [x] 9. Home + Charts pages (overlay, date range buttons, rebase-to-100 default, log toggle, URL state)
-- [ ] 10. Desktop launcher (`open-dashboard.ps1`, shortcut, lighthouse .ico; there is no lighthouse emoji, so draw one) + `register-tasks.ps1` (nightly refresh, run-after-missed-start, BurntToast on failure)
+- [x] 10. Desktop launcher (`open-dashboard.ps1`, shortcut, lighthouse .ico; there is no lighthouse emoji, so draw one) + `register-tasks.ps1` (nightly refresh, run-after-missed-start; failures show on the dashboard, no toast, D50)
 
 ### Acceptance criteria
 1. From an empty data root, `uv run pharos refresh` backfills every watchlist series and both macro groups.
@@ -60,7 +59,7 @@
 7. Charts page: overlay ≥3 series of mixed frequency (daily price + quarterly GDP + monthly CPI), change the dates, rebase, toggle log. Reloading the URL restores the chart.
 8. Home opens to the watchlist chart with the status bar. It's never empty.
 9. Desktop icon: cold start to data on screen < 10s; warm < 2s; opens in an Edge app window.
-10. A nightly task is registered. A deliberately failed run raises a toast and leaves serving data unchanged.
+10. A nightly task is registered. A deliberately failed run shows on the dashboard and leaves serving data unchanged (D50; was 'raises a toast').
 
 **Built** when 1–10 pass. **Done** after 7 consecutive green nightly runs. M2 can start once M1 is built.
 

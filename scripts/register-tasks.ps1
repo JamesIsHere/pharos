@@ -2,8 +2,8 @@
 # the Pharos icon on the desktop. Safe to re-run: both are replaced in place.
 #
 # Task "Pharos Nightly Refresh": daily 01:30 local, run as soon as possible
-# after a missed start, only while you are logged on (the failure toast needs
-# your session). 01:30 keeps the publish inside C01's 26h window and clear of
+# after a missed start, only while you are logged on (no stored password).
+# 01:30 keeps the publish inside C01's 26h window and clear of
 # the Wednesday 06:00 workshop mirror (D49).
 
 $ErrorActionPreference = 'Stop'
@@ -19,7 +19,7 @@ $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances 
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive
 
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings `
-    -Principal $principal -Description 'uv run pharos refresh; toast on failure. Registered by pharos\scripts\register-tasks.ps1' `
+    -Principal $principal -Description 'uv run pharos refresh; failures show on the dashboard. Registered by pharos\scripts\register-tasks.ps1' `
     -Force | Out-Null
 "registered task '$taskName'"
 
