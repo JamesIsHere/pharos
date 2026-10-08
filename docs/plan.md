@@ -13,7 +13,6 @@
 
 | ID  | Issue                                                                                          | Effect if ignored                                                      | Resolves in        |
 |-----|------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|--------------------|
-| 9   | Nightly refresh timing vs the Wednesday 06:00 workshop mirror                                  | Backup captures a half-written staging/                                | step 10            |
 | 12  | Split-adjusted history uses trade date as available_date                                       | Look-ahead: the adjusted value wasn't knowable then; undocumented      | M1 (decision log)  |
 | 17  | Under dedup rule A a real source correction blocks publish forever (old raw file stays)        | One Yahoo correction freezes serving/; needs a deliberate accept path  | step 4 (D23)       |
 | 22  | Watchlist cik column blank                                                                     | Tickers can't map to SEC filers                                        | M2                 |
@@ -23,6 +22,7 @@
 | 28  | C05 checks raw files by row count only; no content hash is recorded at write time              | A raw file rewritten with the same row count passes C05                | M1 (runs.py)       |
 | 34  | A series added after the audit has no baseline row; C13 never compares it. Any re-baseline path built for this must also decide a size cap on isolated print disagreements: D41's shape rule passes one of any size, and C10 only catches moves over 40% (folded in from #37) | A watchlist addition can lose history with C13 green; a re-run audit could pass a large isolated bad print | before any watchlist change |
 | 41  | Exploration tools beyond overlay (James, 2026-10-07: 'quickly mix and match ... explore trends'): transforms (YoY %, rolling return, drawdown), ratio/spread of two series, rolling correlation, lead/lag shift, resampling to a common frequency. None is in M1 scope; each must be DuckDB SQL computed on obs_date and drawn at plot_date (D47) | Built ad hoc, a transform could compute on the plot timeline and smear revisions, or leak a value before its release | M1.5, after step 10 (James, 2026-10-07) |
+| 42  | Failure toast not yet seen: the fault run through the scheduled task logged 'toast raised' with no error, but no banner appeared (a full-screen game was in front) and BurntToast's `Get-BTHistory` returns 0 even for an interactive probe toast | Acceptance #10's toast half is unproven; a silent nightly failure would surface only as C01 red | step 10 |
 
 ---
 
