@@ -5,7 +5,7 @@
 - **Milestone:** M1 built: steps 1-10 and 3b. Step 10 closed: desktop icon + Edge app window (cold ~5.7s, warm 0.88s; acceptance #9), nightly task at 01:30 with the mirror guard (D49), failures shown on the dashboard, not toasted (D50; acceptance #10). M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z (run_manifest: published, 0 errors, 0 warnings each)
 - **Health:** GREEN at 2026-11-04 (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261104T053016Z
 - **Last session:** 2026-10-07/08 (fifth session): step 10 built. Launcher, icon, nightly task, mirror guard (D49, #9); toast dropped because toasts are off machine-wide (D50, #42); Home test pinned to its clock (it broke when the date rolled). 228 tests pass
-- **Next action:** M2 draft written (D58); fresh-eyes review closed (fixes 1-6, D59-D62; run-time limit in acceptance #8). Open from it: #52 co-registrants, #53 nightly start vs SEC rebuild; #52 (co-registrants) found during fix 4
+- **Next action:** M2 draft written (D58); fresh-eyes review closed (fixes 1-6, D59-D62; run-time limit in acceptance #8). Open from it: #52 co-registrants, #53 nightly start vs SEC rebuild
 - **Blockers / open questions:** none. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
