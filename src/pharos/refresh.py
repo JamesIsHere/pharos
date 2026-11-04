@@ -20,6 +20,8 @@ run-level fields repeated. Long, not wide: a new source adds rows, not columns.
   with health. check_results keep each check's own status.
 - published_at is set only when the run published. Its maximum over all
   manifests is last_published_at, the app's cache key.
+- git_commit and git_dirty name the code the run ran (D103), read before
+  anything loads; a run that can't read them fails without loading.
 """
 
 import traceback
@@ -31,7 +33,7 @@ from pharos import health, notify
 from pharos.loaders import fred, tiingo, yahoo
 from pharos.paths import data_root
 from pharos.publish import Publication, publish
-from pharos.runs import new_run_id
+from pharos.runs import new_run_id, provenance
 from pharos.stage import DATASETS, stage
 
 REFERENCE_DATASETS = [("tiingo", "prices")]   # loaded every run, never required (D36, D37)
@@ -41,8 +43,9 @@ def refresh() -> tuple[str, Publication | None]:
     """Run every step for a new run. Returns (run_id, publication); raises on a crash."""
     run_id = new_run_id()
     started_at = datetime.now(timezone.utc)
-    publication, error, reference_errors = None, None, {}
+    publication, error, reference_errors, code = None, None, {}, (None, None)
     try:
+        code = provenance()        # no commit, no run: its staging could never be rebuilt (D103)
         health.acknowledgments()   # a bad config/expected_states.csv fails the run before it loads
         yahoo.load_prices(run_id)
         fred.load_macro(run_id)
@@ -58,14 +61,15 @@ def refresh() -> tuple[str, Publication | None]:
         error = traceback.format_exc(limit=5)
         raise
     finally:
-        write_manifest(run_id, started_at, publication, error, reference_errors)
+        write_manifest(run_id, started_at, publication, error, reference_errors, code)
         status = health.evaluate()   # rewrites health/latest.md after every run, crashed ones too
         notify.send_status(run_id, status)   # never raises (#96)
     return run_id, publication
 
 
 def write_manifest(run_id: str, started_at: datetime, publication: Publication | None,
-                   error: str | None, reference_errors: dict | None = None) -> None:
+                   error: str | None, reference_errors: dict | None = None,
+                   code: tuple[str | None, bool | None] = (None, None)) -> None:
     finished_at = datetime.now(timezone.utc)
     if publication is None:
         status = "failed"
@@ -114,12 +118,14 @@ def write_manifest(run_id: str, started_at: datetime, publication: Publication |
                    ?::INTEGER AS checks_pass, ?::INTEGER AS checks_warn,
                    ?::INTEGER AS checks_error, ?::INTEGER AS checks_broken,
                    ?::INTEGER AS checks_acknowledged,
-                   ?::VARCHAR AS error, ds.dataset_error
+                   ?::VARCHAR AS error, ds.dataset_error,
+                   ?::VARCHAR AS git_commit, ?::BOOLEAN AS git_dirty
             FROM ds
             LEFT JOIN loads AS l USING (source, dataset)
             LEFT JOIN latest AS t ON t.source = ds.source
             ORDER BY ds.source, ds.dataset
         ) TO '""" + target.as_posix() + "' (FORMAT parquet)",
         [run_id, started_at, finished_at, status, finished_at if status == "published" else None,
-         counts["pass"], counts["warn"], counts["error"], counts["broken"], counts["acknowledged"], error])
+         counts["pass"], counts["warn"], counts["error"], counts["broken"], counts["acknowledged"], error,
+         code[0], code[1]])
     con.close()

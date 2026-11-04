@@ -14,7 +14,11 @@ Rules applied here:
   A version that already exists is re-pointed, not rebuilt.
 - If CURRENT is held open elsewhere the swap retries briefly, then fails loudly
   and leaves the old pointer in place (open issue #7).
-- Old versions are kept. Delete = archive; pruning would be its own decision.
+- Old versions are kept (D103).
+- A publish deletes every staging folder older than the run it publishes:
+  staging rebuilds from raw at the run's recorded commit (`pharos
+  rebuild-staging`), and a published run's tables live on in its version. A
+  blocked or failed run keeps its folder until a later run publishes (D103).
 - A version carries inputs/: config/ and this run's Tiingo file as the checks
   read them, so view-time health and the app never read config/ or raw/ (D76).
 """
@@ -29,6 +33,7 @@ import duckdb
 
 from pharos.checks import INPUTS_DIR, VIEW_INPUTS, Evaluation, bind_view_inputs, run_checks
 from pharos.paths import data_root
+from pharos.runs import RUN_ID
 from pharos.stage import complete_runs
 
 TABLES = ("observations", "series_catalog")
@@ -82,7 +87,19 @@ def publish(run_id: str | None = None) -> Publication:
     if not version.exists():
         _build(run_id, version)
     _point(run_id)
+    prune_staging(run_id)
     return Publication(run_id, evaluation, version)
+
+
+def prune_staging(published_run: str) -> list[str]:
+    """Delete staging/<run_id>/ for every run older than published_run (D103).
+    Only run-id folders are touched; returns the run ids removed."""
+    folder = data_root() / "staging"
+    old = sorted(p for p in folder.iterdir() if p.is_dir() and RUN_ID.fullmatch(p.name)
+                 and p.name < published_run) if folder.is_dir() else []
+    for p in old:
+        shutil.rmtree(p)
+    return [p.name for p in old]
 
 
 def _build(run_id: str, version: Path) -> None:

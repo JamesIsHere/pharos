@@ -118,6 +118,23 @@ def cmd_audit(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_rebuild_staging(args: argparse.Namespace) -> int:
+    from pharos.rebuild import rebuild_staging
+
+    r = rebuild_staging(args.run)
+    print(f"rebuilt staging for {r.run_id} at commit {r.commit[:12]}"
+          + (" (the run's tree was dirty: the commit doesn't capture its code exactly)" if r.dirty else ""))
+    print(f"  {r.staging}")
+    if r.differences is None:
+        print("  not published: nothing to compare against")
+        return 0
+    same = all(d == (0, 0) for d in r.differences.values())
+    for table, (only_rebuilt, only_served) in r.differences.items():
+        print(f"  {table:<16} rows only in rebuild {only_rebuilt:>8,}   only in serving {only_served:>8,}")
+    print("  identical to serving" if same else "  DIFFERS from serving")
+    return 0 if same else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pharos", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -145,6 +162,11 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("refresh", help="load, stage, check and publish a new run; writes the run manifest")
     p.set_defaults(func=cmd_refresh)
+
+    p = sub.add_parser("rebuild-staging", help="rebuild an old run's staging from raw at the run's own commit, "
+                                               "in a throwaway folder, and compare it with serving (D103)")
+    p.add_argument("--run", required=True, help="run ID to rebuild")
+    p.set_defaults(func=cmd_rebuild_staging)
 
     args = parser.parse_args(argv)
     return args.func(args)

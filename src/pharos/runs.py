@@ -7,21 +7,50 @@ records a control total (rows downloaded vs rows actually in the file) for C06.
 """
 
 import os
+import re
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
 import duckdb
 
-from pharos.paths import data_root
+from pharos.paths import PROJECT_ROOT, data_root
+
+RUN_ID = re.compile(r"\d{8}T\d{6}Z")
 
 
 class RawExistsError(RuntimeError):
     pass
 
 
+class ProvenanceError(RuntimeError):
+    pass
+
+
 def new_run_id() -> str:
     """UTC timestamp to the second, e.g. 20261007T153012Z. Sorts in time order."""
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def _git(*args: str) -> str:
+    return subprocess.run(["git", "-C", str(PROJECT_ROOT), *args], capture_output=True,
+                          text=True, check=True).stdout.strip()
+
+
+def provenance() -> tuple[str, bool]:
+    """The git commit this code runs at, and whether the working tree differs
+    from it (tracked changes or untracked files; data/ is gitignored). Recorded
+    on every run so its staging can be rebuilt from raw at that commit (D103).
+    Unreadable is an error: a run that can't name its code can't be rebuilt."""
+    try:
+        commit = _git("rev-parse", "HEAD")
+        dirty = _git("status", "--porcelain") != ""
+    except (OSError, subprocess.CalledProcessError) as e:
+        detail = getattr(e, "stderr", "") or str(e)
+        raise ProvenanceError(f"can't read the git commit of {PROJECT_ROOT}: {detail.strip()} (D103)") from e
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise ProvenanceError(f"git rev-parse HEAD returned {commit!r}, not a commit hash (D103)")
+    return commit, dirty
 
 
 def write_raw(download, source: str, dataset: str, run_id: str) -> Path | None:
