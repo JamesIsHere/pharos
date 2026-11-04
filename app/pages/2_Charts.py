@@ -85,8 +85,12 @@ if "panels" not in st.session_state:
     st.session_state.slots = [s if s in shown else "" for s in qp["s"].split(",")][:len(SLOTS)] \
         if "s" in qp else []
     st.session_state.range = qp.get("r", "1Y") if qp.get("r") in RANGES else "1Y"
-    st.session_state.custom = (date.fromisoformat(qp["from"]), date.fromisoformat(qp["to"])) \
-        if "from" in qp and "to" in qp else None
+    st.session_state.custom = None
+    if "from" in qp and "to" in qp:
+        try:
+            st.session_state.custom = (date.fromisoformat(qp["from"]), date.fromisoformat(qp["to"]))
+        except ValueError:   # a hand-edited bookmark (#72): say so, keep the default range
+            st.warning(f"The link's dates ({qp['from']} to {qp['to']}) aren't YYYY-MM-DD; showing the default range.")
 
 # --- Controls -------------------------------------------------------------------
 span = st.segmented_control("Range", RANGES, key="range") or "1Y"

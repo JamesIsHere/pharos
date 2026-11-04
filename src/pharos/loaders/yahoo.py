@@ -95,6 +95,8 @@ def load_prices(run_id: str):
     """Download every watchlist ticker and write one raw file for the run."""
     cfg = config.sources()
     auto_adjust = cfg["yahoo"]["auto_adjust"]
+    if not isinstance(auto_adjust, bool):   # a YAML "false" in quotes is a truthy string (#72)
+        raise SchemaDriftError(f"yahoo.auto_adjust must be true or false, got {auto_adjust!r} (sources.yaml)")
     end = datetime.now(NEW_YORK).date()  # exclusive: today's bar is excluded
 
     # complete runs only, the set staging reads: an incomplete run's rows are not

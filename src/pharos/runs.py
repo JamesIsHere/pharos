@@ -6,6 +6,7 @@ it refuses to overwrite, never leaves a half-written file under a real name, and
 records a control total (rows downloaded vs rows actually in the file) for C06.
 """
 
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -52,7 +53,14 @@ def write_raw(download, source: str, dataset: str, run_id: str) -> Path | None:
                 TO '{partial.as_posix()}' (FORMAT parquet)"""
         )
         rows_written = _count_rows(con, partial)
-        partial.rename(target)  # fails if target appeared meanwhile: still write-once
+        # still write-once if target appeared meanwhile, on any OS: a hard link
+        # refuses an existing name everywhere, where rename overwrites on POSIX (#72)
+        try:
+            os.link(partial, target)
+        except FileExistsError as e:
+            partial.unlink()
+            raise RawExistsError(f"{target} appeared during the write; raw files are write-once") from e
+        partial.unlink()
         path_written = target
 
     record = root / "health" / "loads" / f"{run_id}__{source}__{dataset}.parquet"

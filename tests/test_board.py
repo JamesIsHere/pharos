@@ -244,3 +244,8 @@ def test_home_renders_the_watchlist(published):
     assert not page.exception and len(page.success) == 1
     spec = json.loads(page.get("plotly_chart")[0].proto.spec)
     assert [a["text"].split()[0] for a in spec["layout"]["annotations"]] == ["NVDA"]
+
+
+def test_malformed_bookmark_date_warns_not_traceback(published):
+    page = chart_page(published, {"r": "Custom", "from": "2026-13-01", "to": "2026-10-07"})
+    assert any("aren't YYYY-MM-DD" in w.value for w in page.warning)

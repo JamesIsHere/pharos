@@ -32,6 +32,13 @@ function Test-MirrorInTheWay {
     return $lastRun -lt $now.Date.AddHours(6)
 }
 
+trap {
+    # anything that stops the script (uv missing, the mirror query, a log
+    # write) leaves its message and a nonzero exit, never a silent stop (#72)
+    Write-Log "error: $_"
+    exit 1
+}
+
 $deadline = (Get-Date).AddMinutes($MaxWaitMinutes)
 if (Test-MirrorInTheWay) {
     Write-Log 'waiting for the Workshop Mirror task to finish'

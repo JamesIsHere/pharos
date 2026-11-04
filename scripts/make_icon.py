@@ -45,5 +45,7 @@ def draw() -> Image.Image:
 if __name__ == "__main__":
     out = Path(__file__).with_name("pharos.ico")
     draw().save(out, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
-    draw().resize((256, 256), Image.LANCZOS).save(Path(__file__).parents[1] / "scratch" / "pharos-icon-preview.png")
+    preview = Path(__file__).parents[1] / "scratch" / "pharos-icon-preview.png"
+    preview.parent.mkdir(exist_ok=True)   # gitignored, so a fresh clone lacks it (#72)
+    draw().resize((256, 256), Image.LANCZOS).save(preview)
     print(f"wrote {out}")

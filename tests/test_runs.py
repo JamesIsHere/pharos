@@ -70,3 +70,20 @@ def test_control_total_exposes_a_lost_row(root, monkeypatch):
     monkeypatch.setattr(runs, "_count_rows", lambda con, path: 6)
     write_raw(sample(7), "fred", "observations", "20260101T000000Z")
     assert loads(root) == [("observations", True, 7, 6)]
+
+
+def test_target_appearing_during_the_write_is_refused(root, monkeypatch):
+    # write-once must not lean on Windows rename refusing to overwrite: POSIX
+    # rename replaces silently (#72). A file landing between the pre-check and
+    # the final step must stop the write and survive untouched.
+    from pharos import runs
+    real_count = runs._count_rows
+    target = root / "raw" / "yf" / "prices" / "20260101T000000Z.parquet"
+
+    def count_then_collide(con, path):
+        target.write_bytes(b"someone else's file")
+        return real_count(con, path)
+    monkeypatch.setattr(runs, "_count_rows", count_then_collide)
+    with pytest.raises(RawExistsError, match="appeared during the write"):
+        write_raw(sample(), "yf", "prices", "20260101T000000Z")
+    assert target.read_bytes() == b"someone else's file" and not list(root.rglob("*.partial"))

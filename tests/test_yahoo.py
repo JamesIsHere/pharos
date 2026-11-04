@@ -303,3 +303,13 @@ def test_no_overlap_pull_reloads_full_history(root, monkeypatch):
     assert calls == [date(2026, 9, 19), date(2005, 1, 1)]  # overlap window, then the full pull
     assert duckdb.sql(f"SELECT DISTINCT pull_start, pull_reason FROM read_parquet('{path.as_posix()}')"
                       ).fetchall() == [(date(2005, 1, 1), "no_overlap")]
+
+
+def test_auto_adjust_must_be_a_bool(root, monkeypatch):
+    # a quoted "false" in sources.yaml is a truthy string: yfinance would adjust (#72)
+    monkeypatch.setattr(config, "sources", lambda: {
+        "backfill_start": date(2005, 1, 1),
+        "yahoo": {"auto_adjust": "false", "overlap_days": 10, "required_series": ["close"]}})
+    monkeypatch.setattr(yahoo, "fetch", lambda *a: pytest.fail("fetched with a non-bool auto_adjust"))
+    with pytest.raises(SchemaDriftError, match="auto_adjust must be true or false"):
+        yahoo.load_prices("20260101T000000Z")
