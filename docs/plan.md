@@ -96,8 +96,51 @@ Each name is here to trip a known trap. That's why it's the test set.
 
 ---
 
+## M2: Universe (DRAFT for James's red-pen, 2026-11-04)
+
+**Goal.** A survivorship-free, year-by-year list of every company that filed an annual report with the SEC: who joined, who left, who was there from the start. A waterfall page narrows that population, one named step at a time, to the set being analysed. It refreshes nightly under the same health system as M1, and it becomes the expected set that M3's fundamentals are checked against.
+
+### Scope (decided: D52-D56)
+- **Top of the funnel (D54):** every CIK with an original annual report (form codes from `config/annual_forms.csv`, taken from the codes present in the full-index), 1993-11-29 to as-of. Complete from filing year 1997 (domestic) and 2002 (foreign); earlier years stored and flagged phase-in.
+- **Membership (D55):** in for every calendar year from first to last annual report; empty years in between count, flagged; an exit is confirmed once a full calendar year passes with nothing filed.
+- **Foreign filers (D53):** in, foreign status per filer-year from that year's form.
+- **Events:** listing and exit forms from the full-index, by form type only (no filing text): 8-A12B / 8-A12G (registration), 25 / 25-NSE (delisting), 15-12B / 15-12G / 15-15D (deregistration). Exit reason = the event forms filed around the last annual report, else `unknown`.
+- **Sources:** EDGAR full-index (`master.gz` per quarter), bulk `submissions.zip` (name, SIC, state, former names, current tickers and exchanges), `company_tickers_exchange.json` (current ticker to CIK).
+
+### Build order
+- [ ] 1. Loaders: full-index (every quarter once; each run re-lands only the current and previous quarter), submissions bulk, tickers file. SEC User-Agent, at most 10 requests/s, one retry on 503, schema validated, raw write-once. submissions.zip nightly: full company details every run, filing history only past the watermark plus overlap (D58)
+- [ ] 2. Staging SQL: `filings`, `annual_reports`, `filer` (one row per CIK), `firm_year` (D55, with the gap flag), `events`, exit reason. SIC is labelled current-as-of-pull (#44)
+- [ ] 3. Checks C21-C28 in `checks/*.sql`, each with a fault-injection test:
+  - C21 completeness (gate): every quarter from 1993Q1 to the current one is in raw
+  - C22 control total (gate): staged filings per quarter = lines in that quarter's raw file
+  - C23 uniqueness (gate): (cik, year) unique in `firm_year`; accession unique in `filings`
+  - C24 integrity (gate): every annual-report CIK has a submissions row (spike: 0 missing)
+  - C25 freshness (monitor): latest full-index filing date older than 3 business days
+  - C26 form-code drift (monitor, warn): an index form code that looks like an annual report (10-K, KSB, 20-F, 40-F patterns) but is not in `config/annual_forms.csv`. The 10KSB lesson (#45) as a standing control
+  - C27 history drift (monitor, warn): a closed year's population count differs from the recorded baseline
+  - C28 waterfall foots (gate): each step's count = the previous step minus what it drops, every year
+- [ ] 4. Serving: universe tables in `serving/`, views in `catalog.duckdb`, plus population counts per year as derived series in `series_catalog` (all filers, domestic, foreign, joined, left), so the Charts page can overlay the population on GDP
+- [ ] 5. Fill the watchlist `cik` column from the tickers file; ATVI mapped by hand (#22). Reconcile the exchange list to the universe and name the difference (#46)
+- [ ] 6. Universe page: joined / left / stayed by year, the waterfall for a chosen year with steps from `config/waterfall_steps.csv` (seeded with the measured groups: asset-backed 6189, blank checks 6770, no SIC, foreign, no exchange ticker today), each step drillable to its company list. Status bar on the page
+- [ ] 7. Re-perform the spike: rebuild the universe through the pipeline and reconcile it to the spike's numbers for filing dates through 2026-11-03
+
+### Acceptance criteria
+1. From an empty data root, `uv run pharos refresh` builds the universe and stays green; an immediate rerun adds zero rows to `serving/`.
+2. Re-performance: for filing dates through 2026-11-03 the pipeline reproduces the spike exactly: 48,209 CIKs, 319,098 firm-years, 10,568 gap years, and the per-year counts (e.g. 12,233 in 1997, 13,557 in 2002, 7,511 in 2026).
+3. Every check C21-C28 has a fault-injection test that shows it firing with the right color.
+4. Every confirmed exit has a reason or `unknown`, and the share that is `unknown` is shown on the Universe page.
+5. The waterfall foots for every year (C28), and each step names what it drops and how many.
+6. The Charts page overlays the population count on GDP.
+7. The watchlist `cik` column is filled for all 18 names (#22), and the exchange list's difference from the universe is a named step or a documented expected state (#46).
+
+**Built** when 1-7 pass. **Done** after 7 consecutive green nightly runs with the universe in them.
+
+### Out of scope for M2
+Financials of any kind (M3); linking several CIKs into one company (predecessors, re-registrations); reading filing text; paid sources (CRSP); membership on a specific date (Form 25 / 15 dates are stored, not used for membership).
+
+---
+
 ## Later milestones (one line each until current)
-- **M2: Universe (D51).** CIK master and an unbalanced panel of filer-years from EDGAR: full-index, submissions, SIC, former names, listing and exit events from Forms 8-A12B, 25/25-NSE and 15-12B/15-12G, with exit reason. The waterfall page: every filer down to the analysed set, each step naming what it drops. Fills the watchlist cik column (#22). Top of the funnel: every CIK with an original annual report, 1993-11-29 to as-of, complete from 1997 domestic and 2002 foreign (D52, D53, D54); every group stays in at the top. Membership is a firm-year panel, first to last annual report, gaps flagged, exits confirmed after a full empty year (D55). No pre-XBRL financials (D56). Scope closed.
 - **M1.5: Exploration tools (#41).** After M2 (D51).
 - **M3: Fundamentals, formerly M2.** companyfacts in full → raw facts with accession and filed date, every filer and concept (D57); curated in staging, balance sheet first. Equity, preferred, both share counts, goodwill and intangibles. Book value per share and P/B as the first derived series via ASOF on available_date. XBRL checks: balance identity, share-count divergence, scale errors. Financial Statement Data Sets for multi-class names. OTC decision.
 - **M4: Cross-section page (formerly M3, universe moved to M2).** Domestic 10-K filers. SIC → Fama-French industries. P/B distribution, industry medians, scatter. Coverage heatmap scales to the universe.
