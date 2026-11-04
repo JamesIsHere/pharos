@@ -151,6 +151,16 @@ def test_classify_split_flag_only_on_new_dates():
     assert yahoo.classify(stored_frame([10.0, 11.0, 12.0, 13.0], DAYS[:4]), new_split) == "split_flag"
 
 
+def test_classify_no_shared_date_forces_full_pull():
+    # Yahoo returned only dates after the stored ones: nothing to compare the basis
+    # against, so the rows can't be trusted to share it (#57). A full pull puts
+    # every value on one basis; "correction" would not block, because C14 needs
+    # a shared date to see a conflict.
+    stored = stored_frame([10.0, 11.0], DAYS[:2])
+    new = normalize(bars_for([2.5, 2.75], DAYS[2:4]), "NVDA", "NVDA")
+    assert yahoo.classify(stored, new) == "no_overlap"
+
+
 def test_classify_single_shared_date_is_correction_not_rebase():
     stored = stored_frame([10.0], DAYS[:1])
     new = normalize(bars_for([2.5, 2.75], DAYS[:2]), "NVDA", "NVDA")
@@ -186,3 +196,27 @@ def test_runs_bootstrap_then_incremental_then_rebase(root, monkeypatch):
 
     calls.clear()  # after the re-pull, the new basis is the stored one
     assert reasons(yahoo.load_prices("20261006T140000Z")) == [(date(2026, 9, 22), "incremental")]
+
+
+def test_no_overlap_pull_reloads_full_history(root, monkeypatch):
+    # the incremental window comes back with only dates after the stored ones:
+    # the loader must re-pull from the first date, a new vintage (#57, D71)
+    monkeypatch.setattr(config, "sources", lambda: {
+        "backfill_start": date(2005, 1, 1), "yahoo": {"auto_adjust": False, "overlap_days": 10}})
+    monkeypatch.setattr(config, "watchlist", lambda: [
+        {"ticker": "NVDA", "yahoo_symbol": "NVDA", "active_from": None, "active_to": None}])
+    calls, bars = [], {"now": bars_for([10.0, 11.0], DAYS[:2])}
+
+    def fake_fetch(symbol, start, end, auto_adjust):
+        calls.append(start)
+        return bars["now"]
+
+    monkeypatch.setattr(yahoo, "fetch", fake_fetch)
+    yahoo.load_prices("20261003T140000Z")  # bootstrap stores 09-28, 09-29
+
+    calls.clear()
+    bars["now"] = bars_for([2.5, 2.75], DAYS[2:4])  # only 09-30, 10-01: no shared date
+    path = yahoo.load_prices("20261004T140000Z")
+    assert calls == [date(2026, 9, 19), date(2005, 1, 1)]  # overlap window, then the full pull
+    assert duckdb.sql(f"SELECT DISTINCT pull_start, pull_reason FROM read_parquet('{path.as_posix()}')"
+                      ).fetchall() == [(date(2005, 1, 1), "no_overlap")]

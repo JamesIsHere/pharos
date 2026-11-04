@@ -27,6 +27,8 @@ Incremental pulls (D21). Per ticker, each run:
     so C14 sees the conflict and blocks the publish ("correction")
   - a nonzero stock_splits in the new rows also forces a full pull
     ("split_flag"); a false alarm costs one extra vintage, never a wrong value.
+  - no overlap date at all (Yahoo returned only dates after the stored ones):
+    nothing to compare the basis with, so a full pull ("no_overlap", D71).
   The reason is stored on every row as pull_reason.
 """
 
@@ -98,7 +100,7 @@ def load_prices(run_id: str):
         frame = normalize(fetch(row["yahoo_symbol"], start, end, auto_adjust), row["ticker"], row["yahoo_symbol"])
         if reason is None:
             reason = classify(stored, frame)
-            if reason in ("rebase", "split_flag"):
+            if reason in ("rebase", "split_flag", "no_overlap"):
                 start = first
                 frame = normalize(fetch(row["yahoo_symbol"], start, end, auto_adjust),
                                   row["ticker"], row["yahoo_symbol"])
@@ -122,6 +124,11 @@ def classify(stored: pd.DataFrame, new: pd.DataFrame) -> str:
     if (fresh["stock_splits"] != 0).any():
         return "split_flag"
     both = stored.merge(new[["obs_date", "close"]], on="obs_date", suffixes=("_stored", "_new"))
+    if both.empty:
+        # no shared date: the basis can't be compared, so pull the full history
+        # (one basis for every value). "correction" would not block, because C14
+        # needs a shared date to see a conflict (D71, #57)
+        return "no_overlap"
     ratio = both["close_stored"] / both["close_new"]
     if ((ratio - 1).abs() <= REBASE_TOLERANCE).all():
         return "incremental"
