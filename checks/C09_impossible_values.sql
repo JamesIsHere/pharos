@@ -1,13 +1,15 @@
 -- id: C09
 -- severity: error
 -- gate: yes
--- description: impossible observation: price <= 0, obs_date after the run date, or obs_date after available_date
+-- description: impossible observation: price missing (NULL or NaN) or <= 0, obs_date after the run date, or obs_date after available_date
 --
 -- One row per observation per rule broken, so a row breaking two rules shows twice.
 --
 -- price <= 0 applies to price series only (source prefix of series_id, so an
 -- observation with no catalog row is still checked; that gap is C11's). Macro
--- values can be negative. A withdrawn value (NULL, D25) is not a price.
+-- values can be negative. A missing price (NULL or NaN) is a failed load, not
+-- a withdrawal: D25's NULL-as-withdrawn is FRED's ".", so for prices it blocks
+-- here (D73, #62). FRED NULLs stay C16's warning.
 --
 -- "Future" is an obs_date after the run's UTC date. The nightly run lands after
 -- the NYSE close, so the day's own trade date is never in the future.
@@ -21,6 +23,14 @@ SELECT o.series_id, o.obs_date, o.vintage, o.value, o.available_date,
 FROM observations AS o
 WHERE split_part(o.series_id, ':', 1) = 'yf'
   AND o.value <= 0
+
+UNION ALL
+
+SELECT o.series_id, o.obs_date, o.vintage, o.value, o.available_date,
+       'price missing' AS rule
+FROM observations AS o
+WHERE split_part(o.series_id, ':', 1) = 'yf'
+  AND (o.value IS NULL OR isnan(o.value))
 
 UNION ALL
 

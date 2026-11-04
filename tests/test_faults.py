@@ -216,6 +216,9 @@ NVDA_DAY = "series_id = 'yf:close:NVDA' AND obs_date = DATE '2026-10-05'"
 @pytest.mark.parametrize("change, rule", [
     ("0.0 AS value", "price <= 0"),
     ("-1.0 AS value", "price <= 0"),
+    # a missing Yahoo close is a failed load, not a withdrawal: D25 is FRED's (D73, #62)
+    ("NULL::DOUBLE AS value", "price missing"),
+    ("'NaN'::DOUBLE AS value", "price missing"),
     # run date is 2026-10-07; available_date moves too so only one rule breaks
     ("DATE '2026-10-08' AS obs_date, DATE '2026-10-08' AS available_date", "obs_date after run date"),
     ("DATE '2026-10-04' AS available_date", "obs_date after available_date"),
@@ -233,12 +236,6 @@ def test_c09_impossible_price_row_blocks(staged_run, change, rule):
 def test_c09_negative_macro_value_passes(staged_run):
     tamper(staged_run, "observations", "SELECT * REPLACE (CASE WHEN series_id = 'fred:GDP' THEN -100.5 "
                                        "ELSE value END AS value) FROM t")
-    assert result(run_checks(staged_run), "C09")["status"] == "pass"
-
-
-def test_c09_withdrawn_price_passes(staged_run):
-    tamper(staged_run, "observations",
-           f"SELECT * REPLACE (CASE WHEN {NVDA_DAY} THEN NULL ELSE value END AS value) FROM t")
     assert result(run_checks(staged_run), "C09")["status"] == "pass"
 
 
@@ -642,12 +639,16 @@ def test_acknowledged_withdrawn_value_is_green_and_stays_listed(staged_run, monk
 
 
 def test_new_row_beside_an_acknowledged_one_still_warns(staged_run, monkeypatch):
-    serve(staged_run, "SELECT * REPLACE (CASE WHEN series_id = 'fred:GDP' OR obs_date = DATE '2026-10-05' "
-                      "THEN NULL ELSE value END AS value) FROM t")
+    # GDP 2026-04-01 withdrawn and acknowledged; a new quarter, 2026-07-01, also
+    # withdrawn and not acknowledged. (A NULL price was the second row before D73;
+    # C09 now blocks a missing price, so it can't be served.)
+    serve(staged_run, "SELECT * REPLACE (CASE WHEN series_id = 'fred:GDP' THEN NULL ELSE value END AS value) FROM t "
+                      "UNION ALL SELECT * REPLACE (DATE '2026-07-01' AS obs_date, NULL::DOUBLE AS value) FROM t "
+                      "WHERE series_id = 'fred:GDP'")
     h, r = view(monkeypatch, [GDP_ACK])
     assert h.status == "yellow" and h.reasons == [f"C16 warn: {r['C16']['description']}"]
-    rows = {row["series_id"]: row["acknowledged"] for row in json.loads(r["C16"]["sample"])}
-    assert rows == {"fred:GDP": "test: withdrawn", "yf:close:NVDA": None}
+    rows = {(row["series_id"], row["obs_date"]): row["acknowledged"] for row in json.loads(r["C16"]["sample"])}
+    assert rows == {("fred:GDP", "2026-04-01"): "test: withdrawn", ("fred:GDP", "2026-07-01"): None}
 
 
 def test_stale_acknowledgment_warns(staged_run, monkeypatch):
