@@ -101,7 +101,7 @@ Each name is here to trip a known trap. That's why it's the test set.
 
 **Goal.** A survivorship-free, year-by-year list of every filer (CIK) that filed an annual report with the SEC: who joined, who left, who was there from the start. A filer is not yet a company: a company that re-registered under a new CIK appears as two filers until CIKs are linked, which is out of scope here (D54). A waterfall page narrows that population, one named step at a time, to the analysed set: what remains after every step, the last being domestic filers whose annual report that year carries XBRL financials. That is the set M4's cross-section page reads (D66). It refreshes nightly under the same health system as M1, and it becomes the expected set that M3's fundamentals are checked against.
 
-### Scope (decided: D52-D66)
+### Scope (decided: D52-D67)
 - **Top of the funnel (D54):** every CIK with an original annual report (form codes from `config/annual_forms.csv`, taken from the codes present in the full-index), 1993-11-29 to as-of. Complete from filing year 1997 (domestic) and 2002 (foreign); earlier years stored and flagged phase-in.
 - **Membership (D55):** in for every calendar year from first to last annual report; empty years in between count, flagged; an exit is confirmed once a full calendar year passes with nothing filed.
 - **Foreign filers (D53):** in, foreign status per filer-year from that year's form.
