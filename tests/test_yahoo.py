@@ -11,6 +11,7 @@ import pytest
 from pharos import config
 from pharos.loaders import yahoo
 from pharos.loaders.yahoo import EXPECTED_COLUMNS, NEW_YORK, SchemaDriftError, normalize
+from pharos.paths import data_root
 
 
 def fake_bars(days=("2024-06-07", "2024-06-10"), tz="America/New_York") -> pd.DataFrame:
@@ -196,6 +197,29 @@ def test_runs_bootstrap_then_incremental_then_rebase(root, monkeypatch):
 
     calls.clear()  # after the re-pull, the new basis is the stored one
     assert reasons(yahoo.load_prices("20261006T140000Z")) == [(date(2026, 9, 22), "incremental")]
+
+
+@pytest.mark.parametrize("active_to, raises", [(None, True), (date(2026, 9, 29), False)])
+def test_empty_incremental_pull_fails_loud_for_active_ticker(root, monkeypatch, active_to, raises):
+    # the incremental window always holds the last stored date, a session Yahoo
+    # answered before: an empty reply for an active ticker is an outage or a
+    # rate limit, not data (#58). An ended ticker whose history the source has
+    # dropped is C15's source-missing case (D22), so it must not raise.
+    monkeypatch.setattr(config, "sources", lambda: {
+        "backfill_start": date(2005, 1, 1), "yahoo": {"auto_adjust": False, "overlap_days": 10}})
+    monkeypatch.setattr(config, "watchlist", lambda: [
+        {"ticker": "NVDA", "yahoo_symbol": "NVDA", "active_from": None, "active_to": active_to}])
+    bars = {"now": bars_for([10.0, 11.0], DAYS[:2])}
+    monkeypatch.setattr(yahoo, "fetch", lambda symbol, start, end, auto_adjust: bars["now"])
+    yahoo.load_prices("20261003T140000Z")
+
+    bars["now"] = pd.DataFrame()
+    if raises:
+        with pytest.raises(yahoo.EmptyPullError, match="NVDA"):
+            yahoo.load_prices("20261004T140000Z")
+        assert not (data_root() / "raw" / "yf" / "prices" / "20261004T140000Z.parquet").exists()
+    else:
+        yahoo.load_prices("20261004T140000Z")
 
 
 def test_no_overlap_pull_reloads_full_history(root, monkeypatch):

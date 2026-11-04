@@ -9,6 +9,8 @@ Rules applied here (CLAUDE.md, Sources):
   split-adjusted, not dividend-adjusted).
 - The column set must match exactly what yfinance 1.7.0 returned when verified
   on 2026-10-07. Any drift stops the whole load before anything is written.
+- An empty reply to an active ticker's incremental pull also stops the load:
+  the window holds the last stored date, so empty means an outage (#58).
 - obs_date is the New York calendar date of the bar, never a UTC conversion.
 - The download ends before today (New York time), so a bar still trading is
   never stored as a close.
@@ -57,6 +59,10 @@ class SchemaDriftError(RuntimeError):
     pass
 
 
+class EmptyPullError(RuntimeError):
+    """An active ticker's incremental window came back empty (#58)."""
+
+
 def fetch(symbol: str, start: date, end: date, auto_adjust: bool) -> pd.DataFrame:
     """One ticker's daily bars from yfinance, untouched. end is exclusive."""
     return yf.Ticker(symbol).history(start=start.isoformat(), end=end.isoformat(),
@@ -98,6 +104,13 @@ def load_prices(run_id: str):
             start = stored["obs_date"].max() - timedelta(days=cfg["yahoo"]["overlap_days"])
             reason = None
         frame = normalize(fetch(row["yahoo_symbol"], start, end, auto_adjust), row["ticker"], row["yahoo_symbol"])
+        active = row["active_to"] is None or row["active_to"] >= end
+        if reason is None and frame.empty and active:
+            # the window holds the last stored date, a session Yahoo answered
+            # before: empty is an outage or a rate limit, not data. Fail the whole
+            # load before anything is written, as schema drift does (#58)
+            raise EmptyPullError(f"{row['yahoo_symbol']}: no bars from {start} to {end}, "
+                                 f"though the window holds the stored {stored['obs_date'].max()}")
         if reason is None:
             reason = classify(stored, frame)
             if reason in ("rebase", "split_flag", "no_overlap"):
