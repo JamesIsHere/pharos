@@ -105,13 +105,20 @@ def bind_config(con) -> None:
     """The expected set, from config: watchlist windows and configured FRED series,
     each with the lag after which its next period is due (D33)."""
     cfg = config.sources()
+    # a lag that isn't an integer makes C02/C17's due-date arithmetic NULL, which
+    # counts 0 periods behind: freshness off, silently (#63). bool is an int in
+    # Python, so a YAML `true` is refused explicitly
+    is_int = lambda v: isinstance(v, int) and not isinstance(v, bool)
+    if not is_int(cfg["yahoo"].get("expected_lag_days")):
+        raise StageError(f"yahoo.expected_lag_days must be an integer, got "
+                         f"{cfg['yahoo'].get('expected_lag_days')!r} (sources.yaml, D33)")
     con.execute("CREATE TABLE watchlist_windows (ticker VARCHAR, yahoo_symbol VARCHAR, "
                 "first_expected DATE, active_to DATE, expected_lag_days INTEGER)")
     con.executemany("INSERT INTO watchlist_windows VALUES (?, ?, ?, ?, ?)",
                     [(w["ticker"], w["yahoo_symbol"], w["active_from"] or cfg["backfill_start"],
                       w["active_to"], cfg["yahoo"]["expected_lag_days"]) for w in config.watchlist()])
     lags = cfg["fred"]["expected_lag_days"]
-    missing = [s for s in cfg["fred"]["series"] if not isinstance(lags.get(s), int)]
+    missing = [s for s in cfg["fred"]["series"] if not is_int(lags.get(s))]
     if missing:
         raise StageError(f"fred.expected_lag_days has no integer lag for {missing} (sources.yaml, D33)")
     con.execute("CREATE TABLE fred_expected (fred_id VARCHAR, expected_lag_days INTEGER)")

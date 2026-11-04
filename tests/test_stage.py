@@ -143,6 +143,17 @@ def test_removed_ticker_still_stages(root, monkeypatch):
         [(date(2026, 10, 7),)]
 
 
+@pytest.mark.parametrize("lag", [None, "0", True])
+def test_yahoo_lag_must_be_an_integer(root, monkeypatch, lag):
+    # a NULL lag made C02/C17 count 0 sessions behind: price freshness off, silently (#63)
+    land(R1)
+    monkeypatch.setattr(config, "sources", lambda: {
+        "backfill_start": date(2005, 1, 1), "fred": {"series": ["GDP"], "expected_lag_days": {"GDP": 35}},
+        "yahoo": {"expected_lag_days": lag}})
+    with pytest.raises(StageError, match="yahoo.expected_lag_days"):
+        stage(R1)
+
+
 def test_unknown_pull_reason_fails_loud(root):
     land(R1, px=prices([10.0, 11.0], reason="mystery"))
     with pytest.raises(duckdb.Error, match="unknown pull_reason mystery"):
