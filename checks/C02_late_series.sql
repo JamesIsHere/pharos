@@ -58,6 +58,14 @@ behind AS (
                END AS expected_obs_date
     ) AS e
     WHERE l.source = 'fred'
+
+    UNION ALL
+
+    -- a source neither branch counts: NULL, so C17 fails loud instead of the row
+    -- dropping out (#71; D74's staging guard stops it first)
+    SELECT l.*, NULL::DATE, NULL::BIGINT
+    FROM latest AS l
+    WHERE l.source NOT IN ('yf', 'fred')
 )
 SELECT series_id, frequency, expected_lag_days, latest_obs_date, expected_obs_date, periods_behind
 FROM behind

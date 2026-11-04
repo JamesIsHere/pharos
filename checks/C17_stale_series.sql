@@ -57,9 +57,17 @@ behind AS (
                END AS expected_obs_date
     ) AS e
     WHERE l.source = 'fred'
+
+    UNION ALL
+
+    -- a source neither branch counts: NULL, so C17 fails loud instead of the row
+    -- dropping out (#71; D74's staging guard stops it first)
+    SELECT l.*, NULL::DATE, NULL::BIGINT
+    FROM latest AS l
+    WHERE l.source NOT IN ('yf', 'fred')
 )
 SELECT series_id, frequency, expected_lag_days, latest_obs_date, expected_obs_date, periods_behind
 FROM behind
 WHERE periods_behind >= 2
-   OR periods_behind IS NULL   -- a frequency this rule can't count (not D/M/Q): fail loud, never pass silently
+   OR periods_behind IS NULL   -- a frequency or source this rule can't count: fail loud, never pass silently
 ORDER BY series_id

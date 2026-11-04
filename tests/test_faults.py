@@ -844,3 +844,92 @@ def test_c20_tiingo_rows_without_dates_warn(staged_run):
     rewrite_tiingo(staged_run, "SELECT * REPLACE (NULL::DATE AS obs_date) FROM t")
     r = result(run_checks(staged_run), "C20")
     assert (r["status"], r["failing_row_count"]) == ("warn", 1)
+
+
+# --- #71 test gaps -------------------------------------------------------------
+
+@pytest.fixture
+def monthly_run(root, monkeypatch):
+    """The fixture run plus a monthly FRED series, CPI (Jul, Aug, Sep 2026; lag 15),
+    the shape of CPIAUCSL. Every other test series is quarterly or daily."""
+    import pandas as pd
+    from pharos import config
+    from conftest import RUN, tiingo_rows
+    monkeypatch.setattr(config, "sources", lambda: {
+        "backfill_start": date(2026, 1, 1),
+        "fred": {"series": ["GDP", "CPI"], "expected_lag_days": {"GDP": 35, "CPI": 15}},
+        "yahoo": {"required_series": ["close"], "expected_lag_days": 0}})
+    n = 2
+    write_raw(pd.DataFrame({
+        "ticker": ["NVDA"] * n, "yahoo_symbol": ["NVDA"] * n, "obs_date": [date(2026, 10, 5), date(2026, 10, 6)],
+        "open": [10.0, 11.0], "high": [10.0, 11.0], "low": [10.0, 11.0], "close": [10.0, 11.0],
+        "adj_close": [10.0, 11.0], "volume": [100] * n, "dividends": [0.0] * n, "stock_splits": [0.0] * n,
+        "pull_start": [date(2026, 1, 1)] * n, "pull_end": [date(2026, 10, 7)] * n,
+        "pull_reason": ["bootstrap"] * n}), "yf", "prices", RUN)
+    months = [date(2026, 7, 1), date(2026, 8, 1), date(2026, 9, 1)]
+    write_raw(pd.DataFrame({"fred_id": ["GDP"] + ["CPI"] * 3, "obs_date": [date(2026, 4, 1)] + months,
+                            "realtime_start": [date(2026, 7, 30), date(2026, 8, 12), date(2026, 9, 11), date(2026, 10, 1)],
+                            "realtime_end": [date(9999, 12, 31)] * 4,
+                            "value": ["100.5", "320.1", "320.9", "321.4"]}), "fred", "observations", RUN)
+    write_raw(pd.DataFrame({"fred_id": ["GDP", "CPI"], "title": ["Gross Domestic Product", "Consumer Price Index"],
+                            "frequency_short": ["Q", "M"], "seasonal_adjustment_short": ["SAAR", "SA"],
+                            "observation_start": ["2026-04-01", "2026-07-01"],
+                            "realtime_start": [date(1991, 12, 4)] * 2, "realtime_end": [date(9999, 12, 31)] * 2,
+                            "units": ["Billions of Dollars", "Index 1982-1984=100"]}), "fred", "series", RUN)
+    write_raw(tiingo_rows("NVDA", [date(2026, 10, 5), date(2026, 10, 6)], [10.0, 11.0]), "tiingo", "prices", RUN)
+    stage(RUN)
+    return RUN
+
+
+def test_monthly_series_clean_run_passes(monthly_run):
+    e = run_checks(monthly_run)
+    assert e.verdict == "passed" and result(e, "C04")["status"] == "pass"
+
+
+def test_c04_monthly_hole_blocks(monthly_run):
+    tamper(monthly_run, "observations", "SELECT * FROM t WHERE NOT (series_id = 'fred:CPI' AND obs_date = DATE '2026-08-01')")
+    e = run_checks(monthly_run)
+    r = result(e, "C04")
+    assert (r["status"], [(x["series_id"], x["obs_date"]) for x in json.loads(r["sample"])]) == \
+        ("error", [("fred:CPI", "2026-08-01")])
+    assert e.verdict == "blocked"
+
+
+@pytest.mark.parametrize("now, c02, c17", [
+    (at((11, 14)), False, False),   # Oct due once Oct 31 + 15 < today: not yet
+    (at((11, 16)), True,  False),   # Oct due: 1 month behind
+    (at((12, 16)), False, True),    # Oct and Nov due: 2 behind, stale
+])
+def test_c02_c17_monthly_lag(monthly_run, now, c02, c17):
+    _, c02_ids, _, c17_ids = freshness(run_checks(monthly_run, now=now))
+    assert ("fred:CPI" in c02_ids, "fred:CPI" in c17_ids) == (c02, c17)
+
+
+def test_c20_ended_ticker_is_out_of_scope(staged_run, monkeypatch):
+    # the same state that warns in test_c20_reference_behind_due_session_warns,
+    # with NVDA ended the day before: no longer expected from Tiingo
+    from datetime import datetime, timezone
+    from pharos import config
+    monkeypatch.setattr(config, "watchlist", lambda: [
+        {"ticker": "NVDA", "yahoo_symbol": "NVDA", "active_from": date(2026, 10, 5), "active_to": date(2026, 10, 7)}])
+    later = datetime(2026, 10, 8, 12, tzinfo=timezone.utc)
+    assert result(run_checks(staged_run, now=later), "C20")["status"] == "pass"
+
+
+def test_c17_unknown_source_fails_loud(staged_run):
+    tamper(staged_run, "series_catalog", "SELECT * REPLACE (CASE WHEN series_id = 'fred:GDP' THEN 'sec' "
+                                         "ELSE source END AS source) FROM t")
+    c02, c02_ids, c17, c17_ids = freshness(run_checks(staged_run))
+    assert (c17, c17_ids) == ("error", ["fred:GDP"]) and "fred:GDP" not in c02_ids
+
+
+def test_checks_on_disk_match_design_section_7():
+    # a check deleted or added without its section 7 row vanishes or appears unseen
+    import re
+    from pharos.checks import discover
+    from pharos.paths import PROJECT_ROOT
+    text = (PROJECT_ROOT / "docs" / "design.md").read_text(encoding="utf-8")
+    section = text.split("\n## 7. Health system", 1)[1].split("\n## 8.", 1)[0]
+    documented = set(re.findall(r"^\| (C\d+|expected_states) \|", section, re.M))
+    assert documented - {"expected_states"} == {c.id for c in discover()}
+    assert "expected_states" in documented   # the one row that is not a SQL file (D46)
