@@ -232,6 +232,30 @@ def test_charts_add_and_remove_panels(published):
     assert panels_in_url(page) == ["r~fred:GDP"]
 
 
+def test_charts_survive_a_round_trip_through_another_page(published):
+    # Charts -> Health -> Charts through the sidebar (#72, D80): Streamlit drops the keys of
+    # widgets the other page didn't render and clears the URL; plain keys like `panels` stay.
+    monkeypatch = published
+    monkeypatch.syspath_prepend(str(CHARTS_PAGE.parents[1]))
+    st.cache_data.clear(); st.cache_resource.clear()
+    page = AppTest.from_file(str(PROJECT_ROOT / "app" / "Home.py"), default_timeout=60).run()
+    page.switch_page("pages/2_Charts.py")
+    page.query_params.update({"s": ",fred:GDP,yf:close:NVDA", "r": "Max", "p": ["l~fred:GDP", "r~yf:close:NVDA"]})
+    page.run()
+    assert not page.exception
+    before = (traces(page), axes(page), [t.value for t in page.toggle], panels_in_url(page))
+    page.switch_page("pages/1_Health.py")
+    page.query_params.clear()                            # the sidebar link carries no parameters
+    page.run()
+    assert not page.exception and "range" not in page.session_state   # Streamlit dropped the widget keys
+    page.switch_page("pages/2_Charts.py")
+    page.query_params.clear()
+    page.run()
+    assert not page.exception
+    assert (traces(page), axes(page), [t.value for t in page.toggle], panels_in_url(page)) == before
+    assert page.query_params["r"] == "Max"
+
+
 def test_home_renders_the_watchlist(published):
     from pharos import health
     from test_design_faults import at

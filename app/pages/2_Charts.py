@@ -77,20 +77,29 @@ units = dict(zip(catalog["series_id"], catalog["units"]))
 # s: series by color slot, an empty entry for a free slot, so a reload keeps colors
 # p: one per panel, e.g. "r~yf:close:NVDA,yf:close:AAPL"
 qp = st.query_params
+source = {k: qp.get_all(k) if k == "p" else qp.get(k) for k in qp}
+# Leaving the page through the sidebar makes Streamlit drop the widget keys (range,
+# series_<id>, toggles) and clears the URL, while plain keys like `panels` survive.
+# Coming back, rebuild from the copy of the URL state saved at the end of the last run (#72, D80).
+if "panels" in st.session_state and ("range" not in st.session_state or any(
+        f"series_{pid}" not in st.session_state for pid in st.session_state.panels)):
+    del st.session_state["panels"]
+    source = st.session_state.get("charts_url") or source
 if "panels" not in st.session_state:
     st.session_state.panels, st.session_state.next_panel = [], 0
-    for text in (qp.get_all("p") or DEFAULT)[:MAX_PANELS]:
+    for text in (source.get("p") or DEFAULT)[:MAX_PANELS]:
         add_panel(**parse_panel(text, names))
     shown = [s for pid in st.session_state.panels for s in st.session_state[f"series_{pid}"]]
-    st.session_state.slots = [s if s in shown else "" for s in qp["s"].split(",")][:len(SLOTS)] \
-        if "s" in qp else []
-    st.session_state.range = qp.get("r", "1Y") if qp.get("r") in RANGES else "1Y"
+    st.session_state.slots = [s if s in shown else "" for s in source["s"].split(",")][:len(SLOTS)] \
+        if "s" in source else []
+    st.session_state.range = source["r"] if source.get("r") in RANGES else "1Y"
     st.session_state.custom = None
-    if "from" in qp and "to" in qp:
+    if "from" in source and "to" in source:
         try:
-            st.session_state.custom = (date.fromisoformat(qp["from"]), date.fromisoformat(qp["to"]))
+            st.session_state.custom = (date.fromisoformat(source["from"]), date.fromisoformat(source["to"]))
         except ValueError:   # a hand-edited bookmark (#72): say so, keep the default range
-            st.warning(f"The link's dates ({qp['from']} to {qp['to']}) aren't YYYY-MM-DD; showing the default range.")
+            st.warning(f"The link's dates ({source['from']} to {source['to']}) aren't YYYY-MM-DD; "
+                       "showing the default range.")
 
 # --- Controls -------------------------------------------------------------------
 span = st.segmented_control("Range", RANGES, key="range") or "1Y"
@@ -131,7 +140,18 @@ for s in shown:
 st.session_state.slots = slots
 color = {s: SLOTS[i] for i, s in enumerate(slots) if s}
 
-filled = [pid for pid in panels if st.session_state[f"series_{pid}"]]
+# --- State to the URL, and a copy that survives leaving the page (#72) ---------------
+# Written before any early stop, so an all-empty layout is saved too.
+state = {"s": ",".join(slots).rstrip(","), "r": span,
+         "p": [("r" if st.session_state[f"rebase_{pid}"] else "") + ("l" if st.session_state[f"log_{pid}"] else "")
+               + "~" + ",".join(st.session_state[f"series_{pid}"]) for pid in panels]}
+if span == "Custom":
+    state |= {"from": start.isoformat(), "to": end.isoformat()}
+if {k: qp.get_all(k) if k == "p" else qp.get(k) for k in qp} != state:
+    qp.from_dict(state)
+st.session_state.charts_url = state
+
+filled =[pid for pid in panels if st.session_state[f"series_{pid}"]]
 if not filled:
     st.info("Pick one or more series.")
     st.stop()
@@ -140,15 +160,6 @@ first = query("chart_points", shown)["plot_date"].min()
 if span != "Custom":
     start = max({"1Y": years_back(end, 1), "5Y": years_back(end, 5),
                  "YTD": date(end.year, 1, 1), "Max": first}[span], first)
-
-# --- State to the URL -----------------------------------------------------------
-state = {"s": ",".join(slots).rstrip(","), "r": span,
-         "p": [("r" if st.session_state[f"rebase_{pid}"] else "") + ("l" if st.session_state[f"log_{pid}"] else "")
-               + "~" + ",".join(st.session_state[f"series_{pid}"]) for pid in panels]}
-if span == "Custom":
-    state |= {"from": start.isoformat(), "to": end.isoformat()}
-if {k: qp.get_all(k) if k == "p" else qp.get(k) for k in qp} != state:
-    qp.from_dict(state)
 
 # --- Chart: one row per non-empty panel, one shared date axis ------------------------
 fig = make_subplots(rows=len(filled), cols=1, shared_xaxes=True, vertical_spacing=0.06)
