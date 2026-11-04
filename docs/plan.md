@@ -4,8 +4,8 @@
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
 - **Milestone:** M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z. M2 (Universe) drafted and reviewed, awaiting James's red-pen. Nightly task now 07:30 UTC (D63)
 - **Health:** GREEN at 2026-11-04 (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261104T053016Z
-- **Last session:** 2026-11-04 (sixth, resumed after a crash): chomper handoff absorbed (D51-D57); M2 drafted (D58) and reviewed twice (D59-D66); nightly moved after SEC's submissions rebuild (D63)
-- **Next action:** Full-project audit 2026-11-04 logged as #56-#93 (M1 code 56-72, M2 draft 73-91, docs 92-93). James chooses the order; the M2 red-pen waits until the M2 rows are settled
+- **Last session:** 2026-11-04 (sixth, resumed after a crash): chomper handoff absorbed (D51-D57); M2 drafted (D58) and reviewed twice (D59-D66); nightly moved after SEC's submissions rebuild (D63); full-project audit logged #56-#93; M1 fixes #56-#64 done (D71-D73)
+- **Next action:** #65 (source/frequency blind spots): proposed a staging guard allowing only sources {yf, fred} and frequencies {D, M, Q}, awaiting James's yes. Then #66-#72 (M1), then the M2 draft rows #73-#91, the docs #92-#93, then the M2 red-pen
 - **Blockers / open questions:** none. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
