@@ -5,7 +5,7 @@
 - **Milestone:** M1 built: steps 1-10 and 3b. Step 10 closed: desktop icon + Edge app window (cold ~5.7s, warm 0.88s; acceptance #9), nightly task at 01:30 with the mirror guard (D49), failures shown on the dashboard, not toasted (D50; acceptance #10). M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z (run_manifest: published, 0 errors, 0 warnings each)
 - **Health:** GREEN at 2026-11-04 (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261104T053016Z
 - **Last session:** 2026-10-07/08 (fifth session): step 10 built. Launcher, icon, nightly task, mirror guard (D49, #9); toast dropped because toasts are off machine-wide (D50, #42); Home test pinned to its clock (it broke when the date rolled). 228 tests pass
-- **Next action:** M2 draft written (D58); fresh-eyes review closed (fixes 1-6, D59-D62; run-time limit in acceptance #8). Co-registrants a waterfall step (D64, closes #52). Listing status rebuilt from 8-A12B / Form 25 (D65). Design section 1 states the datacenter role (closes #43). Waterfall bottom = domestic XBRL filers (D66). Nightly run moved to 07:30 UTC (D63). #54 release calendar logged, unscheduled
+- **Next action:** M2 draft written (D58); fresh-eyes review closed (fixes 1-6, D59-D62; run-time limit in acceptance #8). Co-registrants a waterfall step (D64, closes #52). Listing status rebuilt from 8-A12B / Form 25 (D65). Design section 1 states the datacenter role (closes #43). Waterfall bottom = domestic XBRL filers (D66). M2 draft ready for James's red-pen. Nightly run moved to 07:30 UTC (D63). #54 release calendar logged, unscheduled
 - **Blockers / open questions:** none. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
@@ -99,7 +99,7 @@ Each name is here to trip a known trap. That's why it's the test set.
 
 ## M2: Universe (DRAFT for James's red-pen, 2026-11-04)
 
-**Goal.** A survivorship-free, year-by-year list of every company that filed an annual report with the SEC: who joined, who left, who was there from the start. A waterfall page narrows that population, one named step at a time, to the analysed set: domestic filers whose annual report that year carries XBRL financials, the set M4's cross-section page reads. It refreshes nightly under the same health system as M1, and it becomes the expected set that M3's fundamentals are checked against.
+**Goal.** A survivorship-free, year-by-year list of every filer (CIK) that filed an annual report with the SEC: who joined, who left, who was there from the start. A filer is not yet a company: a company that re-registered under a new CIK appears as two filers until CIKs are linked, which is out of scope here (D54). A waterfall page narrows that population, one named step at a time, to the analysed set: domestic filers whose annual report that year carries XBRL financials, the set M4's cross-section page reads. It refreshes nightly under the same health system as M1, and it becomes the expected set that M3's fundamentals are checked against.
 
 ### Scope (decided: D52-D64)
 - **Top of the funnel (D54):** every CIK with an original annual report (form codes from `config/annual_forms.csv`, taken from the codes present in the full-index), 1993-11-29 to as-of. Complete from filing year 1997 (domestic) and 2002 (foreign); earlier years stored and flagged phase-in.
