@@ -4,8 +4,8 @@
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
 - **Milestone:** M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z. M2 (Universe) drafted and reviewed, awaiting James's red-pen. Nightly task now 07:30 UTC (D63)
 - **Health:** GREEN at 2026-11-04 (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261104T185655Z (first version with inputs/, D76)
-- **Last session:** 2026-11-04 (eighth): #72 closed: Charts round trip fixed with option B (D80), AppTest drives Charts -> Health -> Charts with switch_page and fails without the fix; re-checked in Chrome on real data (AAPL, 5Y, rebase restored). 281 tests pass. M1 audit findings #65-#72 all closed
-- **Next action:** the M2 draft rows #73-#91, then the docs #92-#93, then James's M2 red-pen. #94 waits for hosting
+- **Last session:** 2026-11-04 (eighth): #72 closed (Charts round trip, option B, D80; AppTest + Chrome). #73 direction decided: source groups publish independently, a failed group is carried forward (D81), yellow on its first missed run, red from the second (D82). Status email after every run built and live (#96 closed, Gmail, sender to itself, src/pharos/notify.py; settings in .env). Storage growth measured, about 13 MB a night, Tiingo stored twice (#97). 285 tests pass
+- **Next action:** rewrite the M2 draft text to D81/D82 (closes #73), then the M2 draft rows #74-#91 and #97 (retention, beside #47), the docs #92-#93, then James's M2 red-pen. #94 waits for hosting
 - **Blockers / open questions:** none. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
