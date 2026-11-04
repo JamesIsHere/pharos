@@ -9,9 +9,10 @@
 --
 -- This is the expected set, built from config, not from what was downloaded:
 -- ATVI gets a row even though Yahoo returned nothing, and a configured FRED
--- series with no current metadata still gets a row (NULL name and units), so
--- completeness checks (step 4) can see the gap. active_from / active_to bound
--- where data is expected.
+-- series with no current metadata still gets a row (NULL name, units,
+-- frequency, active_from), and the runner stops on a NULL frequency or
+-- active_from, naming the series: C04 / C16 would skip it silently (#64).
+-- active_from / active_to bound where data is expected.
 --
 -- units here is the CURRENT units only. Each observation row carries the units
 -- of its own vintage (D19).

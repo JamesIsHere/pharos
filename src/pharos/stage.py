@@ -9,7 +9,8 @@ Rules applied here:
   complete run up to and including it, because raw is a snapshot log (D18) and
   the full history of what each source said is the input.
 - Each SQL file must return exactly one row per raw row, with no NULL units
-  (FRED, D19) and no NULL vintage (Yahoo, D20). Anything else stops the run.
+  (FRED, D19) and no NULL vintage (Yahoo, D20); every catalog row needs a
+  frequency and start date (#64). Anything else stops the run.
 - Dedup collapses rows that agree on everything but lineage, keeping the
   earliest run's run_id and loaded_at, so an identical rerun changes nothing.
   Rows that share (series_id, obs_date, vintage) but disagree on value both
@@ -73,6 +74,12 @@ def stage(run_id: str | None = None) -> Path:
     yf = _transform(con, "yf_observations", "raw_yf_prices")
     _require_none(con, yf, "vintage IS NULL", "price rows with no full-history pull at or before their run (D20)")
     con.execute(f"CREATE TABLE series_catalog AS {_sql('series_catalog')}")
+    # a NULL frequency or start date makes C04 / C16 skip the series silently (#64)
+    missing = [r[0] for r in con.execute(
+        "SELECT series_id FROM series_catalog WHERE frequency IS NULL OR active_from IS NULL "
+        "ORDER BY 1").fetchall()]
+    if missing:
+        raise StageError(f"series_catalog: no current metadata (frequency, start date) for {missing}")
 
     con.execute(f"""
         CREATE TABLE observations AS

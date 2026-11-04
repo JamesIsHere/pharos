@@ -172,6 +172,15 @@ def test_closed_units_window_uses_newest_run(root):
         [("Billions of Chained 2027 Dollars",)]
 
 
+def test_fred_series_without_current_metadata_stops(root):
+    # no open metadata window: the catalog row gets NULL frequency and
+    # active_from, and C04 / C16 skip the series silently (#64)
+    land(R1, series=fred_series(((date(1991, 12, 4), date(2026, 8, 1), "Billions of Dollars"),)))
+    with pytest.raises(StageError, match="fred:GDP"):
+        stage(R1)
+    assert not (root / "staging").exists()
+
+
 def test_withdrawn_value_kept_as_null(root):
     land(R1, obs=fred_obs("."))
     assert staged(stage(R1), "SELECT value FROM obs WHERE series_id = 'fred:GDP'") == [(None,)]
