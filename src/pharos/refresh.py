@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 
 import duckdb
 
-from pharos import health
+from pharos import health, notify
 from pharos.loaders import fred, tiingo, yahoo
 from pharos.paths import data_root
 from pharos.publish import Publication, publish
@@ -59,7 +59,8 @@ def refresh() -> tuple[str, Publication | None]:
         raise
     finally:
         write_manifest(run_id, started_at, publication, error, reference_errors)
-        health.evaluate()   # rewrites health/latest.md after every run, crashed ones too
+        status = health.evaluate()   # rewrites health/latest.md after every run, crashed ones too
+        notify.send_status(run_id, status)   # never raises (#96)
     return run_id, publication
 
 
