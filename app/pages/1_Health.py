@@ -5,7 +5,7 @@ import polars as pl
 import streamlit as st
 
 from common import frame, run_failures, status_bar
-from pharos import board, config
+from pharos import board
 
 # sequential blue ramp, light -> dark (dataviz reference palette, steps 100-700)
 COVERAGE_SCALE = [[0.0, "#cde2fb"], [0.5, "#5598e7"], [0.9, "#256abf"], [1.0, "#0d366b"]]
@@ -75,7 +75,7 @@ if summary is None:
 st.header("Coverage")
 st.caption("Share of expected observations present per series per month (C04's definition). Blank: outside the series' window.")
 coverage = frame("coverage")
-start = config.sources()["backfill_start"]
+start = frame("settings")["backfill_start"][0]
 if not st.toggle(f"Full history (default starts at the backfill start, {start})"):
     coverage = coverage.filter(pl.col("month") >= start)
 series = coverage["series_id"].unique().sort().to_list()

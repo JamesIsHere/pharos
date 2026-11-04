@@ -18,10 +18,9 @@ from datetime import datetime
 from pathlib import Path
 
 import duckdb
-import exchange_calendars as xc
 import polars as pl
 
-from pharos import config
+from pharos.checks import load_view_inputs
 from pharos.paths import PROJECT_ROOT, data_root
 from pharos.publish import current_version
 
@@ -75,11 +74,14 @@ def connect() -> duckdb.DuckDBPyConnection | None:
     manifests = data_root() / "health" / "run_manifest"
     con.execute(f"CREATE VIEW run_manifest AS SELECT * FROM "
                 f"read_parquet('{manifests.as_posix()}/*.parquet', union_by_name = true)")
-    sessions = xc.get_calendar("XNYS", start=config.sources()["backfill_start"]).sessions
-    con.execute("CREATE TABLE trading_days (session DATE)")
-    con.executemany("INSERT INTO trading_days VALUES (?)", [(d.date(),) for d in sessions])
+    load_view_inputs(con, version)   # trading_days, settings: the version's own (D76)
     con.execute(f"CREATE VIEW expected_dates AS {(TRANSFORM / 'expected_dates.sql').read_text(encoding='utf-8')}")
     return con
+
+
+def settings(con) -> pl.DataFrame:
+    """The version's settings row (backfill_start), as its run read them (D76)."""
+    return con.sql("SELECT * FROM settings").pl()
 
 
 def summary(con) -> pl.DataFrame:

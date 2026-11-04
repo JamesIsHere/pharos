@@ -15,6 +15,8 @@ Rules applied here:
 - If CURRENT is held open elsewhere the swap retries briefly, then fails loudly
   and leaves the old pointer in place (open issue #7).
 - Old versions are kept. Delete = archive; pruning would be its own decision.
+- A version carries inputs/: config/ and this run's Tiingo file as the checks
+  read them, so view-time health and the app never read config/ or raw/ (D76).
 """
 
 import os
@@ -25,7 +27,7 @@ from pathlib import Path
 
 import duckdb
 
-from pharos.checks import Evaluation, run_checks
+from pharos.checks import INPUTS_DIR, VIEW_INPUTS, Evaluation, bind_view_inputs, run_checks
 from pharos.paths import data_root
 from pharos.stage import complete_runs
 
@@ -94,6 +96,13 @@ def _build(run_id: str, version: Path) -> None:
         n_staged, n_copied = (_rows(folder / f"{table}.parquet") for folder in (staged, building))
         if n_staged != n_copied:
             raise PublishError(f"{table}: {n_staged:,} rows staged, {n_copied:,} copied")
+    inputs = building / INPUTS_DIR
+    inputs.mkdir()
+    con = duckdb.connect()
+    bind_view_inputs(con, run_id)
+    for name in VIEW_INPUTS:
+        con.execute(f"COPY (SELECT * FROM {name}) TO '{(inputs / f'{name}.parquet').as_posix()}' (FORMAT parquet)")
+    con.close()
     os.rename(building, version)
 
 

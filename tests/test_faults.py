@@ -725,3 +725,42 @@ def test_ack_key_on_an_error_check_fails_discovery(tmp_path):
                  "-- ack_key: series_id\nSELECT 1 AS series_id WHERE false\n")
     with pytest.raises(CheckError, match="ack_key on a error-severity check"):
         parse(f)
+
+
+# --- view-time inputs: a version carries what its checks read (D76, #67) ----
+
+def test_view_time_health_reads_neither_raw_nor_config(staged_run, monkeypatch):
+    from pharos import board, config
+    serve(staged_run)
+    _, before = view(monkeypatch, [])
+    def unreadable(*a, **k):
+        raise AssertionError("config/ read at view time")
+    for name in ("sources", "watchlist", "corporate_actions"):
+        monkeypatch.setattr(config, name, unreadable)
+    (data_root() / "raw").rename(data_root() / "raw-moved")
+    h, after = view(monkeypatch, [])
+    assert {k: v["status"] for k, v in after.items()} == {k: v["status"] for k, v in before.items()}
+    assert all(v["status"] != "broken" for v in after.values()), [v["error"] for v in after.values()]
+    con = board.connect()
+    assert len(board.coverage(con)) > 0 and board.settings(con)["backfill_start"].to_list() == [date(2026, 1, 1)]   # conftest's
+    con.close()
+
+
+def test_version_without_inputs_fails_loudly(staged_run, monkeypatch):
+    from pharos.checks import CheckError
+    from pharos.publish import current_version
+    serve(staged_run)
+    (current_version() / "inputs" / "trading_days.parquet").unlink()
+    with pytest.raises(CheckError, match=r"no view-time inputs \['trading_days'\]"):
+        view(monkeypatch, [])
+
+
+def test_version_inputs_are_what_the_run_read(staged_run):
+    from pharos import config
+    from pharos.publish import current_version
+    serve(staged_run)
+    inputs = current_version() / "inputs"
+    count = lambda p: duckdb.sql(f"SELECT count(*) FROM read_parquet('{p.as_posix()}')").fetchone()[0]
+    assert count(inputs / "raw_tiingo_prices.parquet") == count(raw_file(staged_run, "tiingo", "prices"))
+    assert count(inputs / "watchlist_windows.parquet") == len(config.watchlist())
+    assert count(inputs / "fred_expected.parquet") == len(config.sources()["fred"]["series"])

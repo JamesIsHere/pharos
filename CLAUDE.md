@@ -67,7 +67,7 @@ data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.du
 - Never loosen a threshold or delete a check to get green without a decision-log entry explaining why.
 
 ### App
-- The app reads only `serving/` and `health/`, through one configurable data root (local path now, R2 URL later).
+- The app reads only `serving/` and `health/`, through one configurable data root (local path now, R2 URL later). A version's `inputs/` folder holds what its view-time checks read; view time never reads `raw/` or `config/` (D76; one exception left, #94).
 - Cache query results keyed on the manifest's `last_published_at`, so new data appears after a refresh.
 - Opening the app never triggers a refresh.
 - Every page shows the health status bar.

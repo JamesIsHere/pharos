@@ -38,6 +38,11 @@ from pharos.stage import bind_config, bind_raw, complete_runs
 
 CHECKS_DIR = PROJECT_ROOT / "checks"
 HEADER_FIELDS = ("id", "severity", "gate", "description")
+# what checks and the app read besides the version's tables; publish copies
+# each into serving/<version>/inputs/ (D76)
+INPUTS_DIR = "inputs"
+VIEW_INPUTS = ("raw_tiingo_prices", "watchlist_windows", "fred_expected", "required_series",
+               "trading_days", "reclassified", "settings")
 
 
 class CheckError(RuntimeError):
@@ -147,43 +152,26 @@ def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = Non
     for table in ("observations", "series_catalog"):
         con.execute(f"CREATE VIEW {table} AS SELECT * FROM "
                     f"read_parquet('{(staged / f'{table}.parquet').as_posix()}')")
-    bind_raw(con, [r for r in runs if r <= run_id])
-    # the reference source, this run's file only (D37); a run without one binds
-    # an empty table of the same shape, so C18 reports the gap instead of breaking
-    tiingo = data_root() / "raw" / "tiingo" / "prices" / f"{run_id}.parquet"
-    if tiingo.exists():
-        con.execute(f"CREATE VIEW raw_tiingo_prices AS SELECT * FROM read_parquet('{tiingo.as_posix()}')")
+    if tables is None:
+        # run time: the gate checks read raw/, and config/ is read as it stands
+        bind_raw(con, [r for r in runs if r <= run_id])
+        # every raw file on disk with the row count read from its own footer (C05)
+        con.execute("CREATE TABLE raw_files (source VARCHAR, dataset VARCHAR, run_id VARCHAR, "
+                    "path VARCHAR, rows_on_disk BIGINT)")
+        for f in sorted((data_root() / "raw").glob("*/*/*.parquet")):
+            n = con.execute(f"SELECT sum(num_rows) FROM parquet_file_metadata('{f.as_posix()}')").fetchone()[0]
+            con.execute("INSERT INTO raw_files VALUES (?, ?, ?, ?, ?)",
+                        [f.parent.parent.name, f.parent.name, f.stem, f.as_posix(), n])
+        bind_view_inputs(con, run_id)
     else:
-        con.execute("CREATE TABLE raw_tiingo_prices (ticker VARCHAR, tiingo_symbol VARCHAR, obs_date DATE, "
-                    "close DOUBLE, split_factor DOUBLE, div_cash DOUBLE)")
-    bind_config(con)
-    con.execute("CREATE TABLE required_series (measure VARCHAR)")
-    con.executemany("INSERT INTO required_series VALUES (?)",
-                    [(m,) for m in config.sources()["yahoo"]["required_series"]])
+        # view time: the version's own copy of what its checks read (D76)
+        load_view_inputs(con, tables)
     loads = (data_root() / "health" / "loads").as_posix() + "/*.parquet"
     con.execute(f"CREATE VIEW loads AS SELECT * FROM read_parquet('{loads}')")
-
-    # every raw file on disk with the row count read from its own footer (C05)
-    con.execute("CREATE TABLE raw_files (source VARCHAR, dataset VARCHAR, run_id VARCHAR, "
-                "path VARCHAR, rows_on_disk BIGINT)")
-    for f in sorted((data_root() / "raw").glob("*/*/*.parquet")):
-        n = con.execute(f"SELECT sum(num_rows) FROM parquet_file_metadata('{f.as_posix()}')").fetchone()[0]
-        con.execute("INSERT INTO raw_files VALUES (?, ?, ?, ?, ?)",
-                    [f.parent.parent.name, f.parent.name, f.stem, f.as_posix(), n])
-
-    calendar = xc.get_calendar("XNYS", start=config.sources()["backfill_start"])
-    con.execute("CREATE TABLE trading_days (session DATE)")
-    con.executemany("INSERT INTO trading_days VALUES (?)",
-                    [(d.date(),) for d in calendar.sessions])
 
     run_at = datetime.strptime(run_id, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
     con.execute("CREATE TABLE this_run AS SELECT ? AS run_id, ?::TIMESTAMPTZ AS run_at",
                 [run_id, run_at])
-    # reviewed Tiingo distributions the reconciliation treats as splits (D40)
-    con.execute("CREATE TABLE reclassified (ticker VARCHAR, event_date DATE)")
-    reclassified = [(r["ticker"], r["event_date"]) for r in config.corporate_actions()]
-    if reclassified:                                  # executemany refuses an empty list
-        con.executemany("INSERT INTO reclassified VALUES (?, ?)", reclassified)
     # Views shared by a check and another reader, one SQL file each:
     # Yahoo vs Tiingo on every common date (the audit, D41) and C12's draw from
     # it (D38), and per-series baseline metrics (C13, D39).
@@ -215,6 +203,46 @@ def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = Non
                     f"read_parquet('{manifests.as_posix()}/*.parquet', union_by_name = true)")
     else:
         con.execute("CREATE TABLE run_manifest (run_id VARCHAR, status VARCHAR, published_at TIMESTAMPTZ)")
+
+
+def bind_view_inputs(con: duckdb.DuckDBPyConnection, run_id: str) -> None:
+    """The VIEW_INPUTS tables, from config/ and this run's Tiingo file. Publish
+    copies them into the version, so view-time health and the app read the
+    inputs the run was checked against, never raw/ or config/ (D76)."""
+    # the reference source, this run's file only (D37); a run without one binds
+    # an empty table of the same shape, so C18 reports the gap instead of breaking
+    tiingo = data_root() / "raw" / "tiingo" / "prices" / f"{run_id}.parquet"
+    if tiingo.exists():
+        con.execute(f"CREATE VIEW raw_tiingo_prices AS SELECT * FROM read_parquet('{tiingo.as_posix()}')")
+    else:
+        con.execute("CREATE TABLE raw_tiingo_prices (ticker VARCHAR, tiingo_symbol VARCHAR, obs_date DATE, "
+                    "close DOUBLE, split_factor DOUBLE, div_cash DOUBLE)")
+    bind_config(con)
+    cfg = config.sources()
+    con.execute("CREATE TABLE required_series (measure VARCHAR)")
+    con.executemany("INSERT INTO required_series VALUES (?)", [(m,) for m in cfg["yahoo"]["required_series"]])
+    calendar = xc.get_calendar("XNYS", start=cfg["backfill_start"])
+    con.execute("CREATE TABLE trading_days (session DATE)")
+    con.executemany("INSERT INTO trading_days VALUES (?)", [(d.date(),) for d in calendar.sessions])
+    # reviewed Tiingo distributions the reconciliation treats as splits (D40)
+    con.execute("CREATE TABLE reclassified (ticker VARCHAR, event_date DATE)")
+    reclassified = [(r["ticker"], r["event_date"]) for r in config.corporate_actions()]
+    if reclassified:                                  # executemany refuses an empty list
+        con.executemany("INSERT INTO reclassified VALUES (?, ?)", reclassified)
+    con.execute("CREATE TABLE settings AS SELECT ?::DATE AS backfill_start", [cfg["backfill_start"]])
+
+
+def load_view_inputs(con: duckdb.DuckDBPyConnection, version: Path) -> None:
+    """Bind a published version's inputs/ folder under the VIEW_INPUTS names.
+    A version published before D76 has none: fail loudly, never fall back to
+    config/ or raw/."""
+    folder = version / INPUTS_DIR
+    missing = [n for n in VIEW_INPUTS if not (folder / f"{n}.parquet").exists()]
+    if missing:
+        raise CheckError(f"version {version.name} carries no view-time inputs {missing} in {folder} "
+                         "(published before D76: the next publish brings them)")
+    for name in VIEW_INPUTS:
+        con.execute(f"CREATE VIEW {name} AS SELECT * FROM read_parquet('{(folder / f'{name}.parquet').as_posix()}')")
 
 
 def _bind_shared(con, name: str, columns: str) -> None:
