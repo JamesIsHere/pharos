@@ -4,8 +4,8 @@
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
 - **Milestone:** M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z. M2 (Universe) drafted and reviewed, awaiting James's red-pen. Nightly task now 07:30 UTC (D63)
 - **Health:** GREEN at 2026-11-04 (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261104T185655Z (first version with inputs/, D76)
-- **Last session:** 2026-11-04 (sixth, resumed after a crash): chomper handoff absorbed (D51-D57); M2 drafted (D58) and reviewed twice (D59-D66); nightly moved after SEC's submissions rebuild (D63); full-project audit logged #56-#93; M1 fixes #56-#71 done (D71-D77)
-- **Next action:** #95 (C16 FRED-only?), awaiting James. Then #72 (M1 low batch), then the M2 draft rows #73-#91, the docs #92-#93, then the M2 red-pen. #94 waits for hosting
+- **Last session:** 2026-11-04 (sixth, resumed after a crash): chomper handoff absorbed (D51-D57); M2 drafted (D58) and reviewed twice (D59-D66); nightly moved after SEC's submissions rebuild (D63); full-project audit logged #56-#93; M1 fixes #56-#71 and #95 done (D71-D78)
+- **Next action:** #72 (M1 low batch). Then the M2 draft rows #73-#91, the docs #92-#93, then the M2 red-pen. #94 waits for hosting
 - **Blockers / open questions:** none. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
@@ -50,7 +50,6 @@
 | 92  | Audit 2026-11-04, docs, LOW: open issues whose 'Resolves in' has passed: #12 and #28 (M1, done); #17 and #25 (M1 step 4, checked). #17's accept path (D23) is confirmed still unbuilt in cli.py | The table claims fixes that never happened | Doc pass |
 | 93  | Audit 2026-11-04, docs, LOW batch: stale text. Raw path in CLAUDE.md and design.md section 2 (code writes raw/<source>/<dataset>/<run_id>.parquet); CLAUDE.md layout (health/ is a file; config and script files missing); design.md port 8501 and powershell (code: 8517, pwsh); D49 mentions the toast D50 removed; D17 'C03-C11' omits C14; CLAUDE.md cites companyfacts for M2+ (M3, D57); section 5 lacks full-index and submissions rows; CLAUDE.md cache key vs D45; plan exit forms omit 25-NSE; D58's 8-K items vs D69's forms only; D65 cites an undefined 'fix 1'; vintage triggers differ between design.md and the plan; plan.md M1 scope says C01-C14 | A builder trusting the docs trips on each | Doc pass |
 | 94  | View-time health still reads config/expected_states.csv (health.acknowledgments), the one config/ read D76 left. Deliberate for now: a newly reviewed acknowledgment takes effect on the next page view, not the next publish. Snapshotting it into inputs/ would make acknowledgments per version and need a publish to take effect | On the hosted path the status bar can't read the file and crashes | Before hosting (decide: snapshot per version, or copy to health/ on edit) |
-| 95  | C16 has no source filter: a missing Yahoo close (NULL) also reports as 'value withdrawn by the source', though D73 makes a missing price C09's impossible value and D25's withdrawal FRED's alone. C09 blocks the publish, so view-time C16 never sees one; at run time the row shows under both checks | A failed run lists a missing price as a source withdrawal beside C09's block, the reading D73 rejected | M1 fix (James to decide: restrict C16 to FRED) |
 
 ---
 

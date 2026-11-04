@@ -15,6 +15,7 @@ SELECT o.series_id, o.obs_date, o.vintage
 FROM observations AS o
 JOIN series_catalog AS c USING (series_id)
 WHERE o.obs_date >= c.active_from
+  AND c.source = 'fred'   -- a withdrawal is FRED's '.'; a missing price is C09's (D73, D78)
 QUALIFY row_number() OVER (PARTITION BY o.series_id, o.obs_date ORDER BY o.vintage DESC) = 1
     AND o.value IS NULL
 ORDER BY o.series_id, o.obs_date

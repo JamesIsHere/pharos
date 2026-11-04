@@ -933,3 +933,11 @@ def test_checks_on_disk_match_design_section_7():
     documented = set(re.findall(r"^\| (C\d+|expected_states) \|", section, re.M))
     assert documented - {"expected_states"} == {c.id for c in discover()}
     assert "expected_states" in documented   # the one row that is not a SQL file (D46)
+
+
+def test_missing_price_is_c09_not_c16(staged_run):
+    # D73: a NULL Yahoo close is an impossible value, not a source withdrawal (D78, #95)
+    tamper(staged_run, "observations",
+           f"SELECT * REPLACE (NULL::DOUBLE AS value) FROM t WHERE {NVDA_DAY} UNION ALL SELECT * FROM t WHERE NOT ({NVDA_DAY})")
+    e = run_checks(staged_run)
+    assert (result(e, "C09")["status"], result(e, "C16")["status"], e.verdict) == ("error", "pass", "blocked")
