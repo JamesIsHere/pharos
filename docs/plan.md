@@ -185,7 +185,7 @@ Moving the refresh to GitHub Actions (raw in R2): floating, only on a measured n
 **Built** when 1-10 pass. **Done** after 7 consecutive green nightly runs with the universe in them.
 
 ### Out of scope for M2
-Financials of any kind (M3); linking several CIKs into one company (predecessors, re-registrations); reading filing text; paid sources (CRSP); membership on a specific date (Form 25 / 15 dates are stored; they set the yearly listing status (D65) but not membership).
+Financials of any kind (M3); foreign filers in the analysed set (US GAAP only for now, D109; open to change later); linking several CIKs into one company (predecessors, re-registrations); reading filing text; paid sources (CRSP); membership on a specific date (Form 25 / 15 dates are stored; they set the yearly listing status (D65) but not membership).
 
 ---
 
