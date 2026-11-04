@@ -20,6 +20,10 @@ Rules applied here:
   DuckDB from Tiingo alone, never with Yahoo's splits (D35).
 - obs_date is the date part of Tiingo's timestamp (midnight UTC labels the
   trading day); it is never converted between zones.
+- The window ends where Yahoo's does: the New York date, today excluded, so
+  both sources cover the same sessions and no provisional same-day bar lands
+  in a write-once file. Tiingo's endDate is inclusive, so it is passed as the
+  day before; pull_end records that last date requested (#72).
 - A ticker Tiingo doesn't know (HTTP 404) contributes no rows and is reported;
   any other HTTP error stops the load.
 """
@@ -29,7 +33,8 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import date
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -37,6 +42,7 @@ from pharos import config
 from pharos.runs import write_raw
 
 API = "https://api.tiingo.com/tiingo/daily"
+NEW_YORK = ZoneInfo("America/New_York")
 ROW_KEYS = {"date", "open", "high", "low", "close", "volume",
             "adjOpen", "adjHigh", "adjLow", "adjClose", "adjVolume",
             "divCash", "splitFactor"}
@@ -109,7 +115,8 @@ def load_prices(run_id: str, today: date | None = None) -> dict:
     Everything is fetched and checked first, so drift anywhere writes nothing.
     Returns {"rows": n, "not_found": [tickers]}."""
     start = config.sources()["backfill_start"]
-    end = today or date.today()
+    today = today or datetime.now(NEW_YORK).date()   # New York's date, never the machine's
+    end = today - timedelta(days=1)                    # inclusive: today's bar excluded, as Yahoo's
     frames, not_found = [], []
     for w in config.watchlist():
         sym = symbol(w["ticker"])

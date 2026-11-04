@@ -96,3 +96,28 @@ def test_missing_key_fails_loud(monkeypatch):
     monkeypatch.delenv("TIINGO_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="TIINGO_API_KEY is not set"):
         tiingo._api_key()
+
+
+def test_window_ends_like_yahoos(two_tickers):
+    # New York date, today excluded: Tiingo's endDate is inclusive, so the day before (#72)
+    asked = []
+    def fetch(sym, start, end):
+        asked.append(end)
+        return [row("2026-10-05", 10.0)]
+    two_tickers.setattr(tiingo, "fetch", fetch)
+    tiingo.load_prices("20261007T140000Z", today=date(2026, 10, 7))
+    assert set(asked) == {date(2026, 10, 6)}
+
+
+def test_default_today_is_new_yorks_date(two_tickers):
+    # 2026-10-08 02:30 UTC is still 10-07 in New York (22:30 EDT): end is 10-06
+    from datetime import datetime, timezone
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 10, 8, 2, 30, tzinfo=timezone.utc).astimezone(tz)
+    asked = []
+    two_tickers.setattr(tiingo, "datetime", Clock)
+    two_tickers.setattr(tiingo, "fetch", lambda sym, start, end: asked.append(end) or [row("2026-10-05", 10.0)])
+    tiingo.load_prices("20261008T023000Z")
+    assert set(asked) == {date(2026, 10, 6)}
