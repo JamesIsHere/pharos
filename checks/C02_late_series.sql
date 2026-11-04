@@ -2,6 +2,7 @@
 -- severity: warn
 -- gate: no
 -- description: active series 1 period behind its expected latest period: running late (D33)
+-- ack_key: series_id, latest_obs_date
 --
 -- C02 (warn, 1 period behind) and C17 (error, 2 or more) are one rule split by
 -- severity, because a check file declares one severity (D33, open issue #11

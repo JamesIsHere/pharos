@@ -45,16 +45,22 @@ def corporate_actions() -> list[dict]:
 
 def expected_states() -> list[dict]:
     """Reviewed acknowledgments of warn-check rows (D46): each names one failing
-    row by check_id, series_id and obs_date (blank: the row has no obs_date).
-    Fails loudly on a missing note, a bad date or a repeated row; whether the
-    check exists and only warns is health's to verify, against checks/."""
+    row by check_id and key, the values of that check's ack_key columns in
+    order, joined by ' | ' (D75). Fails loudly on other columns, a missing
+    note, an empty key part or a repeated row; whether the check exists, only
+    warns and declares a key of that length is health's to verify, against checks/."""
     with open(CONFIG_DIR / "expected_states.csv", newline="", encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    if reader.fieldnames != ["check_id", "key", "note"]:
+        raise ValueError(f"expected_states.csv: columns must be check_id,key,note, not {reader.fieldnames}")
     for r in rows:
+        r["key"] = tuple(p.strip() for p in r["key"].split("|"))
+        if not all(r["key"]):
+            raise ValueError(f"expected_states.csv: {r['check_id']} key {r['key']} has an empty part")
         if not r["note"].strip():
-            raise ValueError(f"expected_states.csv: {r['check_id']} {r['series_id']} has no note")
-        r["obs_date"] = date.fromisoformat(r["obs_date"]).isoformat() if r["obs_date"] else None
-    keys = [(r["check_id"], r["series_id"], r["obs_date"]) for r in rows]
+            raise ValueError(f"expected_states.csv: {r['check_id']} {' | '.join(r['key'])} has no note")
+    keys = [(r["check_id"], r["key"]) for r in rows]
     if len(set(keys)) != len(keys):
         raise ValueError(f"expected_states.csv: repeated rows {sorted(k for k in keys if keys.count(k) > 1)}")
     return rows

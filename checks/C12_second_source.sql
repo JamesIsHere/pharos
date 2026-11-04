@@ -2,6 +2,7 @@
 -- severity: warn
 -- gate: no
 -- description: sampled split-adjusted closes differ from Tiingo by more than 0.5% (D38), or a reviewed reclassification matches no Tiingo distribution (D40)
+-- ack_key: ticker, obs_date
 --
 -- The sample (5 seeded dates per ticker plus the latest common date) and the
 -- Tiingo split adjustment are defined once in transform/reconcile_sample.sql,

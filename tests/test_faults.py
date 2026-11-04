@@ -601,7 +601,7 @@ def test_c12_listed_distribution_missing_from_tiingo_warns(staged_run, monkeypat
 
 # --- expected_states: reviewed acknowledgments of warn rows (D46) -------------
 
-GDP_ACK = {"check_id": "C16", "series_id": "fred:GDP", "obs_date": "2026-04-01", "note": "test: withdrawn"}
+GDP_ACK = {"check_id": "C16", "key": ("fred:GDP", "2026-04-01"), "note": "test: withdrawn"}
 
 
 def serve(run_id, select=None):
@@ -656,11 +656,72 @@ def test_stale_acknowledgment_warns(staged_run, monkeypatch):
     h, r = view(monkeypatch, [GDP_ACK])
     assert h.status == "yellow" and r["C16"]["status"] == "pass"
     assert (r["expected_states"]["status"], r["expected_states"]["failing_row_count"]) == ("warn", 1)
-    assert json.loads(r["expected_states"]["sample"])[0]["series_id"] == "fred:GDP"
+    assert json.loads(r["expected_states"]["sample"])[0]["key"] == "fred:GDP | 2026-04-01"
 
 
-@pytest.mark.parametrize("check_id, message", [("C04", "only a warn check"), ("C99", "no check 'C99'")])
+@pytest.mark.parametrize("check_id, message", [("C04", "only a warn check"), ("C99", "no check 'C99'"),
+                                               ("C15", "needs 1 parts: series_id")])
 def test_only_a_warn_check_can_be_acknowledged(staged_run, monkeypatch, check_id, message):
     serve(staged_run)
     with pytest.raises(ValueError, match=message):
         view(monkeypatch, [{**GDP_ACK, "check_id": check_id}])
+
+
+# --- ack_key: an acknowledgment names one problem, not one series (D75, #66) --
+
+def acknowledged(results, check_id, states, monkeypatch):
+    """(status, {key part tuple: note}) of one check after acknowledging `states`."""
+    from pharos import config, health
+    monkeypatch.setattr(config, "expected_states", lambda: states)
+    r = {x["check_id"]: x for x in health.acknowledge(results)}[check_id]
+    return r["status"], [row["acknowledged"] for row in json.loads(r["sample"])]
+
+
+def test_c13_acknowledged_problem_does_not_hide_another(staged_run, monkeypatch):
+    # GDP gone; the note acknowledges a row-count drop for GDP, a different problem
+    record_baseline(CLEAN_BASELINE)
+    tamper(staged_run, "observations", "SELECT * FROM t WHERE series_id <> 'fred:GDP'")
+    results = run_checks(staged_run).results
+    ack = {"check_id": "C13", "key": ("fred:GDP", "row_count below baseline"), "note": "test"}
+    assert acknowledged(results, "C13", [ack], monkeypatch) == ("warn", [None])
+    ack["key"] = ("fred:GDP", "series gone")
+    assert acknowledged(results, "C13", [ack], monkeypatch) == ("acknowledged", ["test"])
+
+
+def test_c02_acknowledged_late_period_does_not_hide_a_later_one(staged_run, monkeypatch):
+    # NVDA's latest close is 10-06; the note acknowledges a lateness when the
+    # latest close was 10-05, so this lateness is a new one
+    results = run_checks(staged_run, now=at((10, 8))).results
+    ack = {"check_id": "C02", "key": ("yf:close:NVDA", "2026-10-05"), "note": "test"}
+    assert acknowledged(results, "C02", [ack], monkeypatch) == ("warn", [None])
+    ack["key"] = ("yf:close:NVDA", "2026-10-06")
+    assert acknowledged(results, "C02", [ack], monkeypatch) == ("acknowledged", ["test"])
+
+
+def test_c20_ticker_rows_can_be_acknowledged(staged_run, monkeypatch):
+    # before D75 a row without series_id could never match
+    from datetime import datetime, timezone
+    results = run_checks(staged_run, now=datetime(2026, 10, 8, 12, tzinfo=timezone.utc)).results
+    ack = {"check_id": "C20", "key": ("NVDA", "2026-10-06"), "note": "test"}
+    assert acknowledged(results, "C20", [ack], monkeypatch) == ("acknowledged", ["test"])
+
+
+def test_every_ack_key_names_columns_its_check_returns(staged_run):
+    # a misspelt ack_key column would raise at view time; catch it here, on all checks
+    from pharos.checks import bind, discover
+    con = duckdb.connect()
+    bind(con, staged_run)
+    for c in discover():
+        cols = [d[0] for d in con.execute(f"SELECT * FROM ({c.sql}) LIMIT 0").description]
+        assert set(c.ack_key) <= set(cols), (c.id, c.ack_key, cols)
+    assert {c.id for c in discover() if c.ack_key} == {c.id for c in discover() if c.severity == "warn"}
+    con.close()
+
+
+def test_ack_key_on_an_error_check_fails_discovery(tmp_path):
+    from pharos.checks import CheckError, parse
+    f = tmp_path / "C98.sql"
+    f.write_text("-- id: C98\n-- severity: error\n-- gate: no\n-- description: x\n"
+                 "-- ack_key: series_id\nSELECT 1 AS series_id WHERE false\n")
+    with pytest.raises(CheckError, match="ack_key on a error-severity check"):
+        parse(f)

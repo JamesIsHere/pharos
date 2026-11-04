@@ -2,6 +2,7 @@
 -- severity: warn
 -- gate: no
 -- description: value withdrawn by the source (NULL) in the latest vintage, inside the active window
+-- ack_key: series_id, obs_date
 --
 -- FRED stores "." when a vintage withdraws a value, and staging keeps it as NULL
 -- so a later read can't resurrect the old number. When the latest vintage of a

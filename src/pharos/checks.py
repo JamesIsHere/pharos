@@ -52,6 +52,7 @@ class Check:
     description: str
     sql: str
     path: Path
+    ack_key: tuple[str, ...] = ()   # the columns naming one problem; empty: can't be acknowledged (D75)
 
 
 @dataclass(frozen=True)
@@ -93,9 +94,14 @@ def parse(path: Path) -> Check:
     if not re.fullmatch(re.escape(header["id"]) + r"(_\w+)?", path.stem):
         raise CheckError(f"{path.name}: filename must be {header['id']}.sql or {header['id']}_<name>.sql")
 
+    ack_key = tuple(c.strip() for c in header.get("ack_key", "").split(",") if c.strip())
+    if ack_key and header["severity"] != "warn":
+        raise CheckError(f"{path.name}: ack_key on a {header['severity']}-severity check; "
+                         "only a warn check's rows can be acknowledged (D46)")
+
     sql = path.read_text(encoding="utf-8").strip().rstrip(";")
     return Check(header["id"], header["severity"], header["gate"] == "yes",
-                 header["description"], sql, path)
+                 header["description"], sql, path, ack_key)
 
 
 def run_checks(run_id: str, directory: Path = CHECKS_DIR, now: datetime | None = None,

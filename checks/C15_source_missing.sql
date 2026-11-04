@@ -2,6 +2,7 @@
 -- severity: warn
 -- gate: no
 -- description: ended catalog series (active_to before the run date) without observations: source-missing (D22)
+-- ack_key: series_id
 --
 -- The survivorship finding (acceptance #3): a dead ticker the source no longer
 -- serves, e.g. ATVI, acquired 2023-10-12. Kept in the expected set so the gap

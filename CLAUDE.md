@@ -60,7 +60,7 @@ data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.du
 - Secrets live in `.env` (gitignored) locally and in GitHub Secrets in CI. **The repo is public.** Never commit keys or data.
 
 ### Health
-- A check is a SQL file in `checks/` that returns failing rows. Zero rows means pass. Header comment: `id`, `severity` (error|warn), `gate` (yes|no), `description`. Gate checks test the staged data and can block a publish; monitor checks (`gate: no`) test the world (staleness, lateness, drift) and never block (D17).
+- A check is a SQL file in `checks/` that returns failing rows. Zero rows means pass. Header comment: `id`, `severity` (error|warn), `gate` (yes|no), `description`. A warn check may add `ack_key` (the columns naming one problem); without it its rows can't be acknowledged (D75). Gate checks test the staged data and can block a publish; monitor checks (`gate: no`) test the world (staleness, lateness, drift) and never block (D17).
 - Any new source ships with completeness, uniqueness, and freshness checks in the same change.
 - Freshness is evaluated at view time, not only at run time. A pipeline that silently didn't run must show red.
 - Any new or changed check needs a fault-injection test in `tests/test_faults.py` proving it fires.

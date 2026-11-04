@@ -2,6 +2,7 @@
 -- severity: warn
 -- gate: no
 -- description: series drifted from the opening-balance baseline (first_date later, fewer rows, or gone), or no baseline recorded (D39)
+-- ack_key: series_id, problem
 --
 -- The metrics are defined once in transform/baseline_metrics.sql, shared with
 -- the audit that recorded the baseline. History should only ever grow: a later

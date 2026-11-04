@@ -124,7 +124,7 @@ def test_manifest_counts_an_acknowledged_warn_apart(loaders, staged_run):
         copy_raw(staged_run, "fred", "series", run)
     loaders.setattr(refresh_mod.fred, "load_macro", fred)
     loaders.setattr(config, "expected_states", lambda: [
-        {"check_id": "C16", "series_id": "fred:GDP", "obs_date": "2026-04-01", "note": "test"}])
+        {"check_id": "C16", "key": ("fred:GDP", "2026-04-01"), "note": "test"}])
     _, pub = refresh_mod.refresh()
     recorded = {r["check_id"]: r["status"] for r in pub.evaluation.results}
     assert recorded["C16"] == "warn"
@@ -136,7 +136,7 @@ def test_manifest_counts_an_acknowledged_warn_apart(loaders, staged_run):
 def test_bad_expected_states_fails_the_run_before_loading(loaders):
     from pharos import config
     loaders.setattr(config, "expected_states", lambda: [
-        {"check_id": "C04", "series_id": "fred:GDP", "obs_date": None, "note": "test"}])
+        {"check_id": "C04", "key": ("fred:GDP",), "note": "test"}])
     with pytest.raises(ValueError, match="only a warn check"):
         refresh_mod.refresh()
     rows = manifest()

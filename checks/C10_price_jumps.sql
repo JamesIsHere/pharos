@@ -2,6 +2,7 @@
 -- severity: warn
 -- gate: yes
 -- description: abs(daily return) > 40% on split-adjusted close, current vintage (D29)
+-- ack_key: series_id, obs_date
 --
 -- Return = close / previous close - 1, between consecutive observations of each
 -- price series' current vintage (the vintage serving shows, as in C04 and C14).

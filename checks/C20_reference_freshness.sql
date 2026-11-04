@@ -2,6 +2,7 @@
 -- severity: warn
 -- gate: no
 -- description: Tiingo's latest close for an active ticker is older than the latest due XNYS session (D37)
+-- ack_key: ticker, latest_obs_date
 --
 -- Same due rule as C02 for prices: a session is due from the next UTC calendar
 -- day. A ticker with no rows at all is C18's.

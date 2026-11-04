@@ -13,7 +13,8 @@ published, or when the latest run did not publish (blocked or failed: serving
 is behind what was attempted); yellow on warnings only; green otherwise.
 
 Acknowledged expected states (D46): config/expected_states.csv names reviewed
-rows of warn checks (ATVI's missing history, a value FRED withdrew). A warn
+rows of warn checks (ATVI's missing history, a value FRED withdrew), each by
+the values of the columns its check declares as ack_key (D75). A warn
 check whose every failing row is acknowledged reports `acknowledged` and
 doesn't turn health yellow; its rows stay listed, each carrying its note. A new
 row still warns, and an acknowledgment that matches no failing row warns as
@@ -88,7 +89,8 @@ STATES_CHECK = "expected_states"
 
 def acknowledgments() -> list[dict]:
     """config/expected_states.csv, each row checked against checks/: the check
-    must exist and warn. Acknowledging an error would hide a defect in the data."""
+    must exist, warn, and declare an ack_key as long as the row's key.
+    Acknowledging an error would hide a defect in the data."""
     checks = {c.id: c for c in discover()}
     states = config.expected_states()
     for s in states:
@@ -98,35 +100,46 @@ def acknowledgments() -> list[dict]:
         if check.severity != "warn":
             raise ValueError(f"expected_states.csv: {s['check_id']} is {check.severity}-severity; "
                              "only a warn check's rows can be acknowledged")
+        if not check.ack_key:
+            raise ValueError(f"expected_states.csv: {s['check_id']} declares no ack_key, "
+                             "so its rows can't be acknowledged (D75)")
+        if len(s["key"]) != len(check.ack_key):
+            raise ValueError(f"expected_states.csv: {s['check_id']} key {' | '.join(s['key'])!r} needs "
+                             f"{len(check.ack_key)} parts: {' | '.join(check.ack_key)}")
     return states
 
 
 def acknowledge(results: list[dict]) -> list[dict]:
     """The results with acknowledged rows marked, plus the expected_states
     check: warn when an acknowledgment matched no failing row (D46). A row
-    matches on (series_id, obs_date); a broken check's rows are unknown, so its
-    acknowledgments are neither applied nor called stale."""
+    matches on its check's ack_key columns, so a different problem for the same
+    series never hides under an old note (D75); a broken check's rows are
+    unknown, so its acknowledgments are neither applied nor called stale."""
     if not results:
         return results
     states = acknowledgments()
+    ack_keys = {c.id: c.ack_key for c in discover()}
     out, matched = [], set()
     for r in results:
-        notes = {(s["series_id"], s["obs_date"]): s["note"] for s in states if s["check_id"] == r["check_id"]}
+        notes = {s["key"]: s["note"] for s in states if s["check_id"] == r["check_id"]}
         if not notes or r["status"] == "broken":
             matched |= {(r["check_id"], *k) for k in notes} if r["status"] == "broken" else set()
             out.append(r)
             continue
         rows = json.loads(r["sample"]) if r["sample"] else []
         for row in rows:
-            key = (row.get("series_id"), row.get("obs_date"))
+            absent = [c for c in ack_keys[r["check_id"]] if c not in row]
+            if absent:
+                raise ValueError(f"{r['check_id']}: ack_key columns {absent} are not in its rows")
+            key = tuple("" if row[c] is None else str(row[c]) for c in ack_keys[r["check_id"]])
             row["acknowledged"] = notes.get(key)
             if key in notes:
                 matched.add((r["check_id"], *key))
         n = sum(row["acknowledged"] is not None for row in rows)
         status = "acknowledged" if r["status"] == "warn" and n == len(rows) else r["status"]
         out.append({**r, "status": status, "sample": json.dumps(rows) if rows else r["sample"]})
-    stale = [{"check_id": s["check_id"], "series_id": s["series_id"], "obs_date": s["obs_date"], "note": s["note"]}
-             for s in states if (s["check_id"], s["series_id"], s["obs_date"]) not in matched]
+    stale = [{"check_id": s["check_id"], "key": " | ".join(s["key"]), "note": s["note"]}
+             for s in states if (s["check_id"], *s["key"]) not in matched]
     last = results[-1]                    # a monitor: evaluate() lists gate results first
     out.append({"run_id": last["run_id"], "context": last.get("context"), "check_id": STATES_CHECK,
                 "severity": "warn", "gate": False,
