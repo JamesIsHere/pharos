@@ -5,7 +5,7 @@
 - **Milestone:** M1 built: steps 1-10 and 3b. Step 10 closed: desktop icon + Edge app window (cold ~5.7s, warm 0.88s; acceptance #9), nightly task at 01:30 with the mirror guard (D49), failures shown on the dashboard, not toasted (D50; acceptance #10). M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z (run_manifest: published, 0 errors, 0 warnings each)
 - **Health:** GREEN at 2026-11-04 (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261104T053016Z
 - **Last session:** 2026-10-07/08 (fifth session): step 10 built. Launcher, icon, nightly task, mirror guard (D49, #9); toast dropped because toasts are off machine-wide (D50, #42); Home test pinned to its clock (it broke when the date rolled). 228 tests pass
-- **Next action:** M2 (Universe) scope, one decision at a time: start date settled (D52); next foreign filers, shell/fund SIC definition, pre-XBRL. Then write the M2 section with build order and acceptance criteria
+- **Next action:** M2 (Universe) scope, one decision at a time: start date (D52) and foreign filers (D53) settled; next shell/fund SIC definition, pre-XBRL. Then write the M2 section with build order and acceptance criteria
 - **Blockers / open questions:** none. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
@@ -94,7 +94,7 @@ Each name is here to trip a known trap. That's why it's the test set.
 ---
 
 ## Later milestones (one line each until current)
-- **M2: Universe (D51).** CIK master and an unbalanced panel of filer-years from EDGAR: full-index, submissions, SIC, former names, listing and exit events from Forms 8-A12B, 25/25-NSE and 15-12B/15-12G, with exit reason. The waterfall page: every filer down to the analysed set, each step naming what it drops. Fills the watchlist cik column (#22). From 1993, population counted from 1996 (D52). Remaining scope (foreign filers, shell/fund definition, pre-XBRL) is settled before it is built.
+- **M2: Universe (D51).** CIK master and an unbalanced panel of filer-years from EDGAR: full-index, submissions, SIC, former names, listing and exit events from Forms 8-A12B, 25/25-NSE and 15-12B/15-12G, with exit reason. The waterfall page: every filer down to the analysed set, each step naming what it drops. Fills the watchlist cik column (#22). From 1993, population counted from 1996 (D52). Foreign filers in, per filer-year (D53). Remaining scope (shell/fund definition, pre-XBRL) is settled before it is built.
 - **M1.5: Exploration tools (#41).** After M2 (D51).
 - **M3: Fundamentals (balance sheet only), formerly M2.** companyfacts → raw facts with accession and filed date. Equity, preferred, both share counts, goodwill and intangibles. Book value per share and P/B as the first derived series via ASOF on available_date. XBRL checks: balance identity, share-count divergence, scale errors. Financial Statement Data Sets for multi-class names. OTC decision.
 - **M4: Cross-section page (formerly M3, universe moved to M2).** Domestic 10-K filers. SIC → Fama-French industries. P/B distribution, industry medians, scatter. Coverage heatmap scales to the universe.
