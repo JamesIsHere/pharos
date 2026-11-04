@@ -97,6 +97,7 @@ def test_rebuilt_staging_equals_the_published_version(loaders, tmp_path):
     shutil.rmtree(data_root() / "staging" / run_id)   # as after a later publish prunes it
     r = rebuild_staging(run_id, code_dir=_code_copy(tmp_path))
     assert r.staging.is_dir() and not r.staging.is_relative_to(data_root())
+    assert sorted(p.name for p in r.staging.parent.parent.iterdir()) == ["staging"]   # copied raw removed
     assert r.differences == {"observations": (0, 0), "series_catalog": (0, 0)}
 
 

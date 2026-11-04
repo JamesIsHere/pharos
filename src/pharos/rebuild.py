@@ -10,8 +10,9 @@ A rebuild therefore:
 - checks out the run's commit as a detached git worktree in the same folder,
   so the code and config/ are the run's own, and
 - runs that code's stage() there.
-The real data root is only read. The worktree is removed afterwards; the
-rebuilt staging folder stays for inspection and its path is returned. A run
+The real data root is only read. The worktree and the copied raw inputs are
+removed afterwards; the rebuilt staging folder stays for inspection and its
+path is returned. A run
 recorded with a dirty tree (git_dirty) ran code the commit doesn't capture
 exactly, so the result says so. A published run can be compared with its
 version in serving/, table by table, row for row.
@@ -83,6 +84,9 @@ def rebuild_staging(run_id: str, code_dir: Path | None = None) -> Rebuild:
     finally:
         if worktree is not None:
             _git("worktree", "remove", "--force", str(worktree))
+        # the copied inputs are only the real root's raw again: keep just the result
+        for copied in (data / "raw", data / "health"):
+            shutil.rmtree(copied, ignore_errors=True)
 
     staging = data / "staging" / run_id
     served = root / "serving" / run_id
