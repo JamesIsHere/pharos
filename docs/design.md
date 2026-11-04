@@ -69,9 +69,9 @@ Entity tables beside the series model. Each row carries the four columns every o
 |---|---|---|---|---|
 | `universe_filer` | CIK x details snapshot that changed it | snapshot date | snapshot date | snapshot date (a changed name, SIC, ticker or exchange starts a new vintage) |
 | `universe_firm_year` | CIK x calendar year in its span (D55) | Dec 31 of the year | when the row became knowable: a report year at its report's acceptance (#23); a gap year at the next report that closes the gap; an exit at Jan 1 after the full empty year | filing date of the report that set the row |
-| `universe_events` | CIK x accession x form (8-A, 25, 15) | filing date | acceptance (#23) | filing date |
+| `universe_events` | CIK x accession x form (8-A, 25, 15, 15F) | filing date | acceptance (#23) | filing date |
 
-`run_id` and `loaded_at` on every row, as in observations. Population counts per year (all, domestic, foreign, joined, left) are derived series in `series_catalog` / `observations`: obs_date Dec 31 of the year; a count that changes when late filings arrive is a new vintage dated by the run that saw it.
+`run_id` and `loaded_at` on every row, as in observations. Population counts per year (all, domestic, foreign, exchange-listed, analysed set, joined, left) are derived series in `series_catalog` / `observations`: obs_date Dec 31 of the year; a count that changes when late filings arrive is a new vintage dated by the run that saw it.
 
 ### health tables
 - `run_manifest`: one write-once file per run, one row per raw dataset (D31): run_id, started_at, finished_at, status (`published` / `blocked` / `failed`), published_at, source, dataset, rows_downloaded, rows_landed, latest_obs_date, checks_pass / checks_warn / checks_error / checks_broken / checks_acknowledged (per run, after acknowledgment, D46), error. `max(published_at)` is `last_published_at`.

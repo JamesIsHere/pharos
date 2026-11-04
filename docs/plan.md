@@ -2,10 +2,10 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M1 built: steps 1-10 and 3b. Step 10 closed: desktop icon + Edge app window (cold ~5.7s, warm 0.88s; acceptance #9), nightly task at 01:30 with the mirror guard (D49), failures shown on the dashboard, not toasted (D50; acceptance #10). M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z (run_manifest: published, 0 errors, 0 warnings each)
+- **Milestone:** M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z. M2 (Universe) drafted and reviewed, awaiting James's red-pen. Nightly task now 07:30 UTC (D63)
 - **Health:** GREEN at 2026-11-04 (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261104T053016Z
-- **Last session:** 2026-10-07/08 (fifth session): step 10 built. Launcher, icon, nightly task, mirror guard (D49, #9); toast dropped because toasts are off machine-wide (D50, #42); Home test pinned to its clock (it broke when the date rolled). 228 tests pass
-- **Next action:** M2 draft written (D58); fresh-eyes review closed (fixes 1-6, D59-D62; run-time limit in acceptance #8). Co-registrants a waterfall step (D64, closes #52). Listing status rebuilt from 8-A12B / Form 25 (D65). Design section 1 states the datacenter role (closes #43). Waterfall bottom = domestic XBRL filers (D66). M2 draft ready for James's red-pen. Nightly run moved to 07:30 UTC (D63). #54 release calendar logged, unscheduled
+- **Last session:** 2026-11-04 (sixth, resumed after a crash): chomper handoff absorbed (D51-D57); M2 drafted (D58) and reviewed twice (D59-D66); nightly moved after SEC's submissions rebuild (D63)
+- **Next action:** James red-pens the M2 section; on ratification, drop DRAFT from its heading and start M2 step 1
 - **Blockers / open questions:** none. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
@@ -99,7 +99,7 @@ Each name is here to trip a known trap. That's why it's the test set.
 
 ## M2: Universe (DRAFT for James's red-pen, 2026-11-04)
 
-**Goal.** A survivorship-free, year-by-year list of every filer (CIK) that filed an annual report with the SEC: who joined, who left, who was there from the start. A filer is not yet a company: a company that re-registered under a new CIK appears as two filers until CIKs are linked, which is out of scope here (D54). A waterfall page narrows that population, one named step at a time, to the analysed set: domestic filers whose annual report that year carries XBRL financials, the set M4's cross-section page reads. It refreshes nightly under the same health system as M1, and it becomes the expected set that M3's fundamentals are checked against.
+**Goal.** A survivorship-free, year-by-year list of every filer (CIK) that filed an annual report with the SEC: who joined, who left, who was there from the start. A filer is not yet a company: a company that re-registered under a new CIK appears as two filers until CIKs are linked, which is out of scope here (D54). A waterfall page narrows that population, one named step at a time, to the analysed set: what remains after every step, the last being domestic filers whose annual report that year carries XBRL financials. That is the set M4's cross-section page reads (D66). It refreshes nightly under the same health system as M1, and it becomes the expected set that M3's fundamentals are checked against.
 
 ### Scope (decided: D52-D66)
 - **Top of the funnel (D54):** every CIK with an original annual report (form codes from `config/annual_forms.csv`, taken from the codes present in the full-index), 1993-11-29 to as-of. Complete from filing year 1997 (domestic) and 2002 (foreign); earlier years stored and flagged phase-in.
@@ -122,13 +122,13 @@ Each name is here to trip a known trap. That's why it's the test set.
   - C27 history drift (monitor, warn): a closed year's membership differs from its accepted baseline. A year is closed once a full calendar year has passed after it (D55's exit rule). The baseline is the set of CIKs in each closed year, not only the count, so offsetting entries and exits can't cancel out. The warning lists the year, both counts, and each CIK that entered or left. Accept path below (D62)
   - C28 waterfall foots (gate): each step's count = the previous step minus what it drops, every year
   - C29 submissions completeness (gate): details rows staged = main `CIK##########.json` files in the zip (991,508 on 2026-11-04); every overflow file a main record names under `filings.files` is in the zip, and its filings staged = that entry's `filingCount` (spike: 5,412 named, 5,412 present, 0 either way)
-  - C30 submissions uniqueness (gate): CIK unique per details snapshot (spike: 991,508 files, 991,508 CIKs). The filing-history key is measured at build, not assumed (#48)
+  - C30 submissions uniqueness (gate): CIK unique per details snapshot (spike: 991,508 files, 991,508 CIKs). The filing-history key is measured at build, not assumed (D61's lesson)
   - C31 submissions freshness (monitor, warn): the latest download's `Last-Modified` older than 36 hours at view time. SEC rebuilds the file nightly (2026-11-04: 06:21 UTC)
   - C32 tickers completeness (gate): rows staged = rows in the file's `data` array (10,423 on 2026-11-04)
   - C33 tickers uniqueness (gate): (cik, ticker) unique, and no ticker on two CIKs (2026-11-04: 0 and 0)
   - C34 tickers freshness (monitor, warn): `Last-Modified` older than 14 days at view time. The file is not daily (2026-11-04 showed 2026-10-30), so the threshold is provisional until M2 runs record the real cadence (D60)
-- [ ] 4. Serving: the three universe tables (D59, design.md section 3) in `serving/`, views in `catalog.duckdb`, plus population counts per year as derived series in `series_catalog` (all filers, domestic, foreign, joined, left), so the Charts page can overlay the population on GDP
-- [ ] 5. Fill the watchlist `cik` column from the tickers file; ATVI mapped by hand (#22). Reconcile the exchange list to the universe and name the difference (#46)
+- [ ] 4. Serving: the three universe tables (D59, design.md section 3) in `serving/`, views in `catalog.duckdb`, plus population counts per year as derived series in `series_catalog` (all filers, domestic, foreign, exchange-listed, analysed set, joined, left), so the Charts page can overlay the population on GDP
+- [ ] 5. Fill the watchlist `cik` column from the tickers file; ATVI mapped by hand (#22). Reconcile the exchange list to the universe and name the difference (#46), and run the listing-status calibration (acceptance #9) against the same file
 - [ ] 6. Universe page: joined / left / stayed by year, the waterfall for a chosen year with steps from `config/waterfall_steps.csv` (seeded with the measured groups: asset-backed 6189, blank checks 6770, no SIC, co-registrants, foreign, no exchange ticker, no XBRL), each step drillable to its company list. The last step, no XBRL, reads the `isXBRL` flag on that year's annual report in the submissions filing history; what remains is the analysed set (D66). Co-registrant step (D64): an annual report filed under several CIKs counts once; the step drops the other CIKs on it and its drill-down lists the whole group, marking which CIK stands for it. Status bar on the page. No step may use an attribute that disappears when a company dies. Tickers and exchanges do: SEC lists them for live companies only, so applying today's list to a past year drops every company that has since died, which is survivorship bias, the thing M2 removes. The exchange step reads the nightly details snapshot for the chosen year (D58); for a year before the first snapshot it uses the listing status rebuilt from the forms (D65), labelled approximate before 2006, with the Universe page saying what that misses. Foreign status comes from that year's form (D53). SIC is not a survivorship leak, since a dead company keeps its last code, so the SIC steps run on every year, labelled current-as-of-pull (#44)
 - [ ] 7. Re-perform the spike in two passes. Pass 1: the loaders read the spike's own downloaded files (`<data root>/spikes/universe/`: the full-index quarters and submissions.zip, pulled 2026-11-04) through a local-source option, and the universe must match the spike exactly. Pass 2: a fresh pull, reconciled to pass 1 for filing dates through 2026-11-03, each difference listed with its cause. After pass 1, record the C27 baseline: each closed year's CIK set, stamped with the run_id and dated. Accept path: `pharos universe accept --year YYYY --reason "..."` appends a new baseline for that year with the reason, the run it accepted, and the CIKs that entered and left. Earlier baselines are kept, never overwritten. A reason is required. One command accepts one year (D62)
 
@@ -139,16 +139,15 @@ Each name is here to trip a known trap. That's why it's the test set.
    For C27: drop one CIK from a closed year in staging -> warn naming that CIK; accept the year -> green; a different change to the same year after the accept -> warns again; accept without a reason -> refused.
 4. Every confirmed exit has a reason or `unknown`, and the share that is `unknown` is shown on the Universe page.
 5. The waterfall foots for every year (C28), and each step names what it drops and how many.
-6. The Charts page overlays the population count on GDP.
+6. The Charts page overlays the population counts (step 4's series) on GDP.
 7. The watchlist `cik` column is filled for all 18 names (#22), and the exchange list's difference from the universe is a named step or a documented expected state (#46).
 8. Run time, measured from run_manifest: every nightly run with the universe in it finishes within 30 minutes. The first run, which lands the full filing history, is timed and recorded but not held to that limit. Basis (2026-11-04): M1 runs take 18-32 s; parsing all of submissions.zip took 53 s here; the 1.57 GB download is not yet timed.
-
 9. Listing-status calibration (D65): for the current year, the exchange-listed set rebuilt from the forms is compared with the tickers file's exchange-listed set. Both differences are counted and shown on the Universe page: listed today with no 8-A12B on file is the size of the pre-EDGAR hole; rebuilt as listed but absent from the tickers file shows what the rule over-counts (debt-only listings, missed delistings).
 
 **Built** when 1-9 pass. **Done** after 7 consecutive green nightly runs with the universe in them.
 
 ### Out of scope for M2
-Financials of any kind (M3); linking several CIKs into one company (predecessors, re-registrations); reading filing text; paid sources (CRSP); membership on a specific date (Form 25 / 15 dates are stored, not used for membership).
+Financials of any kind (M3); linking several CIKs into one company (predecessors, re-registrations); reading filing text; paid sources (CRSP); membership on a specific date (Form 25 / 15 dates are stored; they set the yearly listing status (D65) but not membership).
 
 ---
 
