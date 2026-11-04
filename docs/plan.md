@@ -5,7 +5,7 @@
 - **Milestone:** M1 built: steps 1-10 and 3b. Step 10 closed: desktop icon + Edge app window (cold ~5.7s, warm 0.88s; acceptance #9), nightly task at 01:30 with the mirror guard (D49), failures shown on the dashboard, not toasted (D50; acceptance #10). M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z (run_manifest: published, 0 errors, 0 warnings each)
 - **Health:** GREEN at 2026-11-04 (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261104T053016Z
 - **Last session:** 2026-10-07/08 (fifth session): step 10 built. Launcher, icon, nightly task, mirror guard (D49, #9); toast dropped because toasts are off machine-wide (D50, #42); Home test pinned to its clock (it broke when the date rolled). 228 tests pass
-- **Next action:** M2 draft written (D58); fresh-eyes review in progress, fixes 1-3 applied (D59, D60). Next: review fix 4 (#48), then #49, #50, #51
+- **Next action:** M2 draft written (D58); fresh-eyes review in progress, fixes 1-4 applied (D59-D61). Next: review fix 5 (#49), then #50, #51; #52 (co-registrants) found during fix 4
 - **Blockers / open questions:** none. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
@@ -26,10 +26,10 @@
 | 44  | SIC in EDGAR submissions is the current code only (unverified, from prior). A SPAC that merged keeps its CIK and usually takes the target's SIC, so its blank-check years read as an operating company; any SIC-based universe step misclassifies history | The waterfall's shell/fund step undercounts shells in past years | M2 build (shell flag from filings, e.g. the 10-K cover shell-company box) |
 | 46  | Listed-company reconciliation gap: chomper's count of company_tickers_exchange.json had 6,069 exchange-listed companies (pulled 2026-11-04, not re-run here); the spike finds 5,424 annual-report filers active in 2025-26 with an exchange ticker in submissions. About 645 exchange-listed CIKs file no 10-K/20-F/40-F, probably ETFs and funds filing N-CSR (unverified) | The waterfall's top and the exchange list disagree with no named step for the difference | M2 build (reconcile and name the step) |
 | 47  | companyfacts.zip (2026-11-04) is 126,119,741 rows (one per reported value), growing about 8M a year. Raw is a write-once full snapshot per run (D18); landing the full file nightly would add 126M rows a night (about 46B a year) | Raw storage and the C05 reconcile grow without bound | M3 design (land only new accessions, or snapshot on a slower cadence; decision-log entry) |
-| 48  | M2 draft review finding 4: C23 assumes accession is unique in `filings`. Measured in the spike's full-index: 27,374,700 rows, 18,854,695 distinct accessions (one filing listed under each CIK it involves); (cik, accession) still repeats 1,528 times (one filing under two form codes) | C23 fires on valid data and blocks every publish, or gets loosened to pass | M2 draft (review fix 4) |
 | 49  | M2 draft review finding 5: acceptance #2 ("reproduce the spike exactly") breaks when a fresh download picks up filings dated on or before 2026-11-03 that SEC indexed later | A legitimate late filing fails acceptance | M2 draft (review fix 5) |
 | 50  | M2 draft review finding 6: C27 compares closed years to a recorded baseline, but no build step records one | C27 has nothing to compare to and never fires | M2 draft (review fix 6) |
 | 51  | M2 draft review, minor: the nightly run now unzips 4.9 GB of submissions; no acceptance line bounds the run time | The nightly run could spill into the morning unnoticed | M2 draft (review) |
+| 52  | Co-registrants: 24,200 annual-report or event accessions in the full-index are listed under more than one CIK (one filing, several registrants, e.g. a parent and subsidiaries on one 10-K; measured 2026-11-04 on the spike). D54 counts each CIK as a filer, so every co-registrant subsidiary is in the population | The waterfall's top counts subsidiaries as separate companies with no named step for them. Later (James, 2026-11-04): aggregating fundamentals across CIKs double-counts, since a consolidated subsidiary's numbers are already inside its parent's statements; ownership-based accounting (consolidation, equity method, cost) needs parent-subsidiary links. M2 keeps (cik, accession) for every annual report, so the shared-filing links stay derivable; it does not supply ownership percentages | M2 draft (a waterfall step or a D54 amendment, James's call); the links before any cross-CIK aggregate in M3/M4 |
 
 ---
 
@@ -117,7 +117,7 @@ Each name is here to trip a known trap. That's why it's the test set.
 - [ ] 3. Checks C21-C34 in `checks/*.sql`, each with a fault-injection test. C21-C28 cover the full-index and the universe; C29-C34 give the other two sources their completeness, uniqueness and freshness checks (hard rule; D60):
   - C21 completeness (gate): every quarter from 1993Q1 to the current one is in raw
   - C22 control total (gate): staged filings per quarter = lines in that quarter's raw file
-  - C23 uniqueness (gate): (cik, year) unique in `firm_year`; accession unique in `filings`
+  - C23 uniqueness (gate): (cik, year) unique in `firm_year`; (cik, accession) unique in `annual_reports` and in `events`; (cik, accession, form, name) unique in `filings`, the index's own row key (D61)
   - C24 integrity (gate): every annual-report CIK has a submissions row (spike: 0 missing)
   - C25 freshness (monitor): latest full-index filing date older than 3 business days
   - C26 form-code drift (monitor, warn): an index form code that looks like an annual report (10-K, KSB, 20-F, 40-F patterns) but is not in `config/annual_forms.csv`. The 10KSB lesson (#45) as a standing control
