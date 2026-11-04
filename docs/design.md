@@ -4,7 +4,7 @@
 
 **Purpose.** A personal analysis platform. Pull up any stock, macro series, or company-level ratio; compare them over time on one chart; cut across companies and industries. It refreshes daily and tells you plainly whether the data can be trusted.
 
-It is also the datacenter for macro and company data: every company that has filed with the SEC as a US public company, including the ones that have since left, kept at the most detailed level each source offers, as a corpus for analysis. Other projects read it rather than gathering their own. The universe (M2) is its base: a survivorship-free, point-in-time list of filers per year, with listing status and exits, against which every company dataset is checked for completeness (D51, D54, D65).
+It is also the datacenter for macro and company data: every company that has filed annual reports with the SEC, domestic or foreign, including the ones that have since stopped, kept at the most detailed level each source offers, as a corpus for analysis. Other projects read it rather than gathering their own. The universe (M2) is its base: a survivorship-free, point-in-time list of filers per year, with listing status and exits, against which every company dataset is checked for completeness (D51, D54, D65).
 
 **Non-goals (v1).**
 - No intraday data, no trading or execution.
