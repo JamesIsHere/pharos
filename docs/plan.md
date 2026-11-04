@@ -5,7 +5,7 @@
 - **Milestone:** M1 built: steps 1-10 and 3b. Step 10 closed: desktop icon + Edge app window (cold ~5.7s, warm 0.88s; acceptance #9), nightly task at 01:30 with the mirror guard (D49), failures shown on the dashboard, not toasted (D50; acceptance #10). M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z (run_manifest: published, 0 errors, 0 warnings each)
 - **Health:** GREEN at 2026-11-04 (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261104T053016Z
 - **Last session:** 2026-10-07/08 (fifth session): step 10 built. Launcher, icon, nightly task, mirror guard (D49, #9); toast dropped because toasts are off machine-wide (D50, #42); Home test pinned to its clock (it broke when the date rolled). 228 tests pass
-- **Next action:** M2 scope closed (D52-D56); M3 lands all of companyfacts (D57). Next: write the M2 section (build order, acceptance criteria) for James to red-pen
+- **Next action:** M2 draft written (D58); fresh-eyes review in progress, fixes 1-3 applied (D59, D60). Next: review fix 4 (#48), then #49, #50, #51
 - **Blockers / open questions:** none. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
@@ -26,6 +26,10 @@
 | 44  | SIC in EDGAR submissions is the current code only (unverified, from prior). A SPAC that merged keeps its CIK and usually takes the target's SIC, so its blank-check years read as an operating company; any SIC-based universe step misclassifies history | The waterfall's shell/fund step undercounts shells in past years | M2 build (shell flag from filings, e.g. the 10-K cover shell-company box) |
 | 46  | Listed-company reconciliation gap: chomper's count of company_tickers_exchange.json had 6,069 exchange-listed companies (pulled 2026-11-04, not re-run here); the spike finds 5,424 annual-report filers active in 2025-26 with an exchange ticker in submissions. About 645 exchange-listed CIKs file no 10-K/20-F/40-F, probably ETFs and funds filing N-CSR (unverified) | The waterfall's top and the exchange list disagree with no named step for the difference | M2 build (reconcile and name the step) |
 | 47  | companyfacts.zip (2026-11-04) is 126,119,741 rows (one per reported value), growing about 8M a year. Raw is a write-once full snapshot per run (D18); landing the full file nightly would add 126M rows a night (about 46B a year) | Raw storage and the C05 reconcile grow without bound | M3 design (land only new accessions, or snapshot on a slower cadence; decision-log entry) |
+| 48  | M2 draft review finding 4: C23 assumes accession is unique in `filings`. Measured in the spike's full-index: 27,374,700 rows, 18,854,695 distinct accessions (one filing listed under each CIK it involves); (cik, accession) still repeats 1,528 times (one filing under two form codes) | C23 fires on valid data and blocks every publish, or gets loosened to pass | M2 draft (review fix 4) |
+| 49  | M2 draft review finding 5: acceptance #2 ("reproduce the spike exactly") breaks when a fresh download picks up filings dated on or before 2026-11-03 that SEC indexed later | A legitimate late filing fails acceptance | M2 draft (review fix 5) |
+| 50  | M2 draft review finding 6: C27 compares closed years to a recorded baseline, but no build step records one | C27 has nothing to compare to and never fires | M2 draft (review fix 6) |
+| 51  | M2 draft review, minor: the nightly run now unzips 4.9 GB of submissions; no acceptance line bounds the run time | The nightly run could spill into the morning unnoticed | M2 draft (review) |
 
 ---
 
@@ -108,9 +112,9 @@ Each name is here to trip a known trap. That's why it's the test set.
 - **Sources:** EDGAR full-index (`master.gz` per quarter), bulk `submissions.zip` (name, SIC, state, former names, current tickers and exchanges), `company_tickers_exchange.json` (current ticker to CIK).
 
 ### Build order
-- [ ] 1. Loaders: full-index (every quarter once; each run re-lands only the current and previous quarter), submissions bulk, tickers file. SEC User-Agent, at most 10 requests/s, one retry on 503, schema validated, raw write-once. submissions.zip nightly: full company details every run, filing history only past the watermark plus overlap (D58)
+- [ ] 1. Loaders: full-index (every quarter once; each run re-lands only the current and previous quarter), submissions bulk, tickers file. SEC User-Agent, at most 10 requests/s, one retry on 503, schema validated, raw write-once. submissions.zip nightly: full company details every run, filing history only past the watermark plus overlap (D58). The load log records each download's HTTP `Last-Modified` (C31, C34; D60)
 - [ ] 2. Staging SQL: `filings`, `annual_reports`, `filer` (one row per CIK), `firm_year` (D55, with the gap flag), `events`, exit reason. SIC is labelled current-as-of-pull (#44)
-- [ ] 3. Checks C21-C28 in `checks/*.sql`, each with a fault-injection test:
+- [ ] 3. Checks C21-C34 in `checks/*.sql`, each with a fault-injection test. C21-C28 cover the full-index and the universe; C29-C34 give the other two sources their completeness, uniqueness and freshness checks (hard rule; D60):
   - C21 completeness (gate): every quarter from 1993Q1 to the current one is in raw
   - C22 control total (gate): staged filings per quarter = lines in that quarter's raw file
   - C23 uniqueness (gate): (cik, year) unique in `firm_year`; accession unique in `filings`
@@ -119,6 +123,12 @@ Each name is here to trip a known trap. That's why it's the test set.
   - C26 form-code drift (monitor, warn): an index form code that looks like an annual report (10-K, KSB, 20-F, 40-F patterns) but is not in `config/annual_forms.csv`. The 10KSB lesson (#45) as a standing control
   - C27 history drift (monitor, warn): a closed year's population count differs from the recorded baseline
   - C28 waterfall foots (gate): each step's count = the previous step minus what it drops, every year
+  - C29 submissions completeness (gate): details rows staged = main `CIK##########.json` files in the zip (991,508 on 2026-11-04); every overflow file a main record names under `filings.files` is in the zip, and its filings staged = that entry's `filingCount` (spike: 5,412 named, 5,412 present, 0 either way)
+  - C30 submissions uniqueness (gate): CIK unique per details snapshot (spike: 991,508 files, 991,508 CIKs). The filing-history key is measured at build, not assumed (#48)
+  - C31 submissions freshness (monitor, warn): the latest download's `Last-Modified` older than 36 hours at view time. SEC rebuilds the file nightly (2026-11-04: 06:21 UTC)
+  - C32 tickers completeness (gate): rows staged = rows in the file's `data` array (10,423 on 2026-11-04)
+  - C33 tickers uniqueness (gate): (cik, ticker) unique, and no ticker on two CIKs (2026-11-04: 0 and 0)
+  - C34 tickers freshness (monitor, warn): `Last-Modified` older than 14 days at view time. The file is not daily (2026-11-04 showed 2026-10-30), so the threshold is provisional until M2 runs record the real cadence (D60)
 - [ ] 4. Serving: the three universe tables (D59, design.md section 3) in `serving/`, views in `catalog.duckdb`, plus population counts per year as derived series in `series_catalog` (all filers, domestic, foreign, joined, left), so the Charts page can overlay the population on GDP
 - [ ] 5. Fill the watchlist `cik` column from the tickers file; ATVI mapped by hand (#22). Reconcile the exchange list to the universe and name the difference (#46)
 - [ ] 6. Universe page: joined / left / stayed by year, the waterfall for a chosen year with steps from `config/waterfall_steps.csv` (seeded with the measured groups: asset-backed 6189, blank checks 6770, no SIC, foreign, no exchange ticker), each step drillable to its company list. Status bar on the page. No step may use an attribute that disappears when a company dies. Tickers and exchanges do: SEC lists them for live companies only, so applying today's list to a past year drops every company that has since died, which is survivorship bias, the thing M2 removes. The ticker/exchange step reads the nightly details snapshot for the chosen year (D58); for a year before the first snapshot it shows "no data for this year" and drops nothing. Foreign status comes from that year's form (D53). SIC is not a survivorship leak, since a dead company keeps its last code, so the SIC steps run on every year, labelled current-as-of-pull (#44)
