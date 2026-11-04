@@ -120,6 +120,18 @@ def test_overlapping_units_windows_stop(root):
         stage(R1)
 
 
+def test_closed_units_window_uses_newest_run(root):
+    # R1's metadata has one open window; by R2 FRED has closed it and opened a
+    # new one (a base-year change). Both runs' windows contain the vintage
+    # 2026-07-30, so collapsing windows across runs fans the join out and stops
+    # staging on every run from then on (#60). The newest run's windows win.
+    land(R1)
+    land(R2, series=fred_series(((date(1991, 12, 4), date(2026, 7, 1), "Billions of Dollars"),
+                                 (date(2026, 7, 2), date(9999, 12, 31), "Billions of Chained 2027 Dollars"))))
+    assert staged(stage(R2), "SELECT DISTINCT units FROM obs WHERE series_id = 'fred:GDP'") == \
+        [("Billions of Chained 2027 Dollars",)]
+
+
 def test_withdrawn_value_kept_as_null(root):
     land(R1, obs=fred_obs("."))
     assert staged(stage(R1), "SELECT value FROM obs WHERE series_id = 'fred:GDP'") == [(None,)]

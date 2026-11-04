@@ -17,9 +17,13 @@
 -- and no NULL units.
 
 WITH units_windows AS (
-    -- the same window repeats once per run; collapse to one row per window
+    -- the newest included run's windows per series: FRED's current statement of
+    -- the series' history. Collapsing windows across runs breaks when FRED closes
+    -- an open window (a base-year change): the old open window and the new one
+    -- both contain later vintages, the join fans out and staging stops (#60)
     SELECT DISTINCT fred_id, realtime_start, realtime_end, units
     FROM raw_fred_series
+    QUALIFY run_id = max(run_id) OVER (PARTITION BY fred_id)
 )
 SELECT
     'fred:' || o.fred_id                                        AS series_id,
