@@ -57,7 +57,8 @@ def staged_run(root):
         "obs_date": [date(2026, 10, 5), date(2026, 10, 6)],
         "open": [10.0, 11.0], "high": [10.0, 11.0], "low": [10.0, 11.0], "close": [10.0, 11.0],
         "adj_close": [10.0, 11.0], "volume": [100] * n, "dividends": [0.0] * n, "stock_splits": [0.0] * n,
-        "pull_start": [date(2026, 1, 1)] * n, "pull_end": [date(2026, 10, 7)] * n}), "yf", "prices", RUN)
+        "pull_start": [date(2026, 1, 1)] * n, "pull_end": [date(2026, 10, 7)] * n,
+        "pull_reason": ["bootstrap"] * n}), "yf", "prices", RUN)
     write_raw(pd.DataFrame({"fred_id": ["GDP"], "obs_date": [date(2026, 4, 1)],
                             "realtime_start": [date(2026, 7, 30)], "realtime_end": [date(9999, 12, 31)],
                             "value": ["100.5"]}), "fred", "observations", RUN)

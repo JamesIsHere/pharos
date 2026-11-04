@@ -29,14 +29,16 @@ def root(monkeypatch, tmp_path):
     return tmp_path
 
 
-def prices(closes, pull_start=date(2005, 1, 1)) -> pd.DataFrame:
+def prices(closes, pull_start=date(2005, 1, 1), reason=None) -> pd.DataFrame:
+    reason = reason or ("bootstrap" if pull_start <= date(2005, 1, 1) else "incremental")
     n = len(closes)
     return pd.DataFrame({
         "ticker": ["NVDA"] * n, "yahoo_symbol": ["NVDA"] * n,
         "obs_date": [date(2026, 10, 1 + i) for i in range(n)],
         "open": closes, "high": closes, "low": closes, "close": closes, "adj_close": closes,
         "volume": [100] * n, "dividends": [0.0] * n, "stock_splits": [0.0] * n,
-        "pull_start": [pull_start] * n, "pull_end": [date(2026, 10, 9)] * n})
+        "pull_start": [pull_start] * n, "pull_end": [date(2026, 10, 9)] * n,
+        "pull_reason": [reason] * n})
 
 
 def fred_obs(value="100.5") -> pd.DataFrame:
@@ -117,6 +119,33 @@ def test_overlapping_units_windows_stop(root):
     land(R1, series=fred_series(((date(1991, 12, 4), date(9999, 12, 31), "Billions of Dollars"),
                                  (date(2020, 1, 1), date(9999, 12, 31), "WRONG"))))
     with pytest.raises(StageError, match="fanned out"):
+        stage(R1)
+
+
+def test_backfill_moved_earlier_keeps_recorded_full_pull(root, monkeypatch):
+    # R1's full pull started at 2005-01-01. Moving backfill_start to 2000 must not
+    # turn it into a non-full pull and leave every row without a vintage (#61)
+    land(R1)
+    monkeypatch.setattr(config, "sources", lambda: {
+        "backfill_start": date(2000, 1, 1), "fred": {"series": ["GDP"], "expected_lag_days": {"GDP": 35}},
+        "yahoo": {"expected_lag_days": 0}})
+    assert staged(stage(R1), "SELECT DISTINCT vintage FROM obs WHERE series_id = 'yf:close:NVDA'") == \
+        [(date(2026, 10, 7),)]
+
+
+def test_removed_ticker_still_stages(root, monkeypatch):
+    # NVDA leaves the watchlist: staging must not stop on a NULL vintage; its rows
+    # reach C11 (observations without a catalog row), which names the cause (#61)
+    land(R1)
+    monkeypatch.setattr(config, "watchlist", lambda: [
+        {"ticker": "AAPL", "yahoo_symbol": "AAPL", "active_from": None, "active_to": None}])
+    assert staged(stage(R1), "SELECT DISTINCT vintage FROM obs WHERE series_id = 'yf:close:NVDA'") == \
+        [(date(2026, 10, 7),)]
+
+
+def test_unknown_pull_reason_fails_loud(root):
+    land(R1, px=prices([10.0, 11.0], reason="mystery"))
+    with pytest.raises(duckdb.Error, match="unknown pull_reason mystery"):
         stage(R1)
 
 

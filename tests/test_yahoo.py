@@ -254,6 +254,32 @@ def test_empty_incremental_pull_fails_loud_for_active_ticker(root, monkeypatch, 
         yahoo.load_prices("20261004T140000Z")
 
 
+def test_window_moved_earlier_pulls_full_history(root, monkeypatch):
+    # the current full pull started at 2005-01-01; backfill_start moves to 2000.
+    # Pulling forward only would leave 2000-2004 a permanent C04 hole, so the
+    # loader pulls the whole window again, a new vintage (#61, D72)
+    cfg = {"backfill_start": date(2005, 1, 1), "yahoo": {"auto_adjust": False, "overlap_days": 10}}
+    monkeypatch.setattr(config, "sources", lambda: cfg)
+    monkeypatch.setattr(config, "watchlist", lambda: [
+        {"ticker": "NVDA", "yahoo_symbol": "NVDA", "active_from": None, "active_to": None}])
+    calls = []
+
+    def fake_fetch(symbol, start, end, auto_adjust):
+        calls.append(start)
+        return bars_for([10.0, 11.0], DAYS[:2])
+
+    monkeypatch.setattr(yahoo, "fetch", fake_fetch)
+    yahoo.load_prices("20261003T140000Z")
+    complete("20261003T140000Z")
+
+    calls.clear()
+    cfg["backfill_start"] = date(2000, 1, 1)
+    path = yahoo.load_prices("20261004T140000Z")
+    assert calls == [date(2000, 1, 1)]
+    assert duckdb.sql(f"SELECT DISTINCT pull_start, pull_reason FROM read_parquet('{path.as_posix()}')"
+                      ).fetchall() == [(date(2000, 1, 1), "window_extended")]
+
+
 def test_no_overlap_pull_reloads_full_history(root, monkeypatch):
     # the incremental window comes back with only dates after the stored ones:
     # the loader must re-pull from the first date, a new vintage (#57, D71)

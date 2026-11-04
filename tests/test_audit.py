@@ -30,7 +30,8 @@ def land(tiingo_closes=None, tiingo_days=None, tiingo_ticker="NVDA"):
         "ticker": ["NVDA"] * n, "yahoo_symbol": ["NVDA"] * n, "obs_date": SESSIONS,
         "open": closes, "high": closes, "low": closes, "close": closes, "adj_close": closes,
         "volume": [100] * n, "dividends": [0.0] * n, "stock_splits": [0.0] * n,
-        "pull_start": [date(2026, 1, 1)] * n, "pull_end": [SESSIONS[-1]] * n}), "yf", "prices", RUN)
+        "pull_start": [date(2026, 1, 1)] * n, "pull_end": [SESSIONS[-1]] * n,
+        "pull_reason": ["bootstrap"] * n}), "yf", "prices", RUN)
     write_raw(pd.DataFrame({"fred_id": ["GDP"], "obs_date": [date(2026, 4, 1)],
                             "realtime_start": [date(2026, 7, 30)], "realtime_end": [date(9999, 12, 31)],
                             "value": ["100.5"]}), "fred", "observations", RUN)

@@ -91,4 +91,20 @@ def raw_select(source: str, dataset: str, run_ids: list[str] | None = None) -> s
         if "pull_start" not in cols:
             select = select.replace("SELECT *", "SELECT *, NULL::DATE AS pull_start, NULL::DATE AS pull_end, "
                                                 "NULL::VARCHAR AS pull_reason", 1)
+        select = f"SELECT *, {FULL_PULL_SQL} AS full_pull FROM ({select})"
     return select
+
+
+# A Yahoo row came from a full-history pull by what its own pull recorded, never
+# by today's config: a watchlist or backfill_start edit must not reclassify
+# history (D72, #61). The loader and staging both read it through raw_select,
+# so they can't disagree about which pull sets the vintage (#59). A pre-D20 file
+# has no pull window and was always a full pull. An unknown reason fails loudly.
+FULL_PULL_REASONS = ("bootstrap", "rebase", "split_flag", "no_overlap", "window_extended")
+PARTIAL_PULL_REASONS = ("incremental", "correction")
+FULL_PULL_SQL = (
+    "CASE WHEN pull_start IS NULL THEN true "
+    f"WHEN pull_reason IN {FULL_PULL_REASONS} THEN true "
+    f"WHEN pull_reason IN {PARTIAL_PULL_REASONS} THEN false "
+    "ELSE error('yf prices: unknown pull_reason ' || coalesce(pull_reason, 'NULL') "
+    "|| ' in run ' || run_id || ' (runs.FULL_PULL_SQL, D72)') END")

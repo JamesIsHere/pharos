@@ -31,6 +31,9 @@ Incremental pulls (D21). Per ticker, each run:
     ("split_flag"); a false alarm costs one extra vintage, never a wrong value.
   - no overlap date at all (Yahoo returned only dates after the stored ones):
     nothing to compare the basis with, so a full pull ("no_overlap", D71).
+- The current full pull started after today's first expected date (the
+  watchlist or backfill_start moved earlier): full pull ("window_extended", D72).
+- Which pulls were full is what each pull recorded (runs.FULL_PULL_SQL, D72).
   The reason is stored on every row as pull_reason.
 """
 
@@ -100,9 +103,13 @@ def load_prices(run_id: str):
     frames = []
     for row in config.watchlist():
         first = row["active_from"] or cfg["backfill_start"]
-        stored = _stored_closes(stored_select, row["ticker"], first)
+        stored, epoch_start = _stored_closes(stored_select, row["ticker"])
         if stored.empty:
             start, reason = first, "bootstrap"
+        elif epoch_start is not None and epoch_start > first:
+            # the watchlist or backfill_start moved earlier than the current full
+            # pull reached: pull the whole window again, a new vintage (D72, #61)
+            start, reason = first, "window_extended"
         else:
             start = stored["obs_date"].max() - timedelta(days=cfg["yahoo"]["overlap_days"])
             reason = None
@@ -155,18 +162,26 @@ def classify(stored: pd.DataFrame, new: pd.DataFrame) -> str:
     return "correction"
 
 
-def _stored_closes(stored_select: str | None, ticker: str, first: date) -> pd.DataFrame:
+def _stored_closes(stored_select: str | None, ticker: str) -> tuple[pd.DataFrame, date | None]:
     """The ticker's closes under its current vintage: rows from its latest
-    full-history pull onward, latest run per date. Empty if nothing stored."""
+    full-history pull onward, latest run per date (empty if nothing stored),
+    and the date that full pull started from (None for a pre-D20 file, or when
+    nothing is stored). Full pull = what the pull recorded (runs.FULL_PULL_SQL)."""
+    empty = pd.DataFrame(columns=["obs_date", "close"])
     if stored_select is None:
-        return pd.DataFrame(columns=["obs_date", "close"])
+        return empty, None
+    epoch = duckdb.execute(f"""
+        WITH raw AS ({stored_select})
+        SELECT run_id, any_value(pull_start) FROM raw
+        WHERE ticker = $ticker AND full_pull
+        GROUP BY run_id ORDER BY run_id DESC LIMIT 1""", {"ticker": ticker}).fetchone()
+    if epoch is None:
+        return empty, None
     rows = duckdb.execute(f"""
-        WITH raw AS ({stored_select}),
-        epoch AS (SELECT max(run_id) AS run_id FROM raw
-                  WHERE ticker = $ticker AND (pull_start IS NULL OR pull_start <= $first))
-        SELECT obs_date, close FROM raw, epoch
-        WHERE raw.ticker = $ticker AND raw.run_id >= epoch.run_id
-        QUALIFY row_number() OVER (PARTITION BY obs_date ORDER BY raw.run_id DESC) = 1
-        ORDER BY obs_date""", {"ticker": ticker, "first": first}).fetchall()
+        WITH raw AS ({stored_select})
+        SELECT obs_date, close FROM raw
+        WHERE ticker = $ticker AND run_id >= $epoch
+        QUALIFY row_number() OVER (PARTITION BY obs_date ORDER BY run_id DESC) = 1
+        ORDER BY obs_date""", {"ticker": ticker, "epoch": epoch[0]}).fetchall()
     # plain Python dates, the same type normalize() gives obs_date
-    return pd.DataFrame(rows, columns=["obs_date", "close"])
+    return pd.DataFrame(rows, columns=["obs_date", "close"]), epoch[1]

@@ -43,7 +43,8 @@ def bars(days, close=lambda d: 100 + 0.5 * SESSIONS.index(d) if d in SESSIONS el
         "ticker": ["NVDA"] * n, "yahoo_symbol": ["NVDA"] * n, "obs_date": days,
         "open": closes, "high": closes, "low": closes, "close": closes, "adj_close": closes,
         "volume": [100] * n, "dividends": [0.0] * n, "stock_splits": [0.0] * n,
-        "pull_start": [date(2026, 1, 1) if full else days[0]] * n, "pull_end": [days[-1]] * n})
+        "pull_start": [date(2026, 1, 1) if full else days[0]] * n, "pull_end": [days[-1]] * n,
+        "pull_reason": ["bootstrap" if full else "incremental"] * n})
 
 
 def fred_raw(run_id):
