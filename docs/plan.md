@@ -2,10 +2,10 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M1 built: steps 1-10 and 3b. Step 10 closed: desktop icon + Edge app window (cold ~5.7s, warm 0.88s; acceptance #9), nightly task at 01:30 with the mirror guard (D49), failures shown on the dashboard, not toasted (D50; acceptance #10). M1 is done after 7 consecutive green nightly runs: 1 of 7 (2026-10-08 01:30, run 20261008T053003Z)
-- **Health:** GREEN at 2026-10-08 (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261008T053003Z
+- **Milestone:** M1 built: steps 1-10 and 3b. Step 10 closed: desktop icon + Edge app window (cold ~5.7s, warm 0.88s; acceptance #9), nightly task at 01:30 with the mirror guard (D49), failures shown on the dashboard, not toasted (D50; acceptance #10). M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z (run_manifest: published, 0 errors, 0 warnings each)
+- **Health:** GREEN at 2026-11-04 (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261104T053016Z
 - **Last session:** 2026-10-07/08 (fifth session): step 10 built. Launcher, icon, nightly task, mirror guard (D49, #9); toast dropped because toasts are off machine-wide (D50, #42); Home test pinned to its clock (it broke when the date rolled). 228 tests pass
-- **Next action:** M1.5, the exploration tools (#41), while the nightly streak accrues. Check each morning's `data/logs/nightly-*.log` or the status bar
+- **Next action:** M2 (Universe) scope, one decision at a time: start date first, then foreign filers, shell/fund SIC definition, pre-XBRL. Then write the M2 section with build order and acceptance criteria
 - **Blockers / open questions:** none. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
@@ -21,7 +21,8 @@
 | 25  | Price vintage is a DATE: two full pulls of one ticker on one day share a vintage               | Same-day accept re-pull leaves the conflict in place                   | step 4 (D23 build) |
 | 28  | C05 checks raw files by row count only; no content hash is recorded at write time              | A raw file rewritten with the same row count passes C05                | M1 (runs.py)       |
 | 34  | A series added after the audit has no baseline row; C13 never compares it. Any re-baseline path built for this must also decide a size cap on isolated print disagreements: D41's shape rule passes one of any size, and C10 only catches moves over 40% (folded in from #37) | A watchlist addition can lose history with C13 green; a re-run audit could pass a large isolated bad print | before any watchlist change |
-| 41  | Exploration tools beyond overlay (James, 2026-10-07: 'quickly mix and match ... explore trends'): transforms (YoY %, rolling return, drawdown), ratio/spread of two series, rolling correlation, lead/lag shift, resampling to a common frequency. None is in M1 scope; each must be DuckDB SQL computed on obs_date and drawn at plot_date (D47) | Built ad hoc, a transform could compute on the plot timeline and smear revisions, or leak a value before its release | M1.5, after step 10 (James, 2026-10-07) |
+| 41  | Exploration tools beyond overlay (James, 2026-10-07: 'quickly mix and match ... explore trends'): transforms (YoY %, rolling return, drawdown), ratio/spread of two series, rolling correlation, lead/lag shift, resampling to a common frequency. None is in M1 scope; each must be DuckDB SQL computed on obs_date and drawn at plot_date (D47) | Built ad hoc, a transform could compute on the plot timeline and smear revisions, or leak a value before its release | M1.5, after M2 (D51)                   |
+| 43  | Handoff from chomper (variance-bridge/handoff-to-pharos-2026-11-04.md): James wants a survivorship-free, point-in-time universe of US public companies over time (entries, exits, exit reason), all of EDGAR at full granularity, and a waterfall from every US-traded company down to the analysed set. Conflicts with non-goals in design.md §1 (foreign filers, pre-XBRL, paid vendors) and with the watchlist-first order of M2/M3 | Fundamentals get built for 18 names and the expectation model is rebuilt at universe scale; the waterfall stays unanswerable | M2 (D51)            |
 
 ---
 
@@ -93,8 +94,10 @@ Each name is here to trip a known trap. That's why it's the test set.
 ---
 
 ## Later milestones (one line each until current)
-- **M2: Fundamentals for the watchlist (balance sheet only).** companyfacts → raw facts with accession and filed date. Equity, preferred, both share counts, goodwill and intangibles. Book value per share and P/B as the first derived series via ASOF on available_date. XBRL checks: balance identity, share-count divergence, scale errors. Financial Statement Data Sets for multi-class names. OTC decision.
-- **M3: Universe + cross-section page.** Domestic 10-K filers. SIC → Fama-French industries. P/B distribution, industry medians, scatter. Coverage heatmap scales to the universe.
-- **M4: Flow statements + quarterly panel.** YTD differencing, Q4 derivation, 52/53-week handling, fiscal→calendar alignment, concept map with fallback chains, ratio library.
-- **M5: BEA national accounts breakdown.** The GDP tracker folded in: small-multiples page with drill-down.
+- **M2: Universe (D51).** CIK master and an unbalanced panel of filer-years from EDGAR: full-index, submissions, SIC, former names, listing and exit events from Forms 8-A12B, 25/25-NSE and 15-12B/15-12G, with exit reason. The waterfall page: every filer down to the analysed set, each step naming what it drops. Fills the watchlist cik column (#22). Scope (start date, foreign filers, shell/fund definition, pre-XBRL) is settled before it is built.
+- **M1.5: Exploration tools (#41).** After M2 (D51).
+- **M3: Fundamentals (balance sheet only), formerly M2.** companyfacts → raw facts with accession and filed date. Equity, preferred, both share counts, goodwill and intangibles. Book value per share and P/B as the first derived series via ASOF on available_date. XBRL checks: balance identity, share-count divergence, scale errors. Financial Statement Data Sets for multi-class names. OTC decision.
+- **M4: Cross-section page (formerly M3, universe moved to M2).** Domestic 10-K filers. SIC → Fama-French industries. P/B distribution, industry medians, scatter. Coverage heatmap scales to the universe.
+- **M5: Flow statements + quarterly panel.** YTD differencing, Q4 derivation, 52/53-week handling, fiscal→calendar alignment, concept map with fallback chains, ratio library.
+- **M6: BEA national accounts breakdown.** The GDP tracker folded in: small-multiples page with drill-down.
 - **Hosting (floating, after M1 is done).** Actions cron → R2 → Streamlit Community Cloud; repoint the desktop icon; phone home-screen shortcut.
