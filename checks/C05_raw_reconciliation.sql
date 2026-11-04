@@ -30,5 +30,5 @@ FULL JOIN raw_files AS f
     ON f.run_id = r.run_id AND f.source = r.source AND f.dataset = r.dataset
 WHERE r.run_id IS NULL
    OR f.run_id IS NULL
-   OR f.rows_on_disk <> r.rows_written
+   OR f.rows_on_disk IS DISTINCT FROM r.rows_written   -- a NULL count is a failure, not a pass (#70)
 ORDER BY 1, 2, 3

@@ -46,4 +46,12 @@ SELECT o.series_id, o.obs_date, o.vintage, o.value, o.available_date,
 FROM observations AS o
 WHERE o.obs_date > o.available_date
 
+UNION ALL
+
+-- without both dates the look-ahead rule can't be proven: a failure, not a pass (#70)
+SELECT o.series_id, o.obs_date, o.vintage, o.value, o.available_date,
+       'obs_date or available_date missing' AS rule
+FROM observations AS o
+WHERE o.obs_date IS NULL OR o.available_date IS NULL
+
 ORDER BY series_id, obs_date, vintage, rule

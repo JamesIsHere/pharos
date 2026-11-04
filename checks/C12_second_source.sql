@@ -14,7 +14,7 @@
 SELECT ticker, obs_date, pick, yahoo_close, tiingo_close, tiingo_raw_close, round(rel_diff, 6) AS rel_diff,
        'over tolerance' AS problem
 FROM reconcile_sample
-WHERE abs(rel_diff) > 0.005
+WHERE abs(rel_diff) > 0.005 OR rel_diff IS NULL   -- no comparable Tiingo close is a failure (#70)
 
 UNION ALL
 

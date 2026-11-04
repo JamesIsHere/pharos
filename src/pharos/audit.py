@@ -71,9 +71,11 @@ def audit() -> Audit:
     con.execute(f"""
         CREATE TABLE comparisons AS
         WITH flagged AS (
-            SELECT *, abs(rel_diff) > {TOLERANCE} AS over,
-                   lag(abs(rel_diff) > {TOLERANCE}) OVER w AS prev_over,
-                   lead(abs(rel_diff) > {TOLERANCE}) OVER w AS next_over
+            -- a NULL rel_diff (no comparable Tiingo close) counts as over (#70); the
+            -- CASE below reached the same answer by falling through, now stated
+            SELECT *, coalesce(abs(rel_diff) > {TOLERANCE}, true) AS over,
+                   lag(coalesce(abs(rel_diff) > {TOLERANCE}, true)) OVER w AS prev_over,
+                   lead(coalesce(abs(rel_diff) > {TOLERANCE}, true)) OVER w AS next_over
             FROM reconcile_all
             WINDOW w AS (PARTITION BY ticker ORDER BY obs_date)
         )

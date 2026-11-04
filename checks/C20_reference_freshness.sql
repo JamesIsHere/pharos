@@ -20,4 +20,5 @@ CROSS JOIN clock AS c
 WHERE w.active_to IS NULL OR w.active_to >= CAST(timezone('UTC', c.now) AS DATE)
 GROUP BY t.ticker
 HAVING max(t.obs_date) < any_value(d.session)
+    OR max(t.obs_date) IS NULL OR any_value(d.session) IS NULL   -- unknown is a failure (#70)
 ORDER BY t.ticker

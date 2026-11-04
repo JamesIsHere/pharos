@@ -14,6 +14,9 @@
 -- applies from its own date onward, so a date's own factor doesn't adjust it.
 -- A reviewed distribution (D40) becomes a factor from Tiingo's own numbers:
 -- previous close / (previous close - div_cash), so the basis stays Tiingo's.
+-- A NULL factor (Tiingo sent none, or a distribution on a ticker's first date,
+-- with no previous close) leaves every earlier date's tiingo_close NULL: sum()
+-- would skip it and read the factor as 1, a guess shown as agreement (#70).
 
 WITH yahoo AS (
     SELECT split_part(series_id, ':', 3) AS ticker, obs_date, value AS yahoo_close
@@ -36,10 +39,11 @@ factors AS (
 ),
 tiingo AS (
     SELECT ticker, obs_date, close AS tiingo_raw_close,
-           close / coalesce(exp(sum(ln(factor)) OVER (
-               PARTITION BY ticker ORDER BY obs_date
-               ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING)), 1.0) AS tiingo_close
+           CASE WHEN count(*) OVER later = count(factor) OVER later
+                THEN close / coalesce(exp(sum(ln(factor)) OVER later), 1.0) END AS tiingo_close
     FROM factors
+    WINDOW later AS (PARTITION BY ticker ORDER BY obs_date
+                     ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING)
 ),
 both_sources AS (
     SELECT y.ticker, y.obs_date, y.yahoo_close, t.tiingo_close, t.tiingo_raw_close

@@ -10,5 +10,5 @@
 
 SELECT run_id, source, dataset, rows_downloaded, rows_written
 FROM loads
-WHERE rows_written <> rows_downloaded
+WHERE rows_written IS DISTINCT FROM rows_downloaded   -- a NULL count is a failure, not a pass (#70)
 ORDER BY run_id, source, dataset

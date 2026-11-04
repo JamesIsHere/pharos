@@ -793,3 +793,54 @@ def test_broken_check_fails_the_run_only_if_it_gates(staged_run, tmp_path, monke
         record_baseline(CLEAN_BASELINE)
         h = health.evaluate(datetime(2026, 10, 7, 15, tzinfo=timezone.utc), record=False)
         assert h.status == "red" and any(r.startswith("C97 broken") for r in h.reasons)
+
+
+# --- a NULL in a compared column fails the check, never passes it (#70) -----
+
+def rewrite_load(run_id, source, dataset, replace):
+    record = data_root() / "health" / "loads" / f"{run_id}__{source}__{dataset}.parquet"
+    con = duckdb.connect()
+    con.execute(f"CREATE TABLE t AS SELECT * FROM read_parquet('{record.as_posix()}')")
+    con.execute(f"COPY (SELECT * REPLACE ({replace}) FROM t) TO '{record.as_posix()}' (FORMAT parquet)")
+    con.close()
+
+
+@pytest.mark.parametrize("check_id", ["C05", "C06"])
+def test_null_rows_written_blocks(staged_run, check_id):
+    rewrite_load(staged_run, "yf", "prices", "NULL::BIGINT AS rows_written")
+    e = run_checks(staged_run)
+    assert result(e, check_id)["status"] == "error" and e.verdict == "blocked"
+
+
+def test_c09_null_available_date_blocks(staged_run):
+    tamper(staged_run, "observations",
+           f"SELECT * REPLACE (NULL::DATE AS available_date) FROM t WHERE {NVDA_DAY} "
+           f"UNION ALL SELECT * FROM t WHERE NOT ({NVDA_DAY})")
+    e = run_checks(staged_run)
+    r = result(e, "C09")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1) and "available_date missing" in r["sample"]
+    assert e.verdict == "blocked"
+
+
+def test_c12_null_tiingo_close_warns(staged_run):
+    # a NULL Tiingo close makes rel_diff NULL: no comparison was possible. (A zero
+    # close gives inf in DuckDB 1.5.6, which the tolerance already catches.)
+    rewrite_tiingo(staged_run, "SELECT * REPLACE (NULL::DOUBLE AS close) FROM t")
+    r = result(run_checks(staged_run), "C12")
+    assert r["status"] == "warn" and all(row["rel_diff"] is None for row in json.loads(r["sample"]))
+
+
+def test_null_split_factor_is_not_read_as_one(staged_run):
+    # a NULL factor on Tiingo's last date: before #70 sum() skipped it and every
+    # earlier date compared as if no split happened
+    rewrite_tiingo(staged_run, "SELECT * REPLACE (CASE WHEN obs_date = (SELECT max(obs_date) FROM t) "
+                               "THEN NULL ELSE split_factor END AS split_factor) FROM t")
+    r = result(run_checks(staged_run), "C12")
+    rows = json.loads(r["sample"])
+    assert r["status"] == "warn" and rows and all(row["tiingo_close"] is None for row in rows)
+
+
+def test_c20_tiingo_rows_without_dates_warn(staged_run):
+    rewrite_tiingo(staged_run, "SELECT * REPLACE (NULL::DATE AS obs_date) FROM t")
+    r = result(run_checks(staged_run), "C20")
+    assert (r["status"], r["failing_row_count"]) == ("warn", 1)

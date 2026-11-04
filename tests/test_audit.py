@@ -137,3 +137,13 @@ def test_cli_exit_code(published, capsys):
     assert cli.main(["audit"]) == 1
     out = capsys.readouterr().out
     assert "FAILED" in out and "no baseline recorded" in out and "only 4 common dates" in out
+
+
+def test_null_tiingo_close_counts_as_a_disagreement(published):
+    # no comparable close is not agreement (#70). The old CASE already fell through to a
+    # disagreement on NULL by accident; the coalesce makes it explicit, and this pins it
+    closes = [100 + 0.5 * i for i in range(len(SESSIONS))]
+    closes[5] = None
+    land(tiingo_closes=closes)
+    a = audit()
+    assert [(f["obs_date"], f["rel_diff"]) for f in a.disagreements] == [(SESSIONS[5], None)]
