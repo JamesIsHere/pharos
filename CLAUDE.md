@@ -27,11 +27,11 @@ scripts\register-tasks.ps1         # registers the nightly refresh in Task Sched
 
 ## Layout
 ```
-config/            watchlist.csv (the expected set), sources.yaml
-src/pharos/          loaders/, transform/*.sql, publish.py, health/, cli.py
+config/            watchlist.csv (the expected set), sources.yaml, expected_states.csv, corporate_actions.csv
+src/pharos/        loaders/, transform/*.sql, cli.py, refresh.py, stage.py, checks.py, publish.py, health.py, board.py, ...
 checks/            *.sql, one check per file
-app/               Home.py, pages/1_Health.py, pages/2_Charts.py
-scripts/           PowerShell launcher + task registration
+app/               Home.py, common.py, pages/1_Health.py, pages/2_Charts.py
+scripts/           open-dashboard.ps1, nightly-refresh.ps1, register-tasks.ps1, pharos.ico (make_icon.py)
 tests/             incl. test_faults.py
 docs/              design.md, plan.md
 data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.duckdb   (gitignored, never committed)
@@ -41,7 +41,7 @@ data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.du
 
 ### Data integrity
 - Parquet is the storage of record. The only `.duckdb` file is `catalog.duckdb`. It holds views over Parquet only, and the pipeline regenerates it.
-- `raw/` is a snapshot log: one write-once file per source per run (`raw/<source>/<run_id>.parquet`). Never rewrite or delete a raw file. A revision is a new row with a new `vintage`. Deduplicate in staging, never at load.
+- `raw/` is a snapshot log: one write-once file per source per run (`raw/<source>/<dataset>/<run_id>.parquet`). Never rewrite or delete a raw file. A revision is a new row with a new `vintage`. Deduplicate in staging, never at load.
 - Write-audit-publish: write to `staging/`, run checks, and swap into `serving/` only if no error-severity gate check fails. A failed or blocked run must leave `serving/` untouched.
 - Every observation carries `obs_date`, `available_date`, `vintage`, `run_id`.
 - Transformations are DuckDB SQL. Polars is used only for parsing at the edges and for handing results to the UI. Never write transformation logic in pandas; convert library pandas output at the boundary.
@@ -55,7 +55,7 @@ data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.du
 ### Sources
 - yfinance is unofficial. Always pass `auto_adjust` explicitly (its default has changed between versions), validate the schema on every pull, and fail loudly on drift.
 - If a new split event is detected for a ticker, re-pull that ticker's full history as a new vintage.
-- SEC (M2+): User-Agent from `SEC_USER_AGENT`, at most 10 requests/s, prefer bulk files (`companyfacts.zip`) over the API.
+- SEC (M2+): User-Agent from `SEC_USER_AGENT`, at most 10 requests/s, prefer bulk files (`submissions.zip` from M2, `companyfacts.zip` from M3, D57) over the API.
 - FRED: key from `FRED_API_KEY`.
 - Secrets live in `.env` (gitignored) locally and in GitHub Secrets in CI. **The repo is public.** Never commit keys or data.
 
@@ -68,7 +68,7 @@ data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.du
 
 ### App
 - The app reads only `serving/` and `health/`, through one configurable data root (local path now, R2 URL later). A version's `inputs/` folder holds what its view-time checks read; view time never reads `raw/` or `config/` (D76; one exception left, #94).
-- Cache query results keyed on the manifest's `last_published_at`, so new data appears after a refresh.
+- Cache query results keyed on the manifest's `last_published_at` and the latest run_id (D45), so new data and a blocked run appear after a refresh; health also on the wall-clock minute (D43).
 - Opening the app never triggers a refresh.
 - Every page shows the health status bar.
 

@@ -83,7 +83,7 @@ Entity tables beside the series model. Each row carries the four columns every o
 - **available_date**: when it became public. All cross-source joins use `ASOF JOIN` on this column.
 - **vintage**: which version of the value. Revisions append new vintages; nothing is overwritten.
 - Fundamentals are step functions: a value holds from its available_date until the next one arrives.
-- Prices: the stored close is split-adjusted as of the pull. A new split triggers a full re-pull for that ticker as a new vintage. Dividends are stored as events; total-return series come later as derived series.
+- Prices: the stored close is split-adjusted as of the pull (D107). A full re-pull, and with it a new vintage, is triggered by a nonzero `stock_splits` on a not-yet-stored date or by re-basing found in the overlap window (D21); a correction never triggers one, it blocks on C14. Dividends are stored as events; total-return series come later as derived series.
 
 ## 5. Sources
 
@@ -94,13 +94,15 @@ Entity tables beside the series model. Each row carries the four columns every o
 | FRED / ALFRED | M1 | `GDP` (nominal, SAAR), `GDPC1` (real), `CPIAUCSL` (monthly CPI) | Pull all vintages. Freshness uses FRED release dates, not a hard-coded lag (releases slip, e.g. shutdowns) | Not now (#103): the API terms bar storing its content; the series are public domain at BEA/BLS |
 | SEC companyfacts.zip | M3 | XBRL facts, all filers, nightly bulk | Keeps accession + filed date per fact = point-in-time is reconstructible | Yes (SEC data is public; unverified, from prior) |
 | SEC Financial Statement Data Sets | M3 | dimensional facts (multi-class shares), `pre` table | companyfacts drops dimensional facts | Yes (as above) |
+| SEC EDGAR full-index (`master.gz` per quarter) | M2 | every filing: CIK, name, form, date filed | Annual reports, events and gap years (D54, D65); current and previous quarter re-landed each run | Yes (as above) |
+| SEC submissions.zip | M2 | company details (name, SIC, state, tickers, exchanges) and filing history | Nightly bulk; details snapshot every run, history past the watermark (D58) | Yes (as above) |
 | SEC company_tickers_exchange.json | M2 | current ticker to CIK and exchange | Current only: dead or renamed tickers need manual mapping | Yes (as above) |
 | BEA NIPA | M6 | GDP expenditure detail | The GDP tracker, folded in | Yes, with BEA's notice: its API terms allow building a service to 'display' its data |
 
 ## 6. Refresh pipeline rules
 1. **Rebuild where you can, increment where you must.** EDGAR and ALFRED are archives, so analysis tables are rebuilt from them. Prices are incremental, using a stored last-pulled watermark.
 2. **Revisions append.** New vintage rows, never updates.
-3. **Raw is a snapshot log.** Each run writes everything it downloaded to `raw/<source>/<run_id>.parquet` and never touches the file again. FRED/ALFRED lands the full vintage history every run; prices land the incremental window plus a few days of overlap. Deduplication on `(series_id, obs_date, vintage)` happens in staging, never at load.
+3. **Raw is a snapshot log.** Each run writes everything it downloaded to `raw/<source>/<dataset>/<run_id>.parquet` and never touches the file again. FRED/ALFRED lands the full vintage history every run; prices land the incremental window plus a few days of overlap. Deduplication on `(series_id, obs_date, vintage)` happens in staging, never at load.
 4. **Write-audit-publish with atomic swap.** A failed run leaves yesterday's serving data intact. `serving/` is one write-once folder per published run plus `CURRENT`, a one-line pointer; the swap is replacing `CURRENT` (D30).
 5. **Run manifest every run**, including failed runs.
 6. **Idempotent.** Rerunning immediately adds zero rows to `serving/` and stays green. (`raw/` gains that run's snapshot file; that is the evidence trail, not a defect.)
@@ -184,10 +186,10 @@ Before trusting the first backfill:
   - Rebase to 100 at range start by default: each series' value in effect at the start (D47). No dual axes: series that need their own scale go in their own panel (D48).
   - Log toggle.
   - Chart state lives in the URL (`st.query_params`), so a bookmark reopens the same chart.
-- **Caching:** `st.cache_resource` for the DuckDB connection; `st.cache_data` keyed on `last_published_at`. The status bar and health page evaluation are keyed on (`last_published_at`, wall clock to the minute), and the app evaluates with `record=False` (D43).
+- **Caching:** `st.cache_resource` for the DuckDB connection; `st.cache_data` keyed on `last_published_at` and the latest run_id (D45). The status bar and health page evaluation are keyed on (`last_published_at`, wall clock to the minute), and the app evaluates with `record=False` (D43).
 - **Desktop icon:**
-  - Shortcut runs `powershell -WindowStyle Hidden -File scripts\open-dashboard.ps1`, minimized, with a custom .ico.
-  - The script checks whether `localhost:8501` responds, starts Streamlit headless if not, waits, then opens `msedge --app=http://localhost:8501`.
+  - Shortcut runs `pwsh -NoProfile -WindowStyle Hidden -File scripts\open-dashboard.ps1`, with a custom .ico.
+  - The script checks whether `localhost:8517` responds, starts Streamlit headless if not, waits, then opens Edge in app mode on it. Port 8517, not Streamlit's default 8501, so another project's app on 8501 is never mistaken for Pharos.
   - No PyInstaller, Electron, or pywebview.
 
 ## 9. Known traps for fundamentals (M3+), as rules
