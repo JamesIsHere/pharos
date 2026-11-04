@@ -10,7 +10,8 @@ Rules applied here:
   the full history of what each source said is the input.
 - Each SQL file must return exactly one row per raw row, with no NULL units
   (FRED, D19) and no NULL vintage (Yahoo, D20); every catalog row needs a
-  frequency and start date (#64). Anything else stops the run.
+  frequency and start date (#64), and a source and frequency the health
+  system has cases for (#65, D74). Anything else stops the run.
 - Dedup collapses rows that agree on everything but lineage, keeping the
   earliest run's run_id and loaded_at, so an identical rerun changes nothing.
   Rows that share (series_id, obs_date, vintage) but disagree on value both
@@ -30,6 +31,10 @@ from pharos.runs import raw_select
 
 TRANSFORM_DIR = Path(__file__).parent / "transform"
 DATASETS = [("yf", "prices"), ("fred", "observations"), ("fred", "series")]
+# The sources and frequencies every check and expected-date rule has a case for.
+# Widening either set is the same change that adds those cases (D74)
+CHECKED_SOURCES = {"yf", "fred"}
+CHECKED_FREQUENCIES = {"D", "M", "Q"}
 
 
 class StageError(RuntimeError):
@@ -80,6 +85,15 @@ def stage(run_id: str | None = None) -> Path:
         "ORDER BY 1").fetchall()]
     if missing:
         raise StageError(f"series_catalog: no current metadata (frequency, start date) for {missing}")
+    # a source or frequency outside the checked sets is skipped silently by
+    # C04's expected dates, C09/C10's yf prefix, and the yf/FRED split (#65)
+    unchecked = con.execute(
+        "SELECT series_id, source, frequency FROM series_catalog "
+        "WHERE source NOT IN (SELECT unnest(?)) OR frequency NOT IN (SELECT unnest(?)) ORDER BY 1",
+        [sorted(CHECKED_SOURCES), sorted(CHECKED_FREQUENCIES)]).fetchall()
+    if unchecked:
+        raise StageError(f"series_catalog: source or frequency the checks have no case for "
+                         f"(series_id, source, frequency): {unchecked} (D74)")
 
     con.execute(f"""
         CREATE TABLE observations AS

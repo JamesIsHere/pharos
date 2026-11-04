@@ -181,6 +181,27 @@ def test_fred_series_without_current_metadata_stops(root):
     assert not (root / "staging").exists()
 
 
+def test_unchecked_frequency_stops(root):
+    # an annual FRED series: C04 builds no expected dates for A, so its holes
+    # would publish unseen (#65, D74)
+    series = fred_series()
+    series["frequency_short"] = "A"
+    land(R1, series=series)
+    with pytest.raises(StageError, match=r"fred:GDP', 'fred', 'A'"):
+        stage(R1)
+    assert not (root / "staging").exists()
+
+
+def test_unchecked_source_stops(root, monkeypatch):
+    # series_catalog.sql writes only yf and fred, so a new source arrives with
+    # new code; narrowing the checked set stands in for it (#65, D74)
+    monkeypatch.setattr("pharos.stage.CHECKED_SOURCES", {"yf"})
+    land(R1)
+    with pytest.raises(StageError, match=r"fred:GDP', 'fred', 'Q'"):
+        stage(R1)
+    assert not (root / "staging").exists()
+
+
 def test_withdrawn_value_kept_as_null(root):
     land(R1, obs=fred_obs("."))
     assert staged(stage(R1), "SELECT value FROM obs WHERE series_id = 'fred:GDP'") == [(None,)]
