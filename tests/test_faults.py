@@ -764,3 +764,32 @@ def test_version_inputs_are_what_the_run_read(staged_run):
     assert count(inputs / "raw_tiingo_prices.parquet") == count(raw_file(staged_run, "tiingo", "prices"))
     assert count(inputs / "watchlist_windows.parquet") == len(config.watchlist())
     assert count(inputs / "fred_expected.parquet") == len(config.sources()["fred"]["series"])
+
+
+# --- a broken monitor never blocks; a broken gate still fails (D77, #69) -----
+
+@pytest.mark.parametrize("gate, verdict", [("no", "passed"), ("yes", "failed")])
+def test_broken_check_fails_the_run_only_if_it_gates(staged_run, tmp_path, monkeypatch, gate, verdict):
+    import shutil
+    from pharos import checks as checks_mod
+    from pharos.checks import CHECKS_DIR
+    from pharos.publish import publish
+    folder = tmp_path / "checks"
+    shutil.copytree(CHECKS_DIR, folder)
+    (folder / "C97_broken.sql").write_text(
+        f"-- id: C97\n-- severity: error\n-- gate: {gate}\n-- description: test: a check that cannot run\n"
+        "SELECT * FROM no_such_table\n", encoding="utf-8")
+    defaults = list(checks_mod.run_checks.__defaults__)
+    defaults[0] = folder                                    # run_checks(directory=...) everywhere
+    monkeypatch.setattr(checks_mod.run_checks, "__defaults__", tuple(defaults))
+    p = publish(staged_run)
+    assert result(p.evaluation, "C97")["status"] == "broken" and p.evaluation.verdict == verdict
+    assert (p.version is not None) == (gate == "no")
+    if gate == "no":                                        # published, and health says why it's red
+        from datetime import datetime, timezone
+        from pharos import config, health
+        monkeypatch.setattr(config, "expected_states", lambda: [])
+        manifest_row(staged_run, "published", "2026-10-07 14:30:00+00")
+        record_baseline(CLEAN_BASELINE)
+        h = health.evaluate(datetime(2026, 10, 7, 15, tzinfo=timezone.utc), record=False)
+        assert h.status == "red" and any(r.startswith("C97 broken") for r in h.reasons)

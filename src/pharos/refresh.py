@@ -71,7 +71,7 @@ def write_manifest(run_id: str, started_at: datetime, publication: Publication |
     elif publication.version is not None:
         status = "published"
     else:
-        status = publication.evaluation.verdict   # blocked | failed (a broken check)
+        status = publication.evaluation.verdict   # blocked | failed (a broken gate check, D77)
 
     counts = {"pass": 0, "warn": 0, "error": 0, "broken": 0, "acknowledged": 0}
     for r in health.acknowledge(publication.evaluation.results) if publication else []:

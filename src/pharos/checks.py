@@ -129,7 +129,9 @@ def run_checks(run_id: str, directory: Path = CHECKS_DIR, now: datetime | None =
     results = [_evaluate(con, c, run_id, evaluated_at, context) for c in checks]
     con.close()
 
-    if any(r["status"] == "broken" for r in results):
+    # a broken gate leaves the staged data unproven; a broken monitor tests the
+    # world, not the data, so it shows red on health but never blocks (D17, D77)
+    if any(r["gate"] and r["status"] == "broken" for r in results):
         verdict = "failed"
     elif any(r["gate"] and r["status"] == "error" for r in results):
         verdict = "blocked"
