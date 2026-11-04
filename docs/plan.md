@@ -4,8 +4,8 @@
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
 - **Milestone:** M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z. M2 (Universe) drafted and reviewed, awaiting James's red-pen. Nightly task now 07:30 UTC (D63)
 - **Health:** GREEN at 2026-11-04 (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261104T185655Z (first version with inputs/, D76)
-- **Last session:** 2026-11-04 (sixth, resumed after a crash): chomper handoff absorbed (D51-D57); M2 drafted (D58) and reviewed twice (D59-D66); nightly moved after SEC's submissions rebuild (D63); full-project audit logged #56-#93; M1 fixes #56-#71 and #95 done (D71-D78)
-- **Next action:** #72's last item: reproduce Charts panels lost on page navigation in the browser, then decide. Then the M2 draft rows #73-#91, the docs #92-#93, then the M2 red-pen. #94 waits for hosting
+- **Last session:** 2026-11-04 (seventh): M1 audit fixes #65-#71 and #95 done (D74-D78); #72 mechanical six, Tiingo end date (D79) and cache bounds done; Charts round-trip bug reproduced in Chrome, fix proposed (option B: rebuild from a saved copy of the URL params), awaiting James. Republished 20261104T185655Z, the first version with inputs/ (D76)
+- **Next action:** #72's last item, Charts round trip: James to choose option B (save the layout's URL params in a non-widget key, rebuild from them when widget keys are gone) or A (shadow every widget key); then an AppTest and a Chrome re-check. Then the M2 draft rows #73-#91, the docs #92-#93, then the M2 red-pen. #94 waits for hosting
 - **Blockers / open questions:** none. #25 must be settled before the D23 re-pull is built. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
