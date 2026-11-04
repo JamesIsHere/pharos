@@ -40,15 +40,29 @@ def compose(run_id: str, health) -> EmailMessage:
     lines = [f"Pharos ran. Health {color}, run {run_status}.", ""]
     if rows:
         r = rows[0]
-        minutes = (r["finished_at"] - r["started_at"]).total_seconds() / 60
-        lines += [f"Run {run_id}, {minutes:.1f} min.",
+        seconds = (r["finished_at"] - r["started_at"]).total_seconds()
+        took = f"{seconds:.0f} s" if seconds < 90 else f"{seconds / 60:.1f} min"
+        lines += [f"Run {run_id}, took {took}.",
                   f"Checks: {r['checks_pass']} pass, {r['checks_warn']} warn, {r['checks_error']} error, "
                   f"{r['checks_broken']} broken, {r['checks_acknowledged']} acknowledged.", ""]
+        served = _served_rows()
+        root = data_root()
         for d in rows:
-            landed = "-" if d["rows_landed"] is None else f"{d['rows_landed']:,} rows"
+            source, dataset = d["source"], d["dataset"]
+            got = "no rows" if d["rows_landed"] is None else f"{d['rows_landed']:,} rows downloaded this run"
+            if dataset == "observations" or (source == "yf" and dataset == "prices"):
+                total = f", {served.get(source, 0):,} served"
+            elif source == "tiingo":
+                total = ", cross-check only, not served"
+            else:
+                total = ""
             latest = f", latest {d['latest_obs_date']}" if d["latest_obs_date"] else ""
+            size = f", {_human(_size(root / 'raw' / source / dataset))} on disk"
             failed = "  FAILED" if d["dataset_error"] else ""
-            lines.append(f"  {d['source']}/{d['dataset']}: {landed}{latest}{failed}")
+            lines.append(f"  {source}/{dataset}: {got}{total}{latest}{size}{failed}")
+        parts = [(p.name, _size(p)) for p in sorted(root.iterdir()) if p.is_dir()]
+        lines += ["", f"Data folder: {_human(_size(root))} in all ({root}):",
+                  "  " + ", ".join(f"{name} {_human(n)}" for name, n in sorted(parts, key=lambda x: -x[1]))]
     if health and health.reasons:
         lines += ["", "Why it isn't green:"] + [f"  - {why}" for why in health.reasons]
     if rows and rows[0]["error"]:
@@ -58,6 +72,36 @@ def compose(run_id: str, health) -> EmailMessage:
     msg["Subject"] = f"Pharos {color}: run {run_status}"
     msg.set_content("\n".join(lines) + "\n")
     return msg
+
+
+def _served_rows() -> dict[str, int]:
+    """Rows in the version the dashboard reads, by source (yf, fred)."""
+    from pharos.publish import current_version
+    version = current_version()
+    if version is None:
+        return {}
+    path = (version / "observations.parquet").as_posix()
+    return dict(duckdb.connect().execute(
+        f"SELECT split_part(series_id, ':', 1), count(*) FROM read_parquet('{path}') GROUP BY 1").fetchall())
+
+
+def _size(path) -> int:
+    """Bytes under a folder (0 if it doesn't exist)."""
+    total = 0
+    for folder, _, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(folder, f))
+            except OSError:
+                pass
+    return total
+
+
+def _human(n: int) -> str:
+    for unit in ("bytes", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{n:,.0f} {unit}" if unit == "bytes" else f"{n:,.1f} {unit}"
+        n /= 1024
 
 
 def send_status(run_id: str, health, smtp=None) -> bool:

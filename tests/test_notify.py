@@ -29,7 +29,8 @@ def test_email_says_what_ran(published):
     assert msg["Subject"] == "Pharos GREEN: run published"
     body = msg.get_content()
     assert "Pharos ran. Health GREEN, run published." in body
-    assert "yf/prices:" in body and "fred/observations:" in body
+    assert "yf/prices: " in body and "rows downloaded this run" in body and " served" in body
+    assert "Data folder: " in body and " on disk" in body
 
 
 def test_email_sends_to_the_sender_by_default(published):
