@@ -1,6 +1,7 @@
 -- id: C20
 -- severity: warn
 -- gate: no
+-- group: prices_macro
 -- description: Tiingo's latest close for an active ticker is older than the latest due XNYS session (D37)
 -- ack_key: ticker, latest_obs_date
 --

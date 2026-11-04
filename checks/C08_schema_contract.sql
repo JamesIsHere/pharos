@@ -1,6 +1,7 @@
 -- id: C08
 -- severity: error
 -- gate: yes
+-- group: prices_macro
 -- description: staged schema differs from contract (column missing, unexpected, or of another type)
 --
 -- The contract is written here, not read from the transform or from config

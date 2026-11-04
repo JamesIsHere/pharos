@@ -1,6 +1,7 @@
 -- id: C06
 -- severity: error
 -- gate: yes
+-- group: prices_macro
 -- description: load control total broken: rows written to the raw file differ from rows downloaded
 --
 -- write_raw() records both numbers for every download: rows_downloaded from the

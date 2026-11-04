@@ -1,6 +1,7 @@
 -- id: C05
 -- severity: error
 -- gate: yes
+-- group: prices_macro
 -- description: raw files on disk do not reconcile to the load log (file missing, row count changed, or no record)
 --
 -- Raw is write-once (D18): once write_raw() records a file in health/loads, the

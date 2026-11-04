@@ -1,6 +1,7 @@
 -- id: C16
 -- severity: warn
 -- gate: no
+-- group: prices_macro
 -- description: value withdrawn by the source (NULL) in the latest vintage, inside the active window
 -- ack_key: series_id, obs_date
 --

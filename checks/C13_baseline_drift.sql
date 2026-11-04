@@ -1,6 +1,7 @@
 -- id: C13
 -- severity: warn
 -- gate: no
+-- group: prices_macro
 -- description: series drifted from the opening-balance baseline (first_date later, fewer rows, or gone), or no baseline recorded (D39)
 -- ack_key: series_id, problem
 --

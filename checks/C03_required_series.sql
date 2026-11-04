@@ -1,6 +1,7 @@
 -- id: C03
 -- severity: error
 -- gate: yes
+-- group: prices_macro
 -- description: expected series missing from series_catalog (watchlist ticker x required series, or a configured FRED series)
 --
 -- The expectation comes from config, not from the data: every watchlist ticker

@@ -721,7 +721,7 @@ def test_every_ack_key_names_columns_its_check_returns(staged_run):
 def test_ack_key_on_an_error_check_fails_discovery(tmp_path):
     from pharos.checks import CheckError, parse
     f = tmp_path / "C98.sql"
-    f.write_text("-- id: C98\n-- severity: error\n-- gate: no\n-- description: x\n"
+    f.write_text("-- id: C98\n-- severity: error\n-- gate: no\n-- group: prices_macro\n-- description: x\n"
                  "-- ack_key: series_id\nSELECT 1 AS series_id WHERE false\n")
     with pytest.raises(CheckError, match="ack_key on a error-severity check"):
         parse(f)
@@ -777,7 +777,7 @@ def test_broken_check_fails_the_run_only_if_it_gates(staged_run, tmp_path, monke
     folder = tmp_path / "checks"
     shutil.copytree(CHECKS_DIR, folder)
     (folder / "C97_broken.sql").write_text(
-        f"-- id: C97\n-- severity: error\n-- gate: {gate}\n-- description: test: a check that cannot run\n"
+        f"-- id: C97\n-- severity: error\n-- gate: {gate}\n-- group: prices_macro\n-- description: test: a check that cannot run\n"
         "SELECT * FROM no_such_table\n", encoding="utf-8")
     defaults = list(checks_mod.run_checks.__defaults__)
     defaults[0] = folder                                    # run_checks(directory=...) everywhere

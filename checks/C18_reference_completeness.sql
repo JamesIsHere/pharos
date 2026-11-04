@@ -1,6 +1,7 @@
 -- id: C18
 -- severity: error
 -- gate: no
+-- group: prices_macro
 -- description: active watchlist ticker with no Tiingo rows in this run: the reference source is missing (D37)
 --
 -- Tiingo is reference only (D35): it never blocks a publish, so an outage turns

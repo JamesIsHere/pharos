@@ -1,6 +1,7 @@
 -- id: C09
 -- severity: error
 -- gate: yes
+-- group: prices_macro
 -- description: impossible observation: price missing (NULL or NaN) or <= 0, obs_date after the run date, or obs_date after available_date
 --
 -- One row per observation per rule broken, so a row breaking two rules shows twice.

@@ -1,6 +1,7 @@
 -- id: C14
 -- severity: error
 -- gate: yes
+-- group: prices_macro
 -- description: same (series_id, obs_date, vintage) with different values across raw snapshots: silent source correction (D23)
 --
 -- Staging keeps every distinct value a key arrived with (D18), so a key with

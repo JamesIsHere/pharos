@@ -1,6 +1,7 @@
 -- id: C02
 -- severity: warn
 -- gate: no
+-- group: prices_macro
 -- description: active series 1 period behind its expected latest period: running late (D33)
 -- ack_key: series_id, latest_obs_date
 --

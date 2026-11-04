@@ -1,6 +1,7 @@
 -- id: C15
 -- severity: warn
 -- gate: no
+-- group: prices_macro
 -- description: ended catalog series (active_to before the run date) without observations: source-missing (D22)
 -- ack_key: series_id
 --

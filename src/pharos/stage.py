@@ -27,11 +27,12 @@ import duckdb
 
 from pharos import config
 from pharos.db import query
+from pharos.groups import PRICES_MACRO
 from pharos.paths import data_root
 from pharos.runs import raw_select
 
 TRANSFORM_DIR = Path(__file__).parent / "transform"
-DATASETS = [("yf", "prices"), ("fred", "observations"), ("fred", "series")]
+DATASETS = list(PRICES_MACRO.required)   # the group's declaration is the one list (D81)
 # The sources and frequencies every check and expected-date rule has a case for.
 # Widening either set is the same change that adds those cases (D74)
 CHECKED_SOURCES = {"yf", "fred"}

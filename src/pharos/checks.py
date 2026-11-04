@@ -1,7 +1,8 @@
 """Runs checks/*.sql against one staged run and records the results.
 
 A check is a SQL file that returns failing rows; zero rows is a pass. Its header
-declares id, severity (error|warn), gate (yes|no) and description, one
+declares id, severity (error|warn), gate (yes|no), group (a source group, or
+`run` for a monitor about the run itself, D81) and description, one
 `-- key: value` line each, before any SQL. The runner owns everything around
 the SQL:
 
@@ -33,11 +34,12 @@ import duckdb
 import exchange_calendars as xc
 
 from pharos import config
+from pharos.groups import GROUPS, RUN
 from pharos.paths import PROJECT_ROOT, data_root
 from pharos.stage import bind_config, bind_raw, complete_runs
 
 CHECKS_DIR = PROJECT_ROOT / "checks"
-HEADER_FIELDS = ("id", "severity", "gate", "description")
+HEADER_FIELDS = ("id", "severity", "gate", "group", "description")
 # what checks and the app read besides the version's tables; publish copies
 # each into serving/<version>/inputs/ (D76)
 INPUTS_DIR = "inputs"
@@ -58,6 +60,7 @@ class Check:
     sql: str
     path: Path
     ack_key: tuple[str, ...] = ()   # the columns naming one problem; empty: can't be acknowledged (D75)
+    group: str = "prices_macro"     # the source group it tests, or `run` (D81)
 
 
 @dataclass(frozen=True)
@@ -96,6 +99,10 @@ def parse(path: Path) -> Check:
         raise CheckError(f"{path.name}: severity must be error or warn, not {header['severity']!r}")
     if header["gate"] not in ("yes", "no"):
         raise CheckError(f"{path.name}: gate must be yes or no, not {header['gate']!r}")
+    if header["group"] != RUN and header["group"] not in GROUPS:
+        raise CheckError(f"{path.name}: group must be one of {sorted(GROUPS) + [RUN]}, not {header['group']!r}")
+    if header["group"] == RUN and header["gate"] == "yes":
+        raise CheckError(f"{path.name}: a `group: run` check can't gate: a gate blocks one group's publish (D81)")
     if not re.fullmatch(re.escape(header["id"]) + r"(_\w+)?", path.stem):
         raise CheckError(f"{path.name}: filename must be {header['id']}.sql or {header['id']}_<name>.sql")
 
@@ -106,7 +113,7 @@ def parse(path: Path) -> Check:
 
     sql = path.read_text(encoding="utf-8").strip().rstrip(";")
     return Check(header["id"], header["severity"], header["gate"] == "yes",
-                 header["description"], sql, path, ack_key)
+                 header["description"], sql, path, ack_key, header["group"])
 
 
 def run_checks(run_id: str, directory: Path = CHECKS_DIR, now: datetime | None = None,

@@ -1,6 +1,7 @@
 -- id: C10
 -- severity: warn
 -- gate: yes
+-- group: prices_macro
 -- description: abs(daily return) > 40% on split-adjusted close, current vintage (D29)
 -- ack_key: series_id, obs_date
 --

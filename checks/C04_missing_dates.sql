@@ -1,6 +1,7 @@
 -- id: C04
 -- severity: error
 -- gate: yes
+-- group: prices_macro
 -- description: expected date with no row inside the series' window (trading days, months, quarters)
 --
 -- The expected set, its window and which rows count are defined once in

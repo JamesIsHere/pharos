@@ -30,13 +30,14 @@ from datetime import datetime, timezone
 import duckdb
 
 from pharos import health, notify
+from pharos.groups import PRICES_MACRO
 from pharos.loaders import fred, tiingo, yahoo
 from pharos.paths import data_root
 from pharos.publish import Publication, publish
 from pharos.runs import new_run_id, provenance
 from pharos.stage import DATASETS, stage
 
-REFERENCE_DATASETS = [("tiingo", "prices")]   # loaded every run, never required (D36, D37)
+REFERENCE_DATASETS = list(PRICES_MACRO.reference)   # loaded every run, never required (D36, D37)
 
 
 def refresh() -> tuple[str, Publication | None]:

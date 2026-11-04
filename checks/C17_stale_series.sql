@@ -1,6 +1,7 @@
 -- id: C17
 -- severity: error
 -- gate: no
+-- group: prices_macro
 -- description: active series 2 or more periods behind its expected latest period: stale (D33)
 --
 -- C02 (warn, 1 period behind) and C17 (error, 2 or more) are one rule split by

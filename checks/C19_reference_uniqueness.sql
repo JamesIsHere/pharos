@@ -1,6 +1,7 @@
 -- id: C19
 -- severity: error
 -- gate: no
+-- group: prices_macro
 -- description: (ticker, obs_date) repeated in this run's Tiingo file (D37)
 --
 -- Each run's Tiingo file is one full-history snapshot (D36), so a ticker-day

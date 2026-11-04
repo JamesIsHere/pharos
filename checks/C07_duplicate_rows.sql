@@ -1,6 +1,7 @@
 -- id: C07
 -- severity: error
 -- gate: yes
+-- group: prices_macro
 -- description: (series_id, obs_date, vintage) repeated with the same value: staging's dedup failed
 --
 -- Staging collapses rows that agree on everything but lineage, so after dedup a

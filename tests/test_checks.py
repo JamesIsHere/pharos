@@ -16,8 +16,10 @@ def checks_dir(tmp_path):
     return d
 
 
-def write_check(directory, name, sql, id=None, severity="error", gate="yes", description="test check"):
-    head = {"id": id or name.split("_")[0], "severity": severity, "gate": gate, "description": description}
+def write_check(directory, name, sql, id=None, severity="error", gate="yes", description="test check",
+                group="prices_macro"):
+    head = {"id": id or name.split("_")[0], "severity": severity, "gate": gate, "group": group,
+            "description": description}
     lines = [f"-- {k}: {v}" for k, v in head.items() if v is not None]
     (directory / f"{name}.sql").write_text("\n".join(lines) + "\n" + sql + "\n", encoding="utf-8")
 
@@ -33,9 +35,9 @@ def test_empty_folder_stops(checks_dir):
         discover(checks_dir)
 
 
-@pytest.mark.parametrize("field", ["id", "severity", "gate", "description"])
+@pytest.mark.parametrize("field", ["id", "severity", "gate", "group", "description"])
 def test_missing_header_field_stops(checks_dir, field):
-    head = {"id": "C90", "severity": "error", "gate": "yes", "description": "x"}
+    head = {"id": "C90", "severity": "error", "gate": "yes", "group": "prices_macro", "description": "x"}
     del head[field]
     (checks_dir / "C90.sql").write_text("".join(f"-- {k}: {v}\n" for k, v in head.items()) + PASS_SQL,
                                         encoding="utf-8")
@@ -43,11 +45,26 @@ def test_missing_header_field_stops(checks_dir, field):
         discover(checks_dir)
 
 
-@pytest.mark.parametrize("field,value", [("severity", "fatal"), ("gate", "maybe")])
+@pytest.mark.parametrize("field,value", [("severity", "fatal"), ("gate", "maybe"), ("group", "sec")])
 def test_invalid_header_value_stops(checks_dir, field, value):
     write_check(checks_dir, "C90", PASS_SQL, **{field: value})
     with pytest.raises(CheckError, match=field):
         discover(checks_dir)
+
+
+def test_a_run_level_check_cannot_gate(checks_dir):
+    write_check(checks_dir, "C90", PASS_SQL, group="run", gate="yes")
+    with pytest.raises(CheckError, match="can't gate"):
+        discover(checks_dir)
+
+
+def test_every_shipped_check_names_its_group():
+    from pharos.groups import GROUPS
+    by_group = {}
+    for c in discover():
+        by_group.setdefault(c.group, []).append(c.id)
+    assert by_group["run"] == ["C01"]
+    assert set(by_group) <= set(GROUPS) | {"run"}
 
 
 def test_filename_must_match_id(checks_dir):

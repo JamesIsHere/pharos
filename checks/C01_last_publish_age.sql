@@ -1,6 +1,7 @@
 -- id: C01
 -- severity: error
 -- gate: no
+-- group: run
 -- description: last published run is older than 26h, or nothing has ever been published (D32)
 --
 -- Successful = published (D32). A blocked run leaves serving/ as stale as a run

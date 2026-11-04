@@ -1,0 +1,38 @@
+"""Source groups (D81, D82): the unit that is loaded, staged, gated and published.
+
+A group declares the raw datasets it needs (required: a run missing one leaves
+the group out of staging; reference: loaded every run, never required, D36) and
+the tables it stages and serves. Each check's header names its group: a gate
+check blocks only its own group, and reads only its own group's tables and raw
+data. Checks about the run itself (the age of the last publish, which groups
+were carried forward) declare `group: run`; they are monitors and never gate.
+
+M1's data is the one group so far, prices_macro. The SEC universe joins as a
+second group in M2 step 1.
+"""
+
+from dataclasses import dataclass
+
+RUN = "run"   # the group field of a check about the run itself
+
+
+@dataclass(frozen=True)
+class Group:
+    name: str
+    required: tuple[tuple[str, str], ...]    # (source, dataset): all needed for the group to stage
+    reference: tuple[tuple[str, str], ...]   # loaded every run, never required
+    tables: tuple[str, ...]                  # staged, checked and served
+
+    @property
+    def datasets(self) -> tuple[tuple[str, str], ...]:
+        return self.required + self.reference
+
+
+PRICES_MACRO = Group(
+    name="prices_macro",
+    required=(("yf", "prices"), ("fred", "observations"), ("fred", "series")),
+    reference=(("tiingo", "prices"),),
+    tables=("observations", "series_catalog"),
+)
+
+GROUPS: dict[str, Group] = {g.name: g for g in (PRICES_MACRO,)}

@@ -1,6 +1,7 @@
 -- id: C11
 -- severity: error
 -- gate: yes
+-- group: prices_macro
 -- description: observations without a catalog row, or an active catalog series without observations (D22)
 --
 -- Active = active_to NULL or on/after the run's UTC date. An ended series with
