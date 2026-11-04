@@ -26,6 +26,7 @@ from pathlib import Path
 import duckdb
 
 from pharos import config
+from pharos.db import query
 from pharos.paths import data_root
 from pharos.runs import raw_select
 
@@ -51,12 +52,13 @@ def complete_runs() -> list[str]:
     # only the required datasets count: a reference load (Tiingo) neither makes
     # nor breaks a run's completeness (D36)
     required = ", ".join(f"'{s}/{d}'" for s, d in DATASETS)
-    rows = duckdb.sql(
+    # on the app's threads too (health binds it at view time): own connection (#68)
+    _, rows = query(
         f"""SELECT run_id FROM read_parquet('{records}')
             WHERE source || '/' || dataset IN ({required})
             GROUP BY run_id
             HAVING count(DISTINCT source || '/' || dataset) = {len(DATASETS)}
-            ORDER BY run_id""").fetchall()
+            ORDER BY run_id""")
     return [r[0] for r in rows]
 
 

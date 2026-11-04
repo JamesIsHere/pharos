@@ -35,6 +35,7 @@ import duckdb
 
 from pharos import config
 from pharos.checks import discover, run_checks
+from pharos.db import query, records
 from pharos.paths import data_root
 from pharos.publish import current_version
 
@@ -155,10 +156,9 @@ def _manifest() -> list[dict]:
     folder = data_root() / "health" / "run_manifest"
     if not any(folder.glob("*.parquet")):
         return []
-    rel = duckdb.sql(f"""SELECT DISTINCT run_id, status, published_at
-                         FROM read_parquet('{folder.as_posix()}/*.parquet', union_by_name = true)
-                         ORDER BY run_id""")
-    return [dict(zip(rel.columns, row)) for row in rel.fetchall()]
+    return records(f"""SELECT DISTINCT run_id, status, published_at
+                       FROM read_parquet('{folder.as_posix()}/*.parquet', union_by_name = true)
+                       ORDER BY run_id""")
 
 
 def _recorded_gate_results(run_id: str) -> list[dict]:
@@ -169,13 +169,12 @@ def _recorded_gate_results(run_id: str) -> list[dict]:
     if any(folder.glob(f"{run_id}__*.parquet")):
         source = f"read_parquet('{folder.as_posix()}/{run_id}__*.parquet', union_by_name = true)"
         # results written before D34 have no context column: all of them are run-time
-        has_context = "context" in duckdb.sql(f"SELECT * FROM {source} LIMIT 0").columns
-        context = "coalesce(context, 'run')" if has_context else "'run'"
-        rel = duckdb.sql(f"""SELECT * REPLACE ({context} AS context) FROM {source}
-                             WHERE gate AND {context} = 'run'
-                             QUALIFY row_number() OVER (PARTITION BY check_id ORDER BY evaluated_at DESC) = 1""")             if has_context else duckdb.sql(f"""SELECT *, 'run' AS context FROM {source} WHERE gate
-                             QUALIFY row_number() OVER (PARTITION BY check_id ORDER BY evaluated_at DESC) = 1""")
-        rows = {r["check_id"]: r for r in (dict(zip(rel.columns, row)) for row in rel.fetchall())}
+        has_context = "context" in query(f"SELECT * FROM {source} LIMIT 0")[0]
+        latest = "QUALIFY row_number() OVER (PARTITION BY check_id ORDER BY evaluated_at DESC) = 1"
+        sql = (f"SELECT * REPLACE (coalesce(context, 'run') AS context) FROM {source} "
+               f"WHERE gate AND coalesce(context, 'run') = 'run' {latest}") if has_context else \
+              f"SELECT *, 'run' AS context FROM {source} WHERE gate {latest}"
+        rows = {r["check_id"]: r for r in records(sql)}
     out = []
     for check in (c for c in discover() if c.gate):
         out.append(rows.get(check.id) or {

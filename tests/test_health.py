@@ -120,3 +120,18 @@ def test_reads_results_written_before_context_column(served):
     h = health.evaluate(at(10, 7, 15))
     assert h.status == "green"
     assert {r["context"] for r in h.results if r["gate"]} == {"run"}
+
+
+def test_concurrent_status_bars_do_not_collide(served):
+    # Streamlit renders each tab on its own thread. DuckDB's module-level
+    # default connection is one per process, so two threads interleaving
+    # on it throw InvalidInputException (#68, data/logs/streamlit.err.log 2026-10-15)
+    from concurrent.futures import ThreadPoolExecutor
+    from pharos import board
+
+    def bar(_):
+        for _ in range(5):
+            board.last_published_at()
+            health.evaluate(record=False)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(bar, range(8)))

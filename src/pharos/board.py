@@ -21,6 +21,7 @@ import duckdb
 import polars as pl
 
 from pharos.checks import load_view_inputs
+from pharos.db import query, records
 from pharos.paths import PROJECT_ROOT, data_root
 from pharos.publish import current_version
 
@@ -32,9 +33,9 @@ def last_published_at() -> datetime | None:
     folder = data_root() / "health" / "run_manifest"
     if not any(folder.glob("*.parquet")):
         return None
-    return duckdb.sql(f"""SELECT max(published_at) FROM
-                          read_parquet('{folder.as_posix()}/*.parquet', union_by_name = true)
-                          WHERE status = 'published'""").fetchone()[0]
+    return query(f"""SELECT max(published_at) FROM
+                     read_parquet('{folder.as_posix()}/*.parquet', union_by_name = true)
+                     WHERE status = 'published'""")[1][0][0]
 
 
 def latest_run_id() -> str | None:
@@ -50,16 +51,15 @@ def run_failures(run_id: str) -> tuple[str | None, list[dict]]:
     that didn't pass in its latest run-time evaluation, as recorded then. Read
     from health/, never re-run: the staged data was refused, not served (#38)."""
     root = data_root() / "health"
-    error = duckdb.sql(f"""SELECT any_value(error) FROM read_parquet('{(root / "run_manifest" / f"{run_id}.parquet").as_posix()}')""").fetchone()[0]
+    error = query(f"""SELECT any_value(error) FROM read_parquet('{(root / "run_manifest" / f"{run_id}.parquet").as_posix()}')""")[1][0][0]
     files = sorted((root / "check_results").glob(f"{run_id}__*.parquet"))
     if not files:
         return error, []
     source = f"read_parquet({[f.as_posix() for f in files]}, union_by_name = true)"
-    context = "coalesce(context, 'run')" if "context" in duckdb.sql(f"SELECT * FROM {source} LIMIT 0").columns else "'run'"
-    rel = duckdb.sql(f"""SELECT * FROM {source} WHERE {context} = 'run' AND status <> 'pass'
-                         AND evaluated_at = (SELECT max(evaluated_at) FROM {source} WHERE {context} = 'run')
-                         ORDER BY gate DESC, check_id""")
-    return error, [dict(zip(rel.columns, row)) for row in rel.fetchall()]
+    context = "coalesce(context, 'run')" if "context" in query(f"SELECT * FROM {source} LIMIT 0")[0] else "'run'"
+    return error, records(f"""SELECT * FROM {source} WHERE {context} = 'run' AND status <> 'pass'
+                              AND evaluated_at = (SELECT max(evaluated_at) FROM {source} WHERE {context} = 'run')
+                              ORDER BY gate DESC, check_id""")
 
 
 def connect() -> duckdb.DuckDBPyConnection | None:
