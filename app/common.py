@@ -6,6 +6,8 @@ Caching (design.md section 8, D43):
 - Health is keyed on (last_published_at, wall-clock minute): freshness is
   judged at view time, at most a minute late, and evaluated with record=False
   so the app never writes health/.
+- Every cache is bounded (max_entries): keys only move forward, so an old
+  entry is never read again, and _health alone gains one a minute (#72).
 """
 
 from datetime import datetime, timezone
@@ -17,7 +19,7 @@ from pharos import board, health
 STATUS_ICON = {"green": ":material/check_circle:", "yellow": ":material/warning:", "red": ":material/error:"}
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=2)
 def _health(published_at, minute) -> health.Health:
     return health.evaluate(record=False)
 
@@ -27,12 +29,12 @@ def current_health() -> health.Health:
     return _health(board.last_published_at(), minute)
 
 
-@st.cache_resource(show_spinner=False)
+@st.cache_resource(show_spinner=False, max_entries=1)
 def _connection(published_at, latest_run):
     return board.connect()
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=64)
 def _frame(name: str, published_at, latest_run):
     con = _connection(published_at, latest_run)
     return None if con is None else getattr(board, name)(con.cursor())
@@ -45,7 +47,7 @@ def frame(name: str):
     return _frame(name, board.last_published_at(), board.latest_run_id())
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=16)
 def run_failures(run_id: str):
     return board.run_failures(run_id)
 
@@ -62,7 +64,7 @@ def status_bar() -> health.Health:
     return h
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=64)
 def _query(name: str, args: tuple, published_at, latest_run):
     con = _connection(published_at, latest_run)
     return None if con is None else getattr(board, name)(con.cursor(), *args)

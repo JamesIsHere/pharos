@@ -249,3 +249,19 @@ def test_home_renders_the_watchlist(published):
 def test_malformed_bookmark_date_warns_not_traceback(published):
     page = chart_page(published, {"r": "Custom", "from": "2026-13-01", "to": "2026-10-07"})
     assert any("aren't YYYY-MM-DD" in w.value for w in page.warning)
+
+
+def test_health_cache_is_bounded(monkeypatch):
+    # _health is keyed per minute: unbounded, a long-running app keeps ~1,440 a day (#72)
+    from pharos import health
+    monkeypatch.syspath_prepend(str(PROJECT_ROOT / "app"))
+    import common
+    calls = []
+    monkeypatch.setattr(health, "evaluate", lambda record: calls.append(1) or len(calls))
+    st.cache_data.clear()
+    for minute in range(5):
+        common._health("p", minute)
+    common._health("p", 4)                 # newest: still cached
+    assert len(calls) == 5
+    common._health("p", 0)                 # oldest: evicted, evaluated again
+    assert len(calls) == 6
