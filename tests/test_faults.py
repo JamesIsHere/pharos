@@ -90,6 +90,22 @@ def test_c04_price_date_only_in_older_vintage_blocks(staged_run):
     assert (r["status"], r["failing_row_count"]) == ("error", 1)
 
 
+def test_c04_price_tail_only_in_older_vintage_blocks(staged_run):
+    # a full re-pull (new vintage) stops a day short: 2026-10-06, the last date,
+    # exists only in the old vintage. The window must reach it, or serving shows
+    # the old adjustment basis for that day with C04 green (#56).
+    tamper(staged_run, "observations", """
+        SELECT * FROM t WHERE NOT (series_id = 'yf:close:NVDA' AND obs_date = DATE '2026-10-06')
+        UNION ALL
+        SELECT * REPLACE (vintage - 1 AS vintage) FROM t
+        WHERE series_id = 'yf:close:NVDA' AND obs_date = DATE '2026-10-06'""")
+    e = run_checks(staged_run)
+    r = result(e, "C04")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1)
+    assert '"obs_date": "2026-10-06"' in r["sample"]
+    assert e.verdict == "blocked"
+
+
 def test_withdrawn_value_warns_c16_and_passes_c04(staged_run):
     tamper(staged_run, "observations", "SELECT * REPLACE (CASE WHEN series_id = 'fred:GDP' THEN NULL "
                                        "ELSE value END AS value) FROM t")

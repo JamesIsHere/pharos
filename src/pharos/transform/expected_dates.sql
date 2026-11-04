@@ -8,8 +8,11 @@
 -- hole and C04's error are the same fact.
 --
 -- Window: active_from to the earlier of active_to and the series' last
--- observation. Ending at the last observation means C04 finds holes; a series
--- that is merely late is C02's to report, never both.
+-- observation in any vintage. Ending at the last observation means C04 finds
+-- holes; a series that is merely late is C02's to report, never both. The end
+-- is taken over every vintage, not only the counted rows: a price re-pull that
+-- stops short of a date an older vintage holds would otherwise end the window
+-- early, and serving would show that date on the old basis with C04 green (#56).
 --
 -- Which rows count:
 -- - Prices: the current vintage only (the latest full pull, D20/D23). A full
@@ -30,9 +33,9 @@ WITH counted AS (
 ),
 windows AS (
     SELECT c.series_id, c.frequency, c.active_from,
-           least(coalesce(c.active_to, DATE '9999-12-31'), max(k.obs_date)) AS window_end
+           least(coalesce(c.active_to, DATE '9999-12-31'), max(o.obs_date)) AS window_end
     FROM series_catalog AS c
-    JOIN counted AS k USING (series_id)
+    JOIN observations AS o USING (series_id)
     GROUP BY c.series_id, c.frequency, c.active_from, c.active_to
 ),
 expected AS (
