@@ -12,6 +12,7 @@ from pharos import config
 from pharos.loaders import yahoo
 from pharos.loaders.yahoo import EXPECTED_COLUMNS, NEW_YORK, SchemaDriftError, normalize
 from pharos.paths import data_root
+from pharos.runs import write_raw
 
 
 def fake_bars(days=("2024-06-07", "2024-06-10"), tz="America/New_York") -> pd.DataFrame:
@@ -168,6 +169,33 @@ def test_classify_single_shared_date_is_correction_not_rebase():
     assert yahoo.classify(stored, new) == "correction"
 
 
+def complete(run_id):
+    """Record the run's FRED loads too (empty is still recorded), so the run is
+    complete, the only kind staging and the loader read back (#59)."""
+    write_raw(pd.DataFrame(), "fred", "observations", run_id)
+    write_raw(pd.DataFrame(), "fred", "series", run_id)
+
+
+def test_incomplete_run_is_not_the_stored_basis(root, monkeypatch):
+    # night 2 re-based (full pull) but FRED failed, so the run never completed and
+    # staging ignores it. Night 3 must compare against what staging sees (night
+    # 1's basis) and re-pull, not take night 2's rows as stored (#59)
+    monkeypatch.setattr(config, "sources", lambda: {
+        "backfill_start": date(2005, 1, 1), "yahoo": {"auto_adjust": False, "overlap_days": 10}})
+    monkeypatch.setattr(config, "watchlist", lambda: [
+        {"ticker": "NVDA", "yahoo_symbol": "NVDA", "active_from": None, "active_to": None}])
+    closes = {"now": [10.0, 11.0, 12.0, 13.0, 14.0]}
+    monkeypatch.setattr(yahoo, "fetch", lambda symbol, start, end, auto_adjust: bars_for(closes["now"]))
+    reasons = lambda path: duckdb.sql(
+        f"SELECT DISTINCT pull_reason FROM read_parquet('{path.as_posix()}')").fetchall()
+
+    yahoo.load_prices("20261003T140000Z")
+    complete("20261003T140000Z")
+    closes["now"] = [c / 4 for c in closes["now"]]
+    assert reasons(yahoo.load_prices("20261004T140000Z")) == [("rebase",)]   # FRED then fails: incomplete
+    assert reasons(yahoo.load_prices("20261005T140000Z")) == [("rebase",)]   # not "incremental"
+
+
 def test_runs_bootstrap_then_incremental_then_rebase(root, monkeypatch):
     monkeypatch.setattr(config, "sources", lambda: {
         "backfill_start": date(2005, 1, 1), "yahoo": {"auto_adjust": False, "overlap_days": 10}})
@@ -185,15 +213,18 @@ def test_runs_bootstrap_then_incremental_then_rebase(root, monkeypatch):
 
     assert reasons(yahoo.load_prices("20261003T140000Z")) == [(date(2005, 1, 1), "bootstrap")]
     assert calls == [date(2005, 1, 1)]
+    complete("20261003T140000Z")
 
     calls.clear()
     assert reasons(yahoo.load_prices("20261004T140000Z")) == [(date(2026, 9, 22), "incremental")]
     assert calls == [date(2026, 9, 22)]  # last stored 10-02 minus 10 days
+    complete("20261004T140000Z")
 
     calls.clear()
     closes["now"] = [c / 4 for c in closes["now"]]
     assert reasons(yahoo.load_prices("20261005T140000Z")) == [(date(2005, 1, 1), "rebase")]
     assert calls == [date(2026, 9, 22), date(2005, 1, 1)]  # overlap, then the full re-pull
+    complete("20261005T140000Z")
 
     calls.clear()  # after the re-pull, the new basis is the stored one
     assert reasons(yahoo.load_prices("20261006T140000Z")) == [(date(2026, 9, 22), "incremental")]
@@ -212,6 +243,7 @@ def test_empty_incremental_pull_fails_loud_for_active_ticker(root, monkeypatch, 
     bars = {"now": bars_for([10.0, 11.0], DAYS[:2])}
     monkeypatch.setattr(yahoo, "fetch", lambda symbol, start, end, auto_adjust: bars["now"])
     yahoo.load_prices("20261003T140000Z")
+    complete("20261003T140000Z")
 
     bars["now"] = pd.DataFrame()
     if raises:
@@ -237,6 +269,7 @@ def test_no_overlap_pull_reloads_full_history(root, monkeypatch):
 
     monkeypatch.setattr(yahoo, "fetch", fake_fetch)
     yahoo.load_prices("20261003T140000Z")  # bootstrap stores 09-28, 09-29
+    complete("20261003T140000Z")
 
     calls.clear()
     bars["now"] = bars_for([2.5, 2.75], DAYS[2:4])  # only 09-30, 10-01: no shared date

@@ -36,8 +36,12 @@ class StageError(RuntimeError):
 
 
 def complete_runs() -> list[str]:
-    """Run IDs with a load record for every dataset, oldest first."""
-    records = (data_root() / "health" / "loads").as_posix() + "/*.parquet"
+    """Run IDs with a load record for every dataset, oldest first. Empty on a new
+    data root, before any load has been recorded."""
+    folder = data_root() / "health" / "loads"
+    if not any(folder.glob("*.parquet")):
+        return []
+    records = folder.as_posix() + "/*.parquet"
     # only the required datasets count: a reference load (Tiingo) neither makes
     # nor breaks a run's completeness (D36)
     required = ", ".join(f"'{s}/{d}'" for s, d in DATASETS)

@@ -43,6 +43,7 @@ import yfinance as yf
 
 from pharos import config
 from pharos.runs import raw_select, write_raw
+from pharos.stage import complete_runs
 
 NEW_YORK = ZoneInfo("America/New_York")
 # Relative gap that counts as "the same close": ~100x float32 noise (~1e-7),
@@ -93,7 +94,9 @@ def load_prices(run_id: str):
     auto_adjust = cfg["yahoo"]["auto_adjust"]
     end = datetime.now(NEW_YORK).date()  # exclusive: today's bar is excluded
 
-    stored_select = raw_select("yf", "prices")
+    # complete runs only, the set staging reads: an incomplete run's rows are not
+    # what serving holds, so they can't be the basis the overlap is compared to (#59)
+    stored_select = raw_select("yf", "prices", complete_runs())
     frames = []
     for row in config.watchlist():
         first = row["active_from"] or cfg["backfill_start"]
