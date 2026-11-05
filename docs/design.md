@@ -16,17 +16,25 @@ It is also the datacenter for macro and company data: every company that has fil
 ## 2. Architecture
 
 ```
-Sources (yfinance, FRED/ALFRED; later SEC, BEA)
+Sources (yfinance, FRED/ALFRED, Tiingo as reference; SEC from M2; BEA later)
    |  Python loaders: download, parse, schema-validate
    v
 raw/       Parquet, one write-once file per source per run: everything downloaded, untouched
+   |  per source group (src/pharos/groups.py): prices_macro; sec_universe from M2
    |  DuckDB SQL: standardize, derive, as-of joins
    v
-staging/   candidate serving tables for this run
-   |  checks/*.sql  (audit)  --- any gate check at error -> run BLOCKED, serving/ untouched
+staging/   candidate tables per group for this run
+   |  checks/*.sql (audit): a gate check at error blocks only its own group
    v
-serving/   series_catalog + observations   <- the contract
-health/    run_manifest, check_results, baseline, latest.md
+publish    one new version: each passing group's fresh tables; each failing group
+   |       carried forward from the last version it published in, or left out if
+   |       it never has; no group passes -> run BLOCKED, serving/ untouched (D115)
+   v
+serving/   <run_id>/: series_catalog + observations (from M2 also universe_filer,
+           universe_firm_year, universe_events) <- the contract; groups.parquet
+           (each group's outcome and source run); inputs/ (what view-time checks
+           read, D76); CURRENT names the served version
+health/    run_manifest, loads, check_results, baseline, audit, latest.md
    |
    v
 Streamlit app (DuckDB queries -> Plotly charts)
