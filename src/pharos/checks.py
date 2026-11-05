@@ -291,8 +291,28 @@ def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = Non
                     "row_count BIGINT, audit_run_id VARCHAR, recorded_at TIMESTAMPTZ)")
 
 
+def bind_sec(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = None,
+             tables: Path | None = None, group: Group | None = None) -> None:
+    """The SEC group's names, at the landed level (D127): the run-level names,
+    its four tables and its load records (the Last-Modified the freshness
+    checks read, step 4). At run time from staging, at view time from the
+    version (D76). No raw views: a landed source has no reconciliation."""
+    from pharos.groups import SEC
+    staged = tables or data_root() / "staging" / run_id
+    if not staged.is_dir():
+        raise CheckError(f"tables for run {run_id} not found: {staged} does not exist")
+    bind_run(con, run_id, now)
+    for table in SEC.tables:
+        con.execute(f"CREATE VIEW {table} AS SELECT * FROM "
+                    f"read_parquet('{(staged / f'{table}.parquet').as_posix()}')")
+    names = ", ".join(f"'{s}/{d}'" for s, d in sorted(SEC.datasets))   # declared names, not user input
+    loads = (data_root() / "health" / "loads").as_posix() + "/*.parquet"
+    con.execute(f"CREATE VIEW loads AS SELECT * FROM read_parquet('{loads}', union_by_name = true) "
+                f"WHERE source || '/' || dataset IN ({names})")
+
+
 # group name -> the function that binds the names its checks may query
-BINDERS = {"prices_macro": bind}
+BINDERS = {"prices_macro": bind, "sec": bind_sec}
 
 
 def bind_view_inputs(con: duckdb.DuckDBPyConnection, run_id: str) -> None:

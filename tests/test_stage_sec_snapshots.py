@@ -168,3 +168,18 @@ def test_stage_group_merges_into_the_live_version(root):
     merged = stage_group([R1, R2], second)
     assert {m.base_run for m in merged.values()} == {R1}
     assert {m.runs_read for m in merged.values()} == {(R2,)}
+
+
+def test_sec_check_binder_exposes_its_tables_and_loads(root):
+    import duckdb
+    from pharos.checks import BINDERS
+    from pharos.stage_sec import stage_group
+    land_all(R1)
+    target = root / "staging" / R1
+    target.mkdir(parents=True)
+    stage_group([R1], target)
+    con = duckdb.connect()
+    BINDERS["sec"](con, R1)
+    assert con.execute("SELECT count(*) FROM tickers").fetchone() == (1,)
+    assert con.execute("SELECT count(DISTINCT dataset) FROM loads").fetchone() == (4,)
+    assert con.execute("SELECT run_id FROM this_run").fetchone() == (R1,)
