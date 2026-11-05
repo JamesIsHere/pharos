@@ -1,0 +1,11 @@
+code,event,scope,listing_role,listing_from,listing_to,note
+8-A12B,registration,any,starts,,,"Registers a class on a national exchange under 12(b): starts a listing (D65). 31,494 filings 1994-2026"
+8-A12G,registration,any,none,,,"Registers a class under 12(g), not on an exchange: no listing role (D65). 10,483 filings 1994-2026"
+25,delisting,any,ends,,,"Removal from listing, filed by the issuer: ends a listing (D65); an exit reason (D110). 4,849 filings 1999-2026"
+25-NSE,delisting,any,ends,,,"Removal from listing, filed by the exchange: ends a listing (D65); an exit reason (D110). 32,922 filings 2006-2026"
+15-12B,deregistration,domestic,ends,,2022-06-16,"Deregisters a 12(b) class: ends a listing through its last use, 2022-06-16 (D65, D89); an exit reason (D110). 5,970 filings 1994-2022"
+15-12G,deregistration,domestic,ends,2022-06-17,,"Deregisters a 12(g) class; SEC codes 12(b) deregistrations here from 2022-06-17, so it ends a listing from then on only (D89); an exit reason (D110). 15,530 filings 1994-2026"
+15-15D,deregistration,domestic,none,,,"Suspends the 15(d) reporting duty: no listing role; an exit reason (D110). 21,530 filings 1994-2026"
+15F-12B,deregistration,foreign,ends,,,"Foreign issuer deregisters a 12(b) class: ends a listing (D65); an exit reason (D110). 306 filings 2007-2026"
+15F-12G,deregistration,foreign,none,,,"Foreign issuer deregisters a 12(g) class: no listing role; an exit reason (D110). 248 filings 2007-2026"
+15F-15D,deregistration,foreign,none,,,"Foreign issuer suspends its 15(d) duty: no listing role; an exit reason (D110). 184 filings 2007-2026"

@@ -1,0 +1,10 @@
+code,scope,note
+10-K,domestic,"Annual report (D54). 239,088 filings 1993-11-29 to 2026-11-03"
+10-K405,domestic,"10-K with the Item 405 box checked, retired 2002 (D54). 21,277 filings 1994-2002"
+10-KSB,domestic,"Small-business annual report, hyphenated spelling (D54). 1 filing, 2002-02-28"
+10KSB,domestic,"Small-business annual report, retired 2009; the code a typed list missed (D54). 36,912 filings 1994-2009"
+10KSB40,domestic,"10KSB with the Item 405 box checked (D54). 3,441 filings 1995-2002"
+10-KT,domestic,"Transition-period annual report after a fiscal-year change (D54). 614 filings 1994-2026"
+10KT405,domestic,"10-KT with the Item 405 box checked (D54). 86 filings 1995-2002"
+20-F,foreign,"Foreign private issuer annual report (D53, D54). 22,067 filings 1996-2026"
+40-F,foreign,"Canadian MJDS annual report (D53, D54). 3,587 filings 2001-2026"

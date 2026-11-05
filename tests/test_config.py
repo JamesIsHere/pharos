@@ -111,3 +111,41 @@ def test_live_expected_states_name_warn_checks():
     from pharos import health
     assert [(s["check_id"], s["key"]) for s in health.acknowledgments()] == [
         ("C15", ("yf:close:ATVI",)), ("C16", ("fred:CPIAUCSL", "2025-10-01"))]
+
+
+# --- SEC form lists (M2 step 1e, D124) ----------------------------------------
+
+def _form_list(name):
+    import csv
+    from pharos.config import CONFIG_DIR
+    with open(CONFIG_DIR / name, newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def test_form_lists_are_well_formed_and_disjoint():
+    annual = _form_list("annual_forms.csv")
+    event = _form_list("event_forms.csv")
+    ignored = _form_list("ignored_forms.csv")
+    assert list(annual[0]) == ["code", "scope", "note"]
+    assert list(event[0]) == ["code", "event", "scope", "listing_role", "listing_from", "listing_to", "note"]
+    assert list(ignored[0]) == ["code", "reason"]
+    codes = [r["code"] for r in annual + event + ignored]
+    assert len(codes) == len(set(codes)), "a code is in two lists, or twice in one"
+    assert all(r["scope"] in ("domestic", "foreign") and r["note"] for r in annual)
+    assert all(r["event"] in ("registration", "delisting", "deregistration") for r in event)
+    assert all(r["scope"] in ("domestic", "foreign", "any") and r["note"] for r in event)
+    assert all(r["listing_role"] in ("starts", "ends", "none") for r in event)
+    assert all(r["reason"] for r in ignored)
+    assert not any(r["code"].endswith("/A") for r in annual + event)   # amendments never count (D54)
+
+
+def test_listing_role_dates_follow_d89():
+    from datetime import date
+    event = {r["code"]: r for r in _form_list("event_forms.csv")}
+    for r in event.values():
+        for column in ("listing_from", "listing_to"):
+            if r[column]:
+                date.fromisoformat(r[column])
+                assert r["listing_role"] == "ends", f"{r['code']}: a date on a code that ends no listing"
+    assert (event["15-12B"]["listing_to"], event["15-12G"]["listing_from"]) == ("2022-06-16", "2022-06-17")
+    assert {c for c, r in event.items() if r["listing_role"] == "starts"} == {"8-A12B"}
