@@ -1058,3 +1058,26 @@ def test_c36_errors_for_a_group_that_never_published(toy):
     toy["toy_fails"] = True
     toy["run"](RUNS[0])
     assert (_status("C35"), _status("C36")) == ("pass", "error")   # never published is not carried forward
+
+
+def test_c35_c36_do_not_count_runs_that_did_not_attempt_a_group(toy):
+    # D135: an on-demand group is not_run in every refresh and the nightly
+    # groups are not_run in its own runs; neither counts as not fresh
+    toy["make_on_demand"]()
+    toy["run"](RUNS[0])
+    toy["run"]("20261008T150000Z")
+    assert (_status("C35"), _status("C36")) == ("pass", "pass")   # never run on demand: not red
+    toy["on_demand"](RUNS[1])
+    toy["on_demand"]("20261009T150000Z")
+    assert (_status("C35"), _status("C36")) == ("pass", "pass")   # prices not_run twice: not stale
+
+
+def test_c36_still_errors_when_an_on_demand_group_fails_its_own_runs_twice(toy):
+    toy["make_on_demand"]()
+    toy["run"](RUNS[0])
+    toy["on_demand"](RUNS[1])                                    # published once
+    toy["toy"] = [-1]
+    toy["on_demand"]("20261009T150000Z")
+    toy["run"]("20261009T160000Z")                               # a refresh between: not counted
+    toy["on_demand"](RUNS[2])
+    assert _status("C36") == "error"

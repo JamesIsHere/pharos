@@ -28,6 +28,10 @@ run-level fields repeated. Long, not wide: a new source adds rows, not columns.
   carries its group's outcome for the run (published, carried_forward,
   never_published, blocked or failed), the reason it wasn't fresh, and the
   run its served tables came from (group_source_run).
+- On-demand groups (D135): refresh attempts only the nightly groups;
+  run_on_demand(name) is a run of one on-demand group alone, with the same
+  manifest, health rewrite and notice. Every group a run didn't attempt is
+  recorded not_run.
 """
 
 import traceback
@@ -36,8 +40,8 @@ from datetime import datetime, timezone
 import duckdb
 
 from pharos import health, notify
-from pharos.groups import FAILED, GROUPS, PRICES_MACRO
-from pharos.loaders import fred, sec_index, sec_submissions, sec_tickers, tiingo, yahoo
+from pharos.groups import FAILED, GROUPS, NOT_RUN, PRICES_MACRO, nightly
+from pharos.loaders import fred, sec_companyfacts, sec_index, sec_submissions, sec_tickers, tiingo, yahoo
 from pharos.paths import data_root
 from pharos.publish import Publication, publish
 from pharos.runs import new_run_id, provenance
@@ -60,12 +64,26 @@ def _load_sec(run_id: str) -> None:
 # group -> its required loads, and its reference loads (whose failure is only recorded, D37).
 # Only groups registered in GROUPS are loaded: a loader here for an unregistered
 # group is built but switched off
-LOADERS = {"prices_macro": _load_prices_macro, "sec": _load_sec}
+LOADERS = {"prices_macro": _load_prices_macro, "sec": _load_sec,
+           "companyfacts": sec_companyfacts.load_companyfacts}   # on demand only (D135)
 REFERENCE_LOADERS = {("tiingo", "prices"): lambda run_id: tiingo.load_prices(run_id)}
 
 
 def refresh() -> tuple[str, Publication | None]:
-    """Run every step for a new run. Returns (run_id, publication); raises on a crash."""
+    """Run every step for a new run of the nightly groups. Returns (run_id,
+    publication); raises on a crash."""
+    return _run([g.name for g in nightly()], REFERENCE_LOADERS)
+
+
+def run_on_demand(name: str) -> tuple[str, Publication | None]:
+    """A run of one on-demand group (D135): load, stage, check and publish it
+    alone; every other group is served unchanged."""
+    if name not in GROUPS or not GROUPS[name].on_demand:
+        raise ValueError(f"{name!r} is not a registered on-demand group")
+    return _run([name], {})
+
+
+def _run(names: list[str], reference_loaders: dict) -> tuple[str, Publication | None]:
     run_id = new_run_id()
     started_at = datetime.now(timezone.utc)
     publication, error, reference_errors, code = None, None, {}, (None, None)
@@ -74,7 +92,7 @@ def refresh() -> tuple[str, Publication | None]:
         code = provenance()        # no commit, no run: its staging could never be rebuilt (D103)
         health.acknowledgments()   # a bad config/expected_states.csv fails the run before it loads
         first = None
-        active = {name: load for name, load in LOADERS.items() if name in GROUPS}
+        active = {name: LOADERS[name] for name in names}
         for name, load in active.items():
             try:
                 load(run_id)
@@ -84,7 +102,7 @@ def refresh() -> tuple[str, Publication | None]:
                 first = first or e
         if len(group_errors) == len(active):
             raise first
-        for key, load in REFERENCE_LOADERS.items():
+        for key, load in reference_loaders.items():
             try:
                 load(run_id)
             except Exception:
@@ -99,7 +117,7 @@ def refresh() -> tuple[str, Publication | None]:
         error = traceback.format_exc(limit=5)
         raise
     finally:
-        write_manifest(run_id, started_at, publication, error, reference_errors, code, group_errors)
+        write_manifest(run_id, started_at, publication, error, reference_errors, code, group_errors, names)
         status = health.evaluate()   # rewrites health/latest.md after every run, crashed ones too
         notify.send_status(run_id, status)   # never raises (#96)
     return run_id, publication
@@ -108,7 +126,8 @@ def refresh() -> tuple[str, Publication | None]:
 def write_manifest(run_id: str, started_at: datetime, publication: Publication | None,
                    error: str | None, reference_errors: dict | None = None,
                    code: tuple[str | None, bool | None] = (None, None),
-                   group_errors: dict[str, str] | None = None) -> None:
+                   group_errors: dict[str, str] | None = None,
+                   attempted: list[str] | None = None) -> None:
     finished_at = datetime.now(timezone.utc)
     if publication is None:
         status = "failed"
@@ -126,8 +145,11 @@ def write_manifest(run_id: str, started_at: datetime, publication: Publication |
     target.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect()
     # one row per raw dataset, each carrying its group's outcome for the run (D81)
+    # a crashed run: every group it attempted failed; the rest were not run (D135)
+    tried = set(GROUPS) if attempted is None else set(attempted)
     outcomes = publication.groups if publication else {
         g: {"outcome": FAILED, "source_run": None, "reason": (group_errors or {}).get(g) or error}
+        if g in tried else {"outcome": NOT_RUN, "source_run": None, "reason": None}
         for g in GROUPS}
     con.execute("CREATE TABLE ds (source VARCHAR, dataset VARCHAR, dataset_error VARCHAR, \"group\" VARCHAR, "
                 "group_outcome VARCHAR, group_reason VARCHAR, group_source_run VARCHAR)")

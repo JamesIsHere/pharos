@@ -65,7 +65,7 @@ def compose(run_id: str, health) -> EmailMessage:
         if outcomes:
             lines += ["", "Source groups:"]
             for name, outcome, src, why in outcomes:
-                frm = f" from {src}" if src and outcome == "carried_forward" else ""
+                frm = f" from {src}" if src and outcome in ("carried_forward", "not_run") else ""
                 because = f": {why.strip().splitlines()[-1]}" if why else ""
                 lines.append(f"  {name}: {outcome}{frm}{because}")
         parts = [(p.name, _size(p)) for p in sorted(root.iterdir()) if p.is_dir()]

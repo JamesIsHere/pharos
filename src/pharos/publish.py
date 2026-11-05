@@ -15,6 +15,10 @@ Rules applied here:
   that has never published has nothing to carry: the version is published
   without it (D83). serving/<run_id>/groups.parquet records, per group, the
   outcome, the run its tables came from and why it wasn't fresh.
+- A group the run didn't attempt (D135: an on-demand group in a refresh, the
+  nightly groups in an on-demand run) is `not_run`: its tables and inputs are
+  copied from the current version, as a carried-forward group's are, but it
+  is no failure and C35/C36 don't count it.
 - When no group passes, nothing publishes: no folder, CURRENT unchanged.
 - A version folder is never rewritten. It is built under a temporary name,
   its row counts are reconciled to their source, and only then renamed into
@@ -40,10 +44,10 @@ import duckdb
 
 from pharos.db import records
 from pharos.checks import INPUTS_DIR, Evaluation, bind_view_inputs, groups_in, run_checks
-from pharos.groups import BLOCKED, CARRIED_FORWARD, FAILED, GROUPS, NEVER_PUBLISHED, PUBLISHED
+from pharos.groups import BLOCKED, CARRIED_FORWARD, FAILED, GROUPS, HELD, NEVER_PUBLISHED, NOT_RUN, PUBLISHED
 from pharos.paths import data_root
 from pharos.runs import RUN_ID
-from pharos.stage import any_complete_runs
+from pharos.stage import any_complete_runs, attempted
 
 SWAP_ATTEMPTS = 5
 SWAP_WAIT_SECONDS = 0.2
@@ -107,7 +111,8 @@ def publish(run_id: str | None = None, not_staged: dict[str, str] | None = None)
     run_id = run_id or runs[-1]
 
     evaluation = run_checks(run_id)
-    reasons = {g: (not_staged or {}).get(g) or "not staged for this run" for g in GROUPS
+    tried = {g.name for g in attempted(run_id)}
+    reasons = {g: (not_staged or {}).get(g) or "not staged for this run" for g in tried
                if g not in evaluation.groups}
     for g, verdict in evaluation.groups.items():
         if verdict != "passed":
@@ -116,17 +121,20 @@ def publish(run_id: str | None = None, not_staged: dict[str, str] | None = None)
             reasons[g] = f"gate checks {verdict}: {', '.join(stops)}"
 
     passed = [g for g, v in evaluation.groups.items() if v == "passed"]
-    if not passed:
-        outcomes = {g: {"outcome": BLOCKED if evaluation.groups.get(g) == "blocked" else FAILED,
-                        "source_run": None, "reason": reasons[g]} for g in GROUPS}
-        return Publication(run_id, evaluation, None, outcomes)
-
     current = current_version()
     held = {g: c["source_run"] for g, c in (composition(current) if current else {}).items()
-            if c["outcome"] in (PUBLISHED, CARRIED_FORWARD)}
+            if c["outcome"] in HELD and c["source_run"] is not None}
+    if not passed:
+        outcomes = {g: {"outcome": BLOCKED if evaluation.groups.get(g) == "blocked" else FAILED,
+                        "source_run": None, "reason": reasons[g]} if g in tried else
+                    {"outcome": NOT_RUN, "source_run": held.get(g), "reason": None} for g in GROUPS}
+        return Publication(run_id, evaluation, None, outcomes)
+
     outcomes = {}
     for g in GROUPS:
-        if g in passed:
+        if g not in tried:
+            outcomes[g] = {"outcome": NOT_RUN, "source_run": held.get(g), "reason": None}
+        elif g in passed:
             outcomes[g] = {"outcome": PUBLISHED, "source_run": run_id, "reason": None}
         elif g in held:
             outcomes[g] = {"outcome": CARRIED_FORWARD, "source_run": held[g], "reason": reasons[g]}
@@ -185,7 +193,7 @@ def _build(run_id: str, version: Path, outcomes: dict[str, dict], current: Path 
                     con.execute(f"COPY (SELECT * FROM {table}) TO '{(inputs / f'{table}.parquet').as_posix()}' "
                                 "(FORMAT parquet)")
                 con.close()
-        elif o["outcome"] == CARRIED_FORWARD:
+        elif o["outcome"] in (CARRIED_FORWARD, NOT_RUN) and o["source_run"] is not None:
             source = current
             for table in group.inputs:
                 _copy(current / INPUTS_DIR / f"{table}.parquet", inputs / f"{table}.parquet")

@@ -29,6 +29,8 @@ def no_sec_network(monkeypatch):
     SEC fetch refuse before a request. SEC's own tests call stage_sec directly."""
     from pharos.groups import GROUPS
     monkeypatch.delitem(GROUPS, "sec", raising=False)
+    monkeypatch.delitem(GROUPS, "companyfacts", raising=False)   # on demand: never in a refresh, but
+    # every version would list it not_run, and the toy-group tests pin exact compositions
     monkeypatch.setenv("SEC_USER_AGENT", "")
 
 

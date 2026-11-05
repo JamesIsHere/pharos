@@ -7,9 +7,15 @@ check blocks only its own group, and reads only its own group's tables and raw
 data. Checks about the run itself (the age of the last publish, which groups
 were carried forward) declare `group: run`; they are monitors and never gate.
 
-Two registered groups: prices_macro (M1) and sec (M2). A group joins GROUPS
+Three registered groups: prices_macro (M1), sec (M2) and companyfacts (M2,
+on demand). A group joins GROUPS
 only with its stager, check binder and loaders: registered without them,
 every nightly would record it never_published, and C36 turns red (D83).
+
+A nightly group is attempted by every refresh. An on-demand group (D135) is
+attempted only by its own command's run, and a run attempts nothing else: in
+any run, a group it didn't attempt is `not_run`, served unchanged from the
+current version, and C35/C36 don't count it.
 """
 
 from dataclasses import dataclass
@@ -24,6 +30,7 @@ class Group:
     reference: tuple[tuple[str, str], ...]   # loaded every run, never required
     tables: tuple[str, ...]                  # staged, checked and served
     inputs: tuple[str, ...]                  # what its view-time checks read, copied into a version's inputs/ (D76)
+    on_demand: bool = False                  # attempted only by its own command, never by refresh (D135)
 
     @property
     def datasets(self) -> tuple[tuple[str, str], ...]:
@@ -50,8 +57,19 @@ SEC = Group(
     inputs=(),
 )
 
-# registered groups: loaded, staged and published by refresh
-GROUPS: dict[str, Group] = {g.name: g for g in (PRICES_MACRO, SEC)}
+# SEC companyfacts (D57, D128): landed on demand by `pharos companyfacts`,
+# never by refresh (D131, D135). No view-time inputs until its freshness check
+COMPANYFACTS = Group(
+    name="companyfacts",
+    required=(("sec", "companyfacts"), ("sec", "companyfacts_concepts")),
+    reference=(),
+    tables=("company_facts", "company_concepts"),
+    inputs=(),
+    on_demand=True,
+)
+
+# registered groups: loaded, staged and published by their runs
+GROUPS: dict[str, Group] = {g.name: g for g in (PRICES_MACRO, SEC, COMPANYFACTS)}
 
 # What happened to a group in one run (manifest and serving/<run>/groups.parquet):
 PUBLISHED = "published"              # this run's staged tables are served
@@ -59,3 +77,12 @@ CARRIED_FORWARD = "carried_forward"  # it failed this run; the previous version'
 NEVER_PUBLISHED = "never_published"  # it failed and has never published: the version has none (D83)
 BLOCKED = "blocked"                  # the run published nothing: a gate check failed
 FAILED = "failed"                    # the run published nothing: it failed to load, stage or be checked
+NOT_RUN = "not_run"                  # the run didn't attempt it (D135): served unchanged from the current version
+# the outcomes under which a version serves a group's tables (from source_run;
+# a not_run group that has never published has none)
+HELD = (PUBLISHED, CARRIED_FORWARD, NOT_RUN)
+
+
+def nightly() -> list[Group]:
+    """The registered groups refresh attempts."""
+    return [g for g in GROUPS.values() if not g.on_demand]

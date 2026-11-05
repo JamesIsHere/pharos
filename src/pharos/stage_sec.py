@@ -44,7 +44,7 @@ from typing import Callable
 import duckdb
 import exchange_calendars as xc
 
-from pharos.groups import CARRIED_FORWARD, PUBLISHED
+from pharos.groups import HELD
 from pharos.paths import data_root
 from pharos.runs import raw_select
 from pharos.stage import StageError, _require_none, _sql
@@ -164,6 +164,28 @@ TICKERS = Dataset(
 
 DATASETS = (INDEX, SUBMISSIONS, DETAILS, TICKERS)
 
+# companyfacts (D57, D128): the on-demand group (D131, D135), merged the same way.
+# Each landing is a full snapshot, so a merge is the newest landing plus the
+# keys SEC has since dropped (D84)
+FACTS = Dataset(
+    raw="companyfacts", sql="sec_companyfacts", table="company_facts",
+    # one fact of one filing; measured unique on the 2026-11-04 file (126,119,741 rows,
+    # distinct on these 7 columns as on every column). start_date is NULL for an
+    # instant fact, a key value like any other (IS NOT DISTINCT FROM). Defaulted (D127)
+    key=("cik", "taxonomy", "concept", "unit", "accession", "start_date", "end_date"),
+    lineage=("run_id", "loaded_at"),
+    asserts=(("available_date IS NULL", "facts filed after the last XNYS session in the calendar (D99)"),),
+)
+
+CONCEPTS = Dataset(
+    raw="companyfacts_concepts", sql="sec_companyfacts_concepts", table="company_concepts",
+    key=("cik", "taxonomy", "concept"),
+    lineage=("run_id", "loaded_at") + RUN_DATES,
+    asserts=(("cik IS NULL OR concept IS NULL", "concept rows with no CIK or concept"),),
+)
+
+FACT_DATASETS = (FACTS, CONCEPTS)
+
 
 def _rows(con, ds: Dataset, runs: list[str]) -> str | None:
     """The runs' raw rows through the dataset's SQL, row count and assertions
@@ -258,15 +280,15 @@ def _require_unique(con, ds: Dataset) -> None:
         raise StageError(f"{ds.table}: key ({key}) not unique after the merge (first {len(dup)}: {dup})")
 
 
-def current_base() -> Base | None:
-    """The serving version CURRENT names, if it holds the SEC group's tables
-    (published by a run, or carried forward from one); else None."""
+def current_base(group: str = "sec") -> Base | None:
+    """The serving version CURRENT names, if it holds the group's tables
+    (published by a run, carried forward or not run since); else None."""
     from pharos.publish import composition, current_version   # publish imports stage
     version = current_version()
     if version is None:
         return None
-    held = composition(version).get("sec")
-    if held is None or held["outcome"] not in (PUBLISHED, CARRIED_FORWARD):
+    held = composition(version).get(group)
+    if held is None or held["outcome"] not in HELD or held["source_run"] is None:
         return None
     return Base(held["source_run"], version)
 
@@ -276,11 +298,20 @@ def stage_group(included: list[str], target: Path, base: Base | None = None) -> 
     written to target/<table>.parquet. One connection per dataset, so memory
     never holds two of the 27M-row tables at once (#111).
     base: default, the live serving version (current_base)."""
-    base = base if base is not None else current_base()
+    return _stage(DATASETS, included, target, base if base is not None else current_base("sec"))
+
+
+def stage_companyfacts(included: list[str], target: Path, base: Base | None = None) -> dict[str, Merged]:
+    """The companyfacts group's stager (D135): its two datasets merged as above."""
+    return _stage(FACT_DATASETS, included, target,
+                  base if base is not None else current_base("companyfacts"))
+
+
+def _stage(datasets, included: list[str], target: Path, base: Base | None) -> dict[str, Merged]:
     merged = {}
-    for ds in DATASETS:
+    for ds in datasets:
         con = connect()
-        if ds.sql in ("sec_filings", "sec_submission_filings"):
+        if ds.sql in ("sec_filings", "sec_submission_filings", "sec_companyfacts"):
             bind_sessions(con)
         merged[ds.table] = stage_table(con, ds, included, base)
         con.execute(f"COPY {ds.table} TO '{(target / f'{ds.table}.parquet').as_posix()}' (FORMAT parquet)")

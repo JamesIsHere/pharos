@@ -74,13 +74,11 @@ def cmd_publish(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_refresh(args: argparse.Namespace) -> int:
+def _report_run(run_id: str, pub, label: str = "") -> int:
     from pharos import catalog
-    from pharos.refresh import refresh
 
-    run_id, pub = refresh()
     e = pub.evaluation
-    print(f"run {run_id}: checks {e.verdict}  ({e.path})")
+    print(f"run {run_id}{label}: checks {e.verdict}  ({e.path})")
     for r in e.results:
         if r["status"] != "pass":
             print(f"  {r['check_id']} {r['status']:<6} {r['failing_row_count'] or '':>6}  {r['error'] or r['description']}")
@@ -90,6 +88,18 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     print(f"published {pub.version}")
     print(f"catalog {catalog.rebuild()}")
     return 0
+
+
+def cmd_refresh(args: argparse.Namespace) -> int:
+    from pharos.refresh import refresh
+
+    return _report_run(*refresh())
+
+
+def cmd_companyfacts(args: argparse.Namespace) -> int:
+    from pharos.refresh import run_on_demand
+
+    return _report_run(*run_on_demand("companyfacts"), " (companyfacts, on demand)")
 
 
 def cmd_health(args: argparse.Namespace) -> int:
@@ -167,6 +177,10 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("refresh", help="load, stage, check and publish a new run; writes the run manifest")
     p.set_defaults(func=cmd_refresh)
+
+    p = sub.add_parser("companyfacts", help="land, stage, check and publish SEC companyfacts alone: on demand, "
+                                            "never in the nightly refresh (D131, D135)")
+    p.set_defaults(func=cmd_companyfacts)
 
     p = sub.add_parser("rebuild-staging", help="rebuild an old run's staging from raw at the run's own commit, "
                                                "in a throwaway folder, and compare it with serving (D103)")

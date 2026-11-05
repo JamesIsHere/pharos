@@ -9,6 +9,9 @@
 -- yellow; two in a row is red here. A group with no published run at all
 -- is red from its first run (D83). Runs from before source groups count as
 -- prices_macro, with the run's own status as the outcome.
+-- A run that didn't attempt a group (not_run, D135: an on-demand group in a
+-- refresh, the nightly groups in an on-demand run) is no run for it: only
+-- the group's own runs count, so an on-demand group never yet run is not red.
 -- A monitor: it tests what is being served, never blocks (D17).
 
 WITH m AS (
@@ -19,6 +22,7 @@ WITH m AS (
 ),
 ranked AS (
     SELECT *, row_number() OVER (PARTITION BY grp ORDER BY run_id DESC) AS k FROM m
+    WHERE outcome <> 'not_run'
 ),
 last_fresh AS (
     SELECT grp, min(k) FILTER (WHERE outcome = 'published') AS k_fresh FROM ranked GROUP BY grp

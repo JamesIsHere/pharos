@@ -10,7 +10,9 @@ and pin that:
 - when no group passes nothing publishes and serving/ is untouched;
 - a group's checks can't read another group's tables;
 - the manifest and serving/<run>/groups.parquet record each group's outcome,
-  reason and source run."""
+  reason and source run;
+- an on-demand group (D135) is left alone by refresh and runs alone by its
+  own command; the group a run didn't attempt is not_run, served unchanged."""
 
 import shutil
 from pathlib import Path
@@ -42,6 +44,8 @@ def copy_raw(run_from, source, dataset, run_to):
 
 TOY = Group(name="toy", required=(("toy", "rows"),), reference=(), tables=("toy_table",), inputs=())
 RUNS = ["20261008T140000Z", "20261009T140000Z", "20261010T140000Z"]
+TOY_ON_DEMAND = Group(name="toy", required=(("toy", "rows"),), reference=(), tables=("toy_table",),
+                      inputs=(), on_demand=True)
 
 
 def _stage_toy(included, target):
@@ -100,6 +104,14 @@ def toy(staged_run, monkeypatch, tmp_path):
         monkeypatch.setattr(refresh_mod, "new_run_id", lambda: run_id)
         return refresh_mod.refresh()[1]
     state["run"] = run
+
+    def on_demand(run_id):
+        """Make toy an on-demand group (D135), then run it alone."""
+        monkeypatch.setitem(GROUPS, "toy", TOY_ON_DEMAND)
+        monkeypatch.setattr(refresh_mod, "new_run_id", lambda: run_id)
+        return refresh_mod.run_on_demand("toy")[1]
+    state["on_demand"] = on_demand
+    state["make_on_demand"] = lambda: monkeypatch.setitem(GROUPS, "toy", TOY_ON_DEMAND)
     return state
 
 
@@ -280,3 +292,55 @@ def test_refresh_loads_only_registered_groups(monkeypatch):
     with pytest.raises(RuntimeError, match="stop"):
         refresh_mod.refresh()
     assert calls == []
+
+
+# --- on-demand groups (D135) ---------------------------------------------------
+
+def test_refresh_leaves_an_on_demand_group_alone(toy):
+    toy["make_on_demand"]()
+    pub = toy["run"](RUNS[0])
+    assert not (data_root() / "raw" / "toy").exists()            # never loaded
+    assert not (pub.version / "toy_table.parquet").exists()      # nothing to serve yet
+    assert composition(pub.version)["toy"] == {"outcome": "not_run", "source_run": None, "reason": None}
+    assert outcomes(RUNS[0])["toy"] == ("not_run", None, None)
+    assert outcomes(RUNS[0])["prices_macro"][:2] == ("published", RUNS[0])
+
+
+def test_an_on_demand_run_publishes_its_group_alone_and_serves_the_rest_unchanged(toy):
+    first = toy["run"](RUNS[0])
+    toy["toy"] = [8, 9]
+    pub = toy["on_demand"](RUNS[1])
+    assert not (data_root() / "raw" / "yf" / "prices" / f"{RUNS[1]}.parquet").exists()   # nightly not loaded
+    assert table(pub.version, "toy_table") == [(8,), (9,)]
+    assert table(pub.version, "observations") == table(first.version, "observations")   # row for row
+    c = composition(pub.version)
+    assert c["toy"] == {"outcome": "published", "source_run": RUNS[1], "reason": None}
+    assert c["prices_macro"] == {"outcome": "not_run", "source_run": RUNS[0], "reason": None}
+    assert (pub.version / "inputs" / "settings.parquet").exists()          # its inputs come with it
+    nxt = toy["run"](RUNS[2])                                             # the nightly after it
+    assert table(nxt.version, "toy_table") == [(8,), (9,)]
+    assert composition(nxt.version)["toy"] == {"outcome": "not_run", "source_run": RUNS[1], "reason": None}
+    assert outcomes(RUNS[2])["prices_macro"][:2] == ("published", RUNS[2])
+
+
+def test_a_blocked_on_demand_run_publishes_nothing(toy):
+    first = toy["run"](RUNS[0])
+    toy["toy"] = [-1]
+    pub = toy["on_demand"](RUNS[1])
+    assert pub.version is None and current_version() == first.version
+    o = outcomes(RUNS[1])
+    assert o["toy"][0] == "blocked" and o["prices_macro"] == ("not_run", RUNS[0], None)
+
+
+def test_a_crashed_on_demand_run_records_the_others_not_run(toy):
+    toy["run"](RUNS[0])
+    toy["toy_fails"] = True
+    with pytest.raises(RuntimeError, match="toy source down"):
+        toy["on_demand"](RUNS[1])
+    o = outcomes(RUNS[1])
+    assert o["toy"][0] == "failed" and o["prices_macro"] == ("not_run", None, None)
+
+
+def test_run_on_demand_refuses_a_nightly_group(toy):
+    with pytest.raises(ValueError, match="not a registered on-demand group"):
+        refresh_mod.run_on_demand("prices_macro")

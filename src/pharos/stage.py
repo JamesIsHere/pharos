@@ -9,6 +9,11 @@ Rules applied here:
   requires (finding c, the loaders write separately). Staging a group reads
   every run complete for it up to and including this one, because raw is a
   snapshot log (D18) and the full history of what each source said is the input.
+- A run stages only the groups it attempted (D135), read from its load
+  records: the nightly groups when it has a record of any nightly dataset (a
+  refresh), an on-demand group when it has a record of one of its datasets
+  (that group's own command). A group the run didn't attempt is neither staged
+  nor failed: publish serves it unchanged.
 - A group that fails to stage is recorded with its reason and the other groups
   go on; its tables are left out of the folder, never half-written. Only when
   no group stages does stage() raise, with the first group's error.
@@ -33,7 +38,7 @@ import duckdb
 
 from pharos import config
 from pharos.db import query
-from pharos.groups import GROUPS, PRICES_MACRO, Group
+from pharos.groups import GROUPS, PRICES_MACRO, Group, nightly
 from pharos.paths import data_root
 from pharos.runs import raw_select
 
@@ -99,7 +104,7 @@ def stage(run_id: str | None = None) -> Staging:
     target.mkdir(parents=True)
 
     staged, failed, first_error = [], {}, None
-    for group in GROUPS.values():
+    for group in attempted(run_id):
         runs_g = complete_runs(group)
         if run_id not in runs_g:
             have = _loaded(run_id)
@@ -122,6 +127,16 @@ def stage(run_id: str | None = None) -> Staging:
             raise first_error
         raise StageError(f"no group staged for run {run_id}: {failed}")
     return Staging(run_id, target, tuple(staged), failed)
+
+
+def attempted(run_id: str) -> list[Group]:
+    """The registered groups this run attempted (D135), from its load records:
+    every nightly group when the run loaded any nightly dataset, and each
+    on-demand group one of whose datasets it loaded."""
+    have = _loaded(run_id)
+    night = [g for g in nightly() if have & set(g.datasets)]
+    out = nightly() if night else []
+    return out + [g for g in GROUPS.values() if g.on_demand and have & set(g.datasets)]
 
 
 def _loaded(run_id: str) -> set[tuple[str, str]]:
@@ -172,8 +187,13 @@ def _stage_sec(included: list[str], target: Path) -> None:
     stage_group(included, target)
 
 
+def _stage_companyfacts(included: list[str], target: Path) -> None:
+    from pharos.stage_sec import stage_companyfacts
+    stage_companyfacts(included, target)
+
+
 # group name -> the function that stages it into staging/<run_id>/
-STAGERS = {"prices_macro": _stage_prices_macro, "sec": _stage_sec}
+STAGERS = {"prices_macro": _stage_prices_macro, "sec": _stage_sec, "companyfacts": _stage_companyfacts}
 
 
 def bind_raw(con, included: list[str], group: Group = PRICES_MACRO) -> None:

@@ -43,7 +43,7 @@ import duckdb
 from pharos import config
 from pharos.checks import discover, run_checks
 from pharos.db import query, records
-from pharos.groups import CARRIED_FORWARD, GROUPS, PUBLISHED
+from pharos.groups import GROUPS, HELD
 from pharos.paths import data_root
 from pharos.publish import composition, current_version
 
@@ -176,7 +176,7 @@ def _manifest() -> list[dict]:
 
 def _served_by(groups: dict[str, dict]) -> dict[str, str]:
     """group -> the run whose tables the version serves, for groups it holds."""
-    return {g: c["source_run"] for g, c in groups.items() if c["outcome"] in (PUBLISHED, CARRIED_FORWARD)}
+    return {g: c["source_run"] for g, c in groups.items() if c["outcome"] in HELD and c["source_run"]}
 
 
 def _not_served(groups: dict[str, dict], gate: bool) -> list[dict]:
