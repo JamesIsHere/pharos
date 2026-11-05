@@ -7,8 +7,10 @@ check blocks only its own group, and reads only its own group's tables and raw
 data. Checks about the run itself (the age of the last publish, which groups
 were carried forward) declare `group: run`; they are monitors and never gate.
 
-M1's data is the one group so far, prices_macro. The SEC universe joins as a
-second group in M2 step 1.
+M1's data is the one registered group, prices_macro. SEC is declared here
+(M2 step 2) but joins GROUPS only in the commit that gives it a stager, a
+check binder and its loaders: registered before then, every nightly would
+record it never_published, and C36 turns red on that (D83).
 """
 
 from dataclasses import dataclass
@@ -38,6 +40,18 @@ PRICES_MACRO = Group(
             "trading_days", "reclassified", "settings"),
 )
 
+# SEC bulk data at the landed level (D127, D128). Tables are stage_sec's merges
+# (D132); no view-time inputs until its freshness checks (M2 step 4)
+SEC = Group(
+    name="sec",
+    required=(("sec", "full_index"), ("sec", "submission_details"), ("sec", "submission_filings"),
+              ("sec", "tickers")),
+    reference=(),
+    tables=("filings", "submission_filings", "submission_details", "tickers"),
+    inputs=(),
+)
+
+# registered groups: loaded, staged and published by refresh. SEC joins when wired (above)
 GROUPS: dict[str, Group] = {g.name: g for g in (PRICES_MACRO,)}
 
 # What happened to a group in one run (manifest and serving/<run>/groups.parquet):

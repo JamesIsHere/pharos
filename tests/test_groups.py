@@ -233,7 +233,7 @@ def test_rows_of_another_groups_check_file_under_that_group():
     import json
     from pharos.board import failing_rows_by_source
     rows = [{"cik": 320193, "ticker": "AAPL"}]
-    assert failing_rows_by_source({"group": "sec_universe", "sample": json.dumps(rows)}) == {"sec_universe": rows}
+    assert failing_rows_by_source({"group": "sec", "sample": json.dumps(rows)}) == {"sec": rows}
     # prices_macro keeps D42's column rule: a ticker-only row is Tiingo's
     assert failing_rows_by_source({"group": "prices_macro", "sample": json.dumps(rows)}) == {"tiingo": rows}
 
@@ -249,3 +249,17 @@ def test_latest_md_and_the_email_list_each_group(toy):
     body = notify.compose(RUNS[1], _health()).get_content()
     assert "  toy: carried_forward from " + RUNS[0] + ": RuntimeError: toy source down" in body
     assert "  prices_macro: published" in body
+
+
+def test_sec_declaration_matches_its_stager():
+    # one group, two declarations: the raw datasets it requires and the tables
+    # it serves are exactly what stage_sec merges
+    from pharos.groups import SEC
+    from pharos.stage_sec import DATASETS
+    assert {("sec", ds.raw) for ds in DATASETS} == set(SEC.required)
+    assert {ds.table for ds in DATASETS} == set(SEC.tables)
+
+
+def test_sec_is_not_registered_before_it_is_wired():
+    # registered without a stager, every nightly records it never_published: C36 red (D83)
+    assert "sec" not in GROUPS or "sec" in stage_mod.STAGERS
