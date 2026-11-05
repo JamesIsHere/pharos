@@ -135,6 +135,58 @@ def test_temp_files_are_removed(fake):
     assert not (data_root() / "tmp").exists()
 
 
+# --- stale copies (#106, D121) -------------------------------------------------
+
+def record_of(run_id):
+    rec = data_root() / "health" / "loads" / f"{run_id}__sec__full_index.parquet"
+    return duckdb.sql(f"SELECT rows_written, note FROM read_parquet('{rec.as_posix()}')").fetchone()
+
+
+def nightly(monkeypatch, pages, q3_stamp, q4_stamp):
+    """sec.fetch whose 2026Q3 and 2026Q4 copies carry the given Last-Modified."""
+    def fetch(u):
+        stamp = {url(2026, 3): q3_stamp, url(2026, 4): q4_stamp}.get(u, STAMP)
+        return sec.Fetched(u, pages[u], stamp)
+    monkeypatch.setattr(sec, "fetch", fetch)
+
+
+def test_stale_copy_is_skipped_and_noted(fake, monkeypatch):
+    pages, _ = fake
+    every_quarter(pages)
+    load_index("20261105T073000Z", today=date(2026, 11, 5))          # lands at STAMP
+    older = datetime(2026, 10, 29, 2, 2, tzinfo=timezone.utc)
+    pages[url(2026, 4)] = master([row(9)])                          # the stale copy's rows
+    nightly(monkeypatch, pages, STAMP, older)
+    counts = load_index("20261106T073000Z", today=date(2026, 11, 6))
+    assert list(counts) == ["2026Q3"]                               # Q4 left out
+    assert raw_rows("20261106T073000Z").aggregate("count(DISTINCT quarter), max(cik)").fetchone() == (1, 1003)
+    rows, note = record_of("20261106T073000Z")
+    assert rows == 1
+    assert note == ("stale copy skipped: 2026Q4 (Last-Modified 2026-10-29 02:02 UTC "
+                    "< 2026-11-04 06:00 UTC already landed)")
+
+
+def test_same_or_newer_copy_lands(fake, monkeypatch):
+    pages, _ = fake
+    every_quarter(pages)
+    load_index("20261105T073000Z", today=date(2026, 11, 5))
+    nightly(monkeypatch, pages, STAMP, datetime(2026, 11, 5, 3, tzinfo=timezone.utc))
+    assert sorted(load_index("20261106T073000Z", today=date(2026, 11, 6))) == ["2026Q3", "2026Q4"]
+    assert record_of("20261106T073000Z") == (2, None)
+
+
+def test_every_due_quarter_stale_records_an_empty_download(fake, monkeypatch):
+    pages, _ = fake
+    every_quarter(pages)
+    load_index("20261105T073000Z", today=date(2026, 11, 5))
+    older = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    nightly(monkeypatch, pages, older, older)
+    assert load_index("20261106T073000Z", today=date(2026, 11, 6)) == {}
+    rows, note = record_of("20261106T073000Z")
+    assert rows == 0 and note.count("UTC already landed") == 2
+    assert not (data_root() / "raw" / "sec" / "full_index" / "20261106T073000Z.parquet").exists()
+
+
 # --- strict parsing: drift stops the load before anything is written ----------
 
 @pytest.mark.parametrize("bad, match", [

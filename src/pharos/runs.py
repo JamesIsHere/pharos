@@ -8,7 +8,9 @@ records a control total (rows downloaded vs rows actually in the file) for C06.
 The load record (health/loads/<run_id>__<source>__<dataset>.parquet) also holds
 the file's sha256 as written, which C05 recomputes (D108), and two values a
 loader may pass: the download's HTTP Last-Modified and the count the source
-itself states for the download (D91, D119). Records written before these
+itself states for the download (D91, D119), and a note: what the loader
+decided about the download that the rows can't show, such as a stale copy
+it refused to land (D121). Records written before these
 columns existed lack them; every reader reads the log with union_by_name, and
 an older record reads NULL (D91).
 """
@@ -63,7 +65,8 @@ def provenance() -> tuple[str, bool]:
 
 
 def write_raw(download, source: str, dataset: str, run_id: str, *,
-              last_modified: datetime | None = None, source_count: int | None = None) -> Path | None:
+              last_modified: datetime | None = None, source_count: int | None = None,
+              note: str | None = None) -> Path | None:
     """Write one download to raw/<source>/<dataset>/<run_id>.parquet.
 
     `download` is anything DuckDB can read as a table: a pandas DataFrame from a
@@ -75,6 +78,7 @@ def write_raw(download, source: str, dataset: str, run_id: str, *,
     last_modified: the HTTP Last-Modified of the download (timezone-aware), for
     the freshness checks. source_count: the count the source states for this
     download (e.g. the CIK files in submissions.zip), for completeness checks.
+    note: free text for the log, e.g. which quarters a loader skipped and why.
     """
     root = data_root()
     target = root / "raw" / source / dataset / f"{run_id}.parquet"
@@ -125,9 +129,10 @@ def write_raw(download, source: str, dataset: str, run_id: str, *,
                          TIMESTAMPTZ '{loaded_at}' AS loaded_at,
                          ?::VARCHAR AS sha256,
                          ?::TIMESTAMPTZ AS last_modified,
-                         ?::BIGINT AS source_count)
+                         ?::BIGINT AS source_count,
+                         ?::VARCHAR AS note)
             TO '{record.as_posix()}' (FORMAT parquet)""",
-        [digest, last_modified, source_count],
+        [digest, last_modified, source_count, note],
     )
     con.close()
     return path_written

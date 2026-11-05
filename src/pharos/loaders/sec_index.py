@@ -22,13 +22,21 @@ Rules applied here:
   to write_raw as a DuckDB relation, so 27M rows stream to disk rather than
   sit in memory (D93). The temp folder is removed whether or not the load
   succeeds.
+- A stale copy is never landed (#106, D121). SEC serves older copies of a
+  quarter's file beside the current one (measured 2026-11-05: 6 of 8 fetches
+  of 2026Q4 were a copy 6 days old). A fetch whose Last-Modified is earlier
+  than the newest one raw already holds for that quarter is left out of the
+  run, and the load record's note says so. Raw only moves forward in time;
+  a quarter skipped tonight is landed on a later night, and a long run of
+  skips shows as C25 (latest filing too old). A copy with no Last-Modified
+  can't be compared and is landed. A first landing can't be judged stale.
 - Raw keeps rows as SEC sent them. Deduplication across landings is staging's
   job (D18, D84).
 """
 
 import gzip
 import shutil
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
 import duckdb
@@ -67,18 +75,18 @@ def label(yq: tuple[int, int]) -> str:
     return f"{yq[0]}Q{yq[1]}"
 
 
-def landed() -> set[str]:
-    """Quarters some earlier raw file already holds."""
+def landed() -> dict[str, datetime | None]:
+    """Quarters some earlier raw file holds, each with the newest Last-Modified landed for it."""
     select = raw_select(SOURCE, DATASET)
     if select is None:
-        return set()
-    return {r[0] for r in duckdb.sql(f"SELECT DISTINCT quarter FROM ({select})").fetchall()}
+        return {}
+    return dict(duckdb.sql(f"SELECT quarter, max(last_modified) FROM ({select}) GROUP BY quarter").fetchall())
 
 
-def due(today: date) -> list[tuple[int, int]]:
+def due(today: date, have: dict | None = None) -> list[tuple[int, int]]:
     """The quarters this run lands: every missing one, plus current and previous."""
     every = quarters(quarter_of(today))
-    have = landed()
+    have = landed() if have is None else have
     recent = set(every[-2:])
     return [yq for yq in every if label(yq) not in have or yq in recent]
 
@@ -100,15 +108,22 @@ def parse(content: bytes, quarter: str) -> list[str]:
 
 
 def load_index(run_id: str, today: date | None = None) -> dict:
-    """Fetch and land every due quarter. Returns {quarter: rows} for the run."""
+    """Fetch and land every due quarter. Returns {quarter: rows} for the
+    quarters landed; a skipped stale copy is not in it (see the load record's note)."""
     today = today or datetime.now(NEW_YORK).date()
     tmp = data_root() / "tmp" / run_id / DATASET
     tmp.mkdir(parents=True, exist_ok=True)
-    counts, stamps = {}, {}
+    counts, stamps, skipped = {}, {}, []
+    have = landed()
     try:
-        for yq in due(today):
+        for yq in due(today, have):
             quarter = label(yq)
             got = sec.fetch(URL.format(year=yq[0], q=yq[1]))
+            held = have.get(quarter)
+            if got.last_modified is not None and held is not None and got.last_modified < held:
+                skipped.append(f"{quarter} (Last-Modified {got.last_modified.astimezone(timezone.utc):%Y-%m-%d %H:%M} UTC "
+                               f"< {held.astimezone(timezone.utc):%Y-%m-%d %H:%M} UTC already landed)")
+                continue
             rows = parse(got.content, quarter)
             stamps[quarter] = got.last_modified
             # one text file per quarter; '|' cannot occur inside a field, since
@@ -120,7 +135,8 @@ def load_index(run_id: str, today: date | None = None) -> dict:
 
         con = duckdb.connect()
         con.execute("CREATE TABLE stamps (quarter VARCHAR, last_modified TIMESTAMPTZ)")
-        con.executemany("INSERT INTO stamps VALUES (?, ?)", list(stamps.items()))
+        if stamps:   # empty when every due quarter was a stale copy
+            con.executemany("INSERT INTO stamps VALUES (?, ?)", list(stamps.items()))
         files = sorted(p.as_posix() for p in tmp.glob("*.txt") if p.stat().st_size > 0)
         if files:
             columns = ", ".join(f"'{c}': '{t}'" for c, t in COLUMNS.items())
@@ -136,7 +152,8 @@ def load_index(run_id: str, today: date | None = None) -> dict:
         if parsed != sum(counts.values()):
             raise SchemaDriftError(f"read back {parsed:,} index rows, parsed {sum(counts.values()):,}")
         newest = max((s for s in stamps.values() if s is not None), default=None)
-        write_raw(index, SOURCE, DATASET, run_id, last_modified=newest)
+        note = "stale copy skipped: " + "; ".join(skipped) if skipped else None
+        write_raw(index, SOURCE, DATASET, run_id, last_modified=newest, note=note)
         con.close()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

@@ -189,7 +189,7 @@ def strip_load_columns(run_id, source, dataset):
     """Rewrite one load record in the shape it had before D91/D108."""
     record = data_root() / "health" / "loads" / f"{run_id}__{source}__{dataset}.parquet"
     con = duckdb.connect()
-    con.execute(f"CREATE TABLE t AS SELECT * EXCLUDE (sha256, last_modified, source_count) "
+    con.execute(f"CREATE TABLE t AS SELECT * EXCLUDE (sha256, last_modified, source_count, note) "
                 f"FROM read_parquet('{record.as_posix()}')")
     con.execute(f"COPY t TO '{record.as_posix()}' (FORMAT parquet)")
     con.close()

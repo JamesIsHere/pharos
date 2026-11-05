@@ -56,7 +56,8 @@ VIEW_INPUTS = PRICES_MACRO.inputs
 # the per-group manifest columns refresh writes (D115)
 GROUP_COLUMNS = ("group", "group_outcome", "group_reason", "group_source_run")
 # load-record columns added after the first records were written (D91, D108, D119)
-LOAD_COLUMNS_ADDED = {"sha256": "VARCHAR", "last_modified": "TIMESTAMPTZ", "source_count": "BIGINT"}
+LOAD_COLUMNS_ADDED = {"sha256": "VARCHAR", "last_modified": "TIMESTAMPTZ", "source_count": "BIGINT",
+                      "note": "VARCHAR"}
 
 
 class CheckError(RuntimeError):
