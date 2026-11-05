@@ -154,3 +154,11 @@ def test_merge_into_base_equals_reading_every_landing(root, scenario, base_run):
     merged = staged(RUNS, base=save_base(root, base_run))
     assert merged.result.base_run == base_run
     assert table(merged) == table(full)
+
+
+def test_a_combined_filing_listed_once_per_form_is_two_rows(root):
+    # 0001104659-26-081818 on 2026-11-05: SC 13D/A and SC TO-T/A, one accession, one file (D134)
+    land(R1, [{**filing(accepted="2026-07-08T20:41:20.000Z"), "form": "SC 13D/A", "film_number": "1,2"},
+              {**filing(accepted="2026-07-08T16:41:20.000Z"), "form": "SC TO-T/A", "film_number": "2"}])
+    assert rows(staged([R1]), "form, film_number, acceptance_conflict") == [
+        ("SC 13D/A", "1,2", False), ("SC TO-T/A", "2", False)]

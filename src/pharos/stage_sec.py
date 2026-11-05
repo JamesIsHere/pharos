@@ -137,7 +137,10 @@ INDEX = Dataset(
 
 SUBMISSIONS = Dataset(
     raw="submission_filings", sql="sec_submission_filings", table="submission_filings",
-    key=("cik", "accession"),                            # measured 2026-11-05 (C30, D126)
+    # form is in the key as in the full-index (D61, D134): a combined filing is listed once
+    # per form (1 of 27,378,595 rows on the 2026-11-05 file); without form, 0 keys repeat
+    # with different values beyond D126's acceptance-time pairs
+    key=("cik", "accession", "form"),
     lineage=("run_id", "loaded_at", "source_file"),      # source_file: where in the zip, not what SEC says
     asserts=(("NOT regexp_full_match(accession, '[0-9]{10}-[0-9]{2}-[0-9]{6}')",
               "filing-history rows whose accession is not 0000000000-00-000000"),
