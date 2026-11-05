@@ -16,8 +16,16 @@
 --
 -- obs_date: the period end. vintage: the filed date. available_date: the next
 -- XNYS trading day after the filed date, as for filings (D99). Defaulted at
--- the landed level (D127), not signed off.
+-- the landed level (D127), not signed off. It is looked up once per distinct
+-- filed date (a few thousand), then joined: an ASOF join over every fact
+-- sorts all 126M rows.
 
+WITH next_session AS (
+    SELECT d.filed, s.session
+    FROM (SELECT DISTINCT CAST(filed AS DATE) AS filed FROM raw_sec_companyfacts) AS d
+    ASOF LEFT JOIN xnys_sessions AS s
+           ON s.session > d.filed
+)
 SELECT
     r.cik,
     r.taxonomy,
@@ -39,5 +47,5 @@ SELECT
     r.run_id,
     r.loaded_at
 FROM raw_sec_companyfacts AS r
-ASOF LEFT JOIN xnys_sessions AS s
-       ON s.session > CAST(r.filed AS DATE)
+LEFT JOIN next_session AS s
+       ON s.filed = CAST(r.filed AS DATE)

@@ -23,6 +23,12 @@ Each dataset stages as a merge (D132): newest value per key.
   acceptance-time conflict, below.
 - Shape the SQL can't express is asserted here and stops the group: one row out
   per raw row, the dataset's assertions, and the key unique in the result.
+- A first landing (no base, one landing read, nothing collapsed inside it)
+  takes a fast path: the merge would return its rows unchanged, so they are
+  written straight to Parquet and the assertions and the key check run on
+  that file. Same table; the one difference is that identical copies of a
+  row stop the group instead of collapsing (none in companyfacts, measured).
+  At 126M rows the merge spilled 60 GB and was killed (2026-11-05).
 
 Acceptance-time conflicts (D126): submissions.zip lists some filings twice
 under one CIK, in the main file and an overflow file (47 on 2026-11-04). Copies
@@ -213,12 +219,16 @@ def _rows(con, ds: Dataset, runs: list[str]) -> str | None:
     return rows
 
 
-def stage_table(con, ds: Dataset, included: list[str], base: Base | None) -> Merged:
+def stage_table(con, ds: Dataset, included: list[str], base: Base | None,
+                target: Path | None = None) -> Merged:
     """Stage ds.table: the base's table with the landings of the included runs
     after the base's run merged in (newest value per key, D132).
 
     base: the serving version the group last published, or None. A version
-    without this dataset's table counts as no base."""
+    without this dataset's table counts as no base.
+    target: the staging folder. Given, the table is written there as
+    <table>.parquet (and ds.table is a view over it), and a first landing
+    takes the fast path."""
     base_file = base.folder / f"{ds.table}.parquet" if base is not None else None
     if base_file is not None and not base_file.exists():
         base, base_file = None, None
@@ -227,12 +237,18 @@ def stage_table(con, ds: Dataset, included: list[str], base: Base | None) -> Mer
                          f"({included[0]}..{included[-1]})")
     later = [r for r in included if base is None or r > base.run]
 
+    if target is not None and base is None and ds.per_landing is None:
+        first = _first_landing(con, ds, later, target)
+        if first is not None:
+            return first
+
     new = _rows(con, ds, later) if later else None
     if new is None and base is None:
         raise StageError(f"no raw files for sec/{ds.raw}")
     if new is None:   # nothing landed since the base: the base stands
         con.execute(f"CREATE TABLE {ds.table} AS SELECT * FROM read_parquet('{base_file.as_posix()}')")
         _require_unique(con, ds)
+        _write(con, ds, target)
         return Merged(base.run, ())
 
     columns = [c[0] for c in con.execute(f"DESCRIBE {new}").fetchall()]
@@ -269,7 +285,36 @@ def stage_table(con, ds: Dataset, included: list[str], base: Base | None) -> Mer
         UNION ALL BY NAME
         SELECT b.* FROM {ds.table}_base AS b ANTI JOIN {ds.table}_touched AS t ON {on}""")
     _require_unique(con, ds)
+    _write(con, ds, target)
     return Merged(base.run if base is not None else None, tuple(later))
+
+
+def _write(con, ds: Dataset, target: Path | None) -> None:
+    if target is not None:
+        con.execute(f"COPY {ds.table} TO '{(target / f'{ds.table}.parquet').as_posix()}' (FORMAT parquet)")
+
+
+def _first_landing(con, ds: Dataset, runs: list[str], target: Path) -> Merged | None:
+    """The fast path: the one landing among runs, through the dataset's SQL,
+    streamed to target/<table>.parquet and checked on that file. None when the
+    runs hold no landing or more than one (the merge decides those)."""
+    landed = [r for r in runs if raw_select("sec", ds.raw, [r]) is not None]
+    if len(landed) != 1:
+        return None
+    raw_view = f"raw_sec_{ds.raw}"            # the name the SQL file reads
+    con.execute(f"CREATE OR REPLACE VIEW {raw_view} AS {raw_select('sec', ds.raw, landed)}")
+    out = target / f"{ds.table}.parquet"
+    con.execute(f"COPY ({_sql(ds.sql)}) TO '{out.as_posix()}' (FORMAT parquet)")
+    n_in = con.execute(f"SELECT count(*) FROM {raw_view}").fetchone()[0]
+    con.execute(f"DROP VIEW {raw_view}")
+    con.execute(f"CREATE VIEW {ds.table} AS SELECT * FROM read_parquet('{out.as_posix()}')")
+    n_out = con.execute(f"SELECT count(*) FROM {ds.table}").fetchone()[0]
+    if n_in != n_out:
+        raise StageError(f"{ds.sql}: {n_in:,} raw rows in, {n_out:,} out (a join fanned out or dropped rows)")
+    for condition, what in ds.asserts:
+        _require_none(con, ds.table, condition, what)
+    _require_unique(con, ds)
+    return Merged(None, tuple(landed))
 
 
 def _require_unique(con, ds: Dataset) -> None:
@@ -313,7 +358,6 @@ def _stage(datasets, included: list[str], target: Path, base: Base | None) -> di
         con = connect()
         if ds.sql in ("sec_filings", "sec_submission_filings", "sec_companyfacts"):
             bind_sessions(con)
-        merged[ds.table] = stage_table(con, ds, included, base)
-        con.execute(f"COPY {ds.table} TO '{(target / f'{ds.table}.parquet').as_posix()}' (FORMAT parquet)")
+        merged[ds.table] = stage_table(con, ds, included, base, target)
         con.close()
     return merged
