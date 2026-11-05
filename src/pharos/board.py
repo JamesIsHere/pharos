@@ -155,10 +155,14 @@ def source_link(source: str, key: str, obs_date, vintage) -> str:
 
 
 def failing_rows_by_source(result: dict) -> dict[str, list[dict]]:
-    """A failing check's rows grouped by the source each row names: its series
-    prefix (`yf:`, `fred:`), else its source column, else 'tiingo' for a row that
-    names only a ticker, else 'run' for a row about the run itself (D42)."""
+    """A failing check's rows grouped by where they belong. A check of a source
+    group other than prices_macro files every row under its group (D102).
+    prices_macro and run-level checks keep D42's column rule: the row's series
+    prefix (`yf:`, `fred:`), else its source column, else 'tiingo' for a row
+    that names only a ticker, else 'run' for a row about the run itself."""
     rows = json.loads(result["sample"]) if result.get("sample") else []
+    if result.get("group") not in (None, "prices_macro", "run"):
+        return {result["group"]: rows} if rows else {}
     groups: dict[str, list[dict]] = {}
     for row in rows:
         if isinstance(row.get("series_id"), str) and ":" in row["series_id"]:

@@ -60,6 +60,14 @@ def compose(run_id: str, health) -> EmailMessage:
             size = f", {_human(_size(root / 'raw' / source / dataset))} on disk"
             failed = "  FAILED" if d["dataset_error"] else ""
             lines.append(f"  {source}/{dataset}: {got}{total}{latest}{size}{failed}")
+        outcomes = sorted({(d["group"], d["group_outcome"], d["group_source_run"], d["group_reason"])
+                           for d in rows if d.get("group")}, key=lambda x: x[0])
+        if outcomes:
+            lines += ["", "Source groups:"]
+            for name, outcome, src, why in outcomes:
+                frm = f" from {src}" if src and outcome == "carried_forward" else ""
+                because = f": {why.strip().splitlines()[-1]}" if why else ""
+                lines.append(f"  {name}: {outcome}{frm}{because}")
         parts = [(p.name, _size(p)) for p in sorted(root.iterdir()) if p.is_dir()]
         lines += ["", f"Data folder: {_human(_size(root))} in all ({root}):",
                   "  " + ", ".join(f"{name} {_human(n)}" for name, n in sorted(parts, key=lambda x: -x[1]))]

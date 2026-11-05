@@ -38,6 +38,7 @@ from pathlib import Path
 
 import duckdb
 
+from pharos.db import records
 from pharos.checks import INPUTS_DIR, Evaluation, bind_view_inputs, groups_in, run_checks
 from pharos.groups import BLOCKED, CARRIED_FORWARD, FAILED, GROUPS, NEVER_PUBLISHED, PUBLISHED
 from pharos.paths import data_root
@@ -92,8 +93,8 @@ def composition(version: Path) -> dict[str, dict]:
     if not record.exists():
         return {g.name: {"outcome": PUBLISHED, "source_run": version.name, "reason": None}
                 for g in groups_in(version)}
-    rel = duckdb.sql(f"SELECT * FROM read_parquet('{record.as_posix()}')")
-    return {r[0]: dict(zip(rel.columns[1:], r[1:])) for r in rel.fetchall()}
+    # read on the app's threads too: its own connection, never the shared default (#68)
+    return {r.pop("group"): r for r in records(f"SELECT * FROM read_parquet('{record.as_posix()}')")}
 
 
 def publish(run_id: str | None = None, not_staged: dict[str, str] | None = None) -> Publication:

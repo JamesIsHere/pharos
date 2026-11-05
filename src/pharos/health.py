@@ -12,6 +12,13 @@ Roll-up (design.md section 7): red on any error or broken check, on nothing
 published, or when the latest run did not publish (blocked or failed: serving
 is behind what was attempted); yellow on warnings only; green otherwise.
 
+Source groups (D81, D98, D115): the served version records each group's
+outcome and the run its tables came from (serving/<run>/groups.parquet). A
+group's recorded gate results are those of that source run, so a carried-forward
+group shows the results its served tables passed. A group not in the version
+(never published) has nothing to judge: each of its checks is reported
+`not_served`, never `broken`, and C36 carries the red (D83, D116).
+
 Acknowledged expected states (D46): config/expected_states.csv names reviewed
 rows of warn checks (ATVI's missing history, a value FRED withdrew), each by
 the values of the columns its check declares as ack_key (D75). A warn
@@ -36,8 +43,11 @@ import duckdb
 from pharos import config
 from pharos.checks import discover, run_checks
 from pharos.db import query, records
+from pharos.groups import CARRIED_FORWARD, GROUPS, PUBLISHED
 from pharos.paths import data_root
-from pharos.publish import current_version
+from pharos.publish import composition, current_version
+
+NOT_SERVED = "not_served"   # a check of a group the served version doesn't hold
 
 
 @dataclass(frozen=True)
@@ -50,6 +60,7 @@ class Health:
     latest_run: str | None
     latest_run_status: str | None
     results: list[dict]            # one per check, gate (recorded) then monitor (now)
+    groups: dict[str, dict] = None  # served version: group -> outcome, source_run, reason
 
 
 def evaluate(now: datetime | None = None, record: bool = True) -> Health:
@@ -60,12 +71,14 @@ def evaluate(now: datetime | None = None, record: bool = True) -> Health:
     published_at = published[-1]["published_at"] if published else None
 
     version = current_version()
-    reasons, results = [], []
+    reasons, results, groups = [], [], {}
     if version is None:
         reasons.append("nothing has been published")
     else:
-        results = _recorded_gate_results(version.name) + \
-            run_checks(version.name, now=now, tables=version, monitors_only=True, record=record).results
+        groups = composition(version)
+        results = _recorded_gate_results(version, groups) + \
+            run_checks(version.name, now=now, tables=version, monitors_only=True, record=record).results + \
+            _not_served(groups, gate=False)
         results = acknowledge(results)
     if latest_status in ("blocked", "failed"):
         reasons.append(f"latest run {latest_run} {latest_status}: serving still shows {version.name if version else 'nothing'}")
@@ -79,7 +92,7 @@ def evaluate(now: datetime | None = None, record: bool = True) -> Health:
         reasons = [f"{r['check_id']} warn: {r['description']}" for r in warns]
 
     health = Health(status, reasons, now, version.name if version else None, published_at,
-                    latest_run, latest_status, results)
+                    latest_run, latest_status, results, groups)
     if record:
         write_latest(health)
     return health
@@ -161,9 +174,38 @@ def _manifest() -> list[dict]:
                        ORDER BY run_id""")
 
 
-def _recorded_gate_results(run_id: str) -> list[dict]:
-    """The latest run-time result of every gate check for run_id. A gate check
-    with no recorded result is reported broken: unproven is not passed."""
+def _served_by(groups: dict[str, dict]) -> dict[str, str]:
+    """group -> the run whose tables the version serves, for groups it holds."""
+    return {g: c["source_run"] for g, c in groups.items() if c["outcome"] in (PUBLISHED, CARRIED_FORWARD)}
+
+
+def _not_served(groups: dict[str, dict], gate: bool) -> list[dict]:
+    """One result per check (gate or monitor) of each group the version doesn't hold (D98)."""
+    held = _served_by(groups)
+    out = []
+    for check in discover():
+        if check.gate == gate and check.group in GROUPS and check.group not in held:
+            outcome = (groups.get(check.group) or {}).get("outcome") or "never published"
+            out.append({"run_id": None, "context": "run" if gate else "view", "check_id": check.id,
+                        "group": check.group, "severity": check.severity, "gate": check.gate,
+                        "description": check.description, "status": NOT_SERVED, "failing_row_count": None,
+                        "sample": None, "evaluated_at": None,
+                        "error": f"group {check.group} is not in the served version ({outcome}; C36)"})
+    return out
+
+
+def _recorded_gate_results(version: Path, groups: dict[str, dict]) -> list[dict]:
+    """The latest run-time result of every gate check of each group the version
+    holds, from the run its tables came from (D115). A gate check with no
+    recorded result is reported broken: unproven is not passed."""
+    out = []
+    for group, source_run in _served_by(groups).items():
+        out += [r for r in _recorded_for_run(source_run) if r["group"] == group]
+    return out + _not_served(groups, gate=True)
+
+
+def _recorded_for_run(run_id: str) -> list[dict]:
+    """The latest run-time result of every gate check for run_id."""
     folder = data_root() / "health" / "check_results"
     rows = {}
     if any(folder.glob(f"{run_id}__*.parquet")):
@@ -177,6 +219,8 @@ def _recorded_gate_results(run_id: str) -> list[dict]:
         rows = {r["check_id"]: r for r in records(sql)}
     out = []
     for check in (c for c in discover() if c.gate):
+        if check.id in rows:   # the header is the authority on a check's group (results before D115 lack it)
+            rows[check.id]["group"] = check.group
         out.append(rows.get(check.id) or {
             "run_id": run_id, "context": "run", "check_id": check.id, "group": check.group,
             "severity": check.severity,
@@ -208,6 +252,13 @@ def render(health: Health, color: bool) -> str:
         f"Latest run:      {health.latest_run or 'none'} ({health.latest_run_status or 'no manifest'})",
         "",
     ]
+    if health.groups:
+        lines.append("Groups served:")
+        for name, g in sorted(health.groups.items()):
+            src = f" from {g['source_run']}" if g["source_run"] else ""
+            why = f": {g['reason'].strip().splitlines()[-1]}" if g["reason"] else ""
+            lines.append(f"- {name}: {g['outcome']}{src}{why}")
+        lines.append("")
     if health.reasons:
         lines += ["Why not green:"] + [f"- {r}" for r in health.reasons] + [""]
 

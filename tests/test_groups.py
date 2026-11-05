@@ -27,7 +27,18 @@ from pharos.groups import GROUPS, Group
 from pharos.paths import data_root
 from pharos.publish import composition, current_version
 from pharos.runs import raw_select, write_raw
-from test_refresh import copy_raw
+
+
+def copy_raw(run_from, source, dataset, run_to):
+    """Re-land a fixture run's raw file under another run id (as test_refresh's
+    helper does; kept here so this module imports no other test module)."""
+    path = data_root() / "raw" / source / dataset / f"{run_from}.parquet"
+    rel = duckdb.sql(f"SELECT * EXCLUDE (run_id, loaded_at) FROM read_parquet('{path.as_posix()}')")
+    frame = rel.df()
+    for column, kind in zip(rel.columns, rel.types):
+        if str(kind) == "DATE":
+            frame[column] = frame[column].dt.date
+    write_raw(frame, source, dataset, run_to)
 
 TOY = Group(name="toy", required=(("toy", "rows"),), reference=(), tables=("toy_table",), inputs=())
 RUNS = ["20261008T140000Z", "20261009T140000Z", "20261010T140000Z"]
@@ -64,6 +75,7 @@ def toy(staged_run, monkeypatch, tmp_path):
     defaults = list(checks_mod.run_checks.__defaults__)
     defaults[0] = folder
     monkeypatch.setattr(checks_mod.run_checks, "__defaults__", tuple(defaults))
+    monkeypatch.setattr(checks_mod.discover, "__defaults__", (folder,))   # health finds them too
 
     state = {"toy": [1, 2, 3], "toy_fails": False, "prices_fail": False, "checks": folder}
 
@@ -189,3 +201,51 @@ def test_a_groups_checks_cannot_read_another_groups_tables(toy):
     c95 = next(r for r in pub.evaluation.results if r["check_id"] == "C95")
     assert c95["status"] == "broken" and "observations" in c95["error"]
     assert pub.evaluation.groups == {"prices_macro": "passed", "toy": "passed"}   # a broken monitor never blocks
+
+
+# --- health by group (D98, D102, D115) ---------------------------------------
+
+def _health():
+    from datetime import datetime, timezone
+    from pharos import health
+    return health.evaluate(now=datetime(2026, 10, 10, 15, tzinfo=timezone.utc), record=False)
+
+
+def test_a_never_published_groups_checks_are_not_served_never_broken(toy):
+    toy["toy_fails"] = True
+    toy["run"](RUNS[0])
+    by_id = {r["check_id"]: r for r in _health().results}
+    assert by_id["C96"]["status"] == "not_served" and "never_published" in by_id["C96"]["error"]
+    assert by_id["C95"]["status"] == "not_served"               # its monitor too
+    assert by_id["C36"]["status"] == "error"                    # the red comes from C36 (D83)
+    assert not [r for r in _health().reasons if r.startswith("C96") or r.startswith("C95")]
+
+
+def test_a_carried_groups_gate_results_are_its_source_runs(toy):
+    toy["run"](RUNS[0])
+    toy["toy"] = [-3]                                           # C96 errors in RUNS[1]: toy carried
+    toy["run"](RUNS[1])
+    c96 = next(r for r in _health().results if r["check_id"] == "C96")
+    assert (c96["status"], c96["run_id"]) == ("pass", RUNS[0])   # the served tables passed then
+
+
+def test_rows_of_another_groups_check_file_under_that_group():
+    import json
+    from pharos.board import failing_rows_by_source
+    rows = [{"cik": 320193, "ticker": "AAPL"}]
+    assert failing_rows_by_source({"group": "sec_universe", "sample": json.dumps(rows)}) == {"sec_universe": rows}
+    # prices_macro keeps D42's column rule: a ticker-only row is Tiingo's
+    assert failing_rows_by_source({"group": "prices_macro", "sample": json.dumps(rows)}) == {"tiingo": rows}
+
+
+def test_latest_md_and_the_email_list_each_group(toy):
+    from pharos import health, notify
+    toy["run"](RUNS[0])
+    toy["toy_fails"] = True
+    toy["run"](RUNS[1])
+    text = health.render(_health(), color=False)
+    assert "- prices_macro: published from " + RUNS[1] in text
+    assert "- toy: carried_forward from " + RUNS[0] + ": RuntimeError: toy source down" in text
+    body = notify.compose(RUNS[1], _health()).get_content()
+    assert "  toy: carried_forward from " + RUNS[0] + ": RuntimeError: toy source down" in body
+    assert "  prices_macro: published" in body
