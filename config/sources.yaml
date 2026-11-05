@@ -16,7 +16,7 @@ yahoo:
   overlap_days: 10
   # Series every watchlist ticker must have (check C03).
   required_series: [close]
-  # A session's close is expected from the next UTC calendar day (checks C02, C17).
+  # A session's close is expected from the next New York calendar day (checks C02, C17, C20; D118).
   expected_lag_days: 0
 
 fred:
@@ -34,3 +34,10 @@ fred:
     GDP: 35
     GDPC1: 35
     CPIAUCSL: 15
+
+sec:
+  # submissions.zip filing history: after the first run, each run lands only
+  # filings dated this many calendar days before the latest filing date already
+  # in raw, or later, so a late correction is re-landed and seen (C38; D58).
+  # The same window as Yahoo's overlap_days.
+  submissions_overlap_days: 10

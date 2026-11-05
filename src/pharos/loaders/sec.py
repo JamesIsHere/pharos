@@ -9,6 +9,9 @@ Rules applied here (CLAUDE.md Sources, M2 step 1):
 - Each response carries its HTTP Last-Modified, for the freshness checks
   (C25, C31, C34; D60, D91).
 
+Small files come back as bytes; a large one (submissions.zip, about 1.5 GB) is
+streamed to a path the caller names with `to=`, never held in memory.
+
 fetch is a module attribute that loaders call as `sec.fetch(url)`, so step 7's
 pass 1 can swap in a reader over the spike's downloaded files without a
 production flag (D94). A swapped fetch returns the same Fetched shape.
@@ -21,6 +24,7 @@ import urllib.request
 from dataclasses import dataclass
 from datetime import datetime
 from email.utils import parsedate_to_datetime
+from pathlib import Path
 
 from pharos.paths import data_root
 
@@ -32,9 +36,10 @@ TIMEOUT = 300         # seconds; submissions.zip is about 1.5 GB
 @dataclass(frozen=True)
 class Fetched:
     url: str
-    content: bytes
+    content: bytes                   # empty when streamed to `path`
     last_modified: datetime | None   # timezone-aware, or None when the server sent none
     origin: str = "http"             # "http", or "local" for a swapped-in file reader (D94)
+    path: Path | None = None         # where the body was streamed, when fetch was given `to`
 
 
 class SecFetchError(RuntimeError):
@@ -71,15 +76,33 @@ def _last_modified(value: str | None) -> datetime | None:
     return stamp
 
 
-def http_fetch(url: str) -> Fetched:
-    """GET url from SEC. One retry on 503; any other failure raises."""
+CHUNK = 1 << 20
+
+
+def http_fetch(url: str, to: Path | None = None) -> Fetched:
+    """GET url from SEC. One retry on 503; any other failure raises. With
+    `to`, the body streams to that file (through `<to>.part`, renamed when
+    complete, so a cut-off download never sits under the real name)."""
     request = urllib.request.Request(url, headers={"User-Agent": user_agent(),
                                                    "Accept-Encoding": "identity"})
     for attempt in (1, 2):
         _wait_turn()
         try:
             with urllib.request.urlopen(request, timeout=TIMEOUT) as resp:
-                return Fetched(url, resp.read(), _last_modified(resp.headers.get("Last-Modified")))
+                stamp = _last_modified(resp.headers.get("Last-Modified"))
+                if to is None:
+                    return Fetched(url, resp.read(), stamp)
+                part = to.with_name(to.name + ".part")
+                with open(part, "wb") as out:
+                    for block in iter(lambda: resp.read(CHUNK), b""):
+                        out.write(block)
+                expected = resp.headers.get("Content-Length")
+                size = part.stat().st_size
+                if expected is not None and size != int(expected):
+                    part.unlink()
+                    raise SecFetchError(f"GET {url}: got {size:,} bytes, Content-Length {int(expected):,}")
+                part.replace(to)
+                return Fetched(url, b"", stamp, path=to)
         except urllib.error.HTTPError as e:
             if e.code == 503 and attempt == 1:
                 time.sleep(RETRY_WAIT)
