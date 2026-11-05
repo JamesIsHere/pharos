@@ -2,10 +2,10 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z. M2 re-scoped to 'SEC landed' (D127, D128: review session 2026-11-05): steps 0-1 DONE (D113-D124); the universe moved to milestone U. D130-D132: DBeaver read-only as the viewer, companyfacts on demand, SEC staging newest value only. H (Hosting) on hold: Pharos stays private; design.md section 5 records which sources could be shown online (D106). Nightly task now 07:30 UTC (D63)
+- **Milestone:** M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z. M2 re-scoped to 'SEC landed' (D127, D128: review session 2026-11-05): steps 0-1 DONE (D113-D124); the universe moved to milestone U. D130-D133: DBeaver read-only as the viewer, companyfacts on demand, SEC staging newest value only, serving keeps two versions. H (Hosting) on hold: Pharos stays private; design.md section 5 records which sources could be shown online (D106). Nightly task now 07:30 UTC (D63)
 - **Health:** GREEN at 2026-11-05 02:15 UTC (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261105T001427Z
-- **Last session:** 2026-11-05 (thirteenth): review session (scratch/review-2026-11-05.md, all five items). D127 two levels of rigor, landed by default; D128 M2 narrowed to 'SEC landed' (Pharos's data root held no SEC data), the universe moved to milestone U; D129 decision log moved to docs/decisions.md, as-built rows stopped; #114 opened. The uncommitted #113 work in stage_sec.py is left out of this commit. Earlier sessions: git log
-- **Next action:** M2 step 2: stage the four SEC datasets newest-value-per-key (D132), declare the SEC group and wire it into refresh with a memory cap (#111). Queued from the review: prune Open issues to the narrowed rule; split plan.md (done and parked milestones out); relabel design.md's universe 'M2' references to U. #94, #102 and #103 wait for hosting (D106)
+- **Last session:** 2026-11-05 (thirteenth): review session (scratch/review-2026-11-05.md, all five items). D127 two levels of rigor, landed by default; D128 M2 narrowed to 'SEC landed' (Pharos's data root held no SEC data), the universe moved to milestone U; D129 decision log moved to docs/decisions.md, as-built rows stopped; #114 opened. The uncommitted #113 work in stage_sec.py is left out of this commit. Then D130-D133, open issues pruned (5 open, 10 parked in docs/later.md), plan.md split, #113 work parked on branch wip-113-fold. Health YELLOW at 06:04 UTC (C02/C20: prices one session behind until the 07:30 nightly). Earlier sessions: git log
+- **Next action:** M2 step 2, as broken down under M2 below. The nightly task (07:30 UTC) runs from this folder: keep the tree working between edits.
 - **Blockers / open questions:** none. #17 and #25 are built together when C14 first fires on a price. Full list in Open issues below and Parked issues in `docs/later.md`; cite only IDs that appear there.
 
 ## Open issues
@@ -28,7 +28,13 @@
 ### Build order
 - [x] 0. Source groups (D113-D117): see U, step 0, in `docs/later.md`.
 - [x] 1. Loaders for the full-index, submissions and the tickers file (D119-D124): see U, step 1, in `docs/later.md`.
-- [ ] 2. Stage each dataset, newest value per key (D132): simplify `filings` and `submission_filings` from D125/D126's version history to that; the submissions details and the tickers file stage too. Then declare the SEC group and wire it into refresh, with a DuckDB memory cap (#111).
+- [ ] 2. Stage each dataset, newest value per key (D132), and wire the group in. Found reading the code 2026-11-05:
+  - stage_sec.py: replace roll_forward/fold/newest/rebuild_night with one merge: the base is the table in the current serving version (absent: build from every landing); rows from runs after the base's run override base rows by key; keep D126's acceptance-conflict collapse; assert the key unique (a duplicate stops the group). Stage `submission_details` and `tickers` the same way. Delete the `*_versions` tables and their tests.
+  - groups.py: declare group `sec` (rename from sec_universe): required sec/full_index, sec/submission_details, sec/submission_filings, sec/tickers; tables filings, submission_filings, submission_details, tickers; inputs none until step 4.
+  - stage.STAGERS, checks.BINDERS (a minimal binder: run-level names and the group's tables, at run and view time), refresh.LOADERS (load_index, load_submissions, load_tickers), catalog.py (raw and serving views for the SEC tables, for DBeaver).
+  - Memory cap (#111): SET memory_limit in the SEC stager; default 8 GB, flagged, measured on the first run.
+  - Serving keeps two versions (D133): publish deletes older version folders.
+  - First real run by hand (`uv run pharos refresh`), timed, before leaving it to the nightly task; then archive data/spikes/.
 - [ ] 3. companyfacts: a loader (bulk zip, D57), staged as landed. It lands on demand, by its own command, not in the nightly refresh (D131); its freshness check warns on the landing's age, never red.
 - [ ] 4. One freshness check per dataset (C25, C31, C34 as specified in U, plus one for companyfacts), and a one-row description per dataset in design.md section 5.
 
