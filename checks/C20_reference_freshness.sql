@@ -5,13 +5,14 @@
 -- description: Tiingo's latest close for an active ticker is older than the latest due XNYS session (D37)
 -- ack_key: ticker, latest_obs_date
 --
--- Same due rule as C02 for prices: a session is due from the next UTC calendar
--- day. A ticker with no rows at all is C18's.
+-- Same due rule as C02 for prices: a session is due from the next New York
+-- calendar day, where the Tiingo pull ends (D79, #104, D118). A ticker with no
+-- rows at all is C18's.
 
 WITH due AS (
     SELECT max(session) AS session
     FROM trading_days, clock
-    WHERE session < CAST(timezone('UTC', clock.now) AS DATE)
+    WHERE session < CAST(timezone('America/New_York', clock.now) AS DATE)
 )
 SELECT t.ticker, max(t.obs_date) AS latest_obs_date, any_value(d.session) AS due_session
 FROM raw_tiingo_prices AS t

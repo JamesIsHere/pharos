@@ -10,8 +10,10 @@
 -- closed). The CTEs are identical in both files; change them together.
 --
 -- A period is due once its end plus the series' expected_lag_days (sources.yaml)
--- is before the clock's UTC date: the run's own time, or the wall clock at view
--- time. Prices count XNYS sessions (lag 0: a session is due from the next day).
+-- is before the clock's date: the run's own time, or the wall clock at view
+-- time. Prices count XNYS sessions on the New York date (lag 0: a session is
+-- due from the next New York day), the date the price pulls end at, today
+-- excluded (#104, D118). FRED counts on the UTC date.
 -- FRED counts months or quarters; obs_date is the period start. Lateness against
 -- the normal lag is the signal, so a slipped release (the 2025 shutdown) shows
 -- as late: that is the data being late, not a misfire (D33).
@@ -21,7 +23,9 @@
 -- row (D25). A monitor: it tests the world, never blocks (D17).
 
 WITH today AS (
-    SELECT CAST(timezone('UTC', now) AS DATE) AS d FROM clock
+    SELECT CAST(timezone('UTC', now) AS DATE) AS d,
+           CAST(timezone('America/New_York', now) AS DATE) AS ny   -- the price pulls' date (D118)
+    FROM clock
 ),
 latest AS (
     SELECT c.series_id, c.source, c.frequency, c.expected_lag_days, max(o.obs_date) AS latest_obs_date
@@ -34,10 +38,10 @@ latest AS (
 behind AS (
     SELECT l.*,
            (SELECT max(session) FROM trading_days, today
-            WHERE session + l.expected_lag_days < today.d) AS expected_obs_date,
+            WHERE session + l.expected_lag_days < today.ny) AS expected_obs_date,
            (SELECT count(*) FROM trading_days, today
             WHERE session > l.latest_obs_date
-              AND session + l.expected_lag_days < today.d) AS periods_behind
+              AND session + l.expected_lag_days < today.ny) AS periods_behind
     FROM latest AS l
     WHERE l.source = 'yf'
 

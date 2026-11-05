@@ -435,6 +435,20 @@ def test_c20_reference_behind_due_session_warns(staged_run):
     assert (r["status"], r["failing_row_count"]) == ("warn", 1)
 
 
+# #104, D118: a session is due from the next New York day, where the pulls end.
+# 10-08 00:30 UTC is 10-07 20:30 in New York (EDT): 10-07 is not yet due, so the
+# fixture (closes through 10-06) is on time. 04:30 UTC is 00:30 New York: due.
+@pytest.mark.parametrize("hour, c02, c20", [
+    (0, "pass", "pass"),    # between UTC and New York midnight: was a false yellow
+    (3, "pass", "pass"),    # 23:00 New York, still 10-07
+    (4, "warn", "warn"),    # 00:00 New York has passed: 10-07 due, 1 session behind
+])
+def test_price_due_rule_uses_new_york_date(staged_run, hour, c02, c20):
+    from datetime import datetime, timezone
+    e = run_checks(staged_run, now=datetime(2026, 10, 8, hour, 30, tzinfo=timezone.utc))
+    assert (freshness(e)[0], result(e, "C20")["status"], freshness(e)[2]) == (c02, c20, "pass")
+
+
 def test_c12_agreeing_sources_pass(staged_run):
     assert result(run_checks(staged_run), "C12")["status"] == "pass"
 
