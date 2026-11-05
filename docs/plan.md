@@ -2,10 +2,10 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z. M2 (Universe) red-penned by James 2026-11-04 (questions 1-5: D109-D112, D69 and D65 amended); build started 2026-11-04: step 0 (source groups) DONE (D113-D117); step 1 (SEC loaders) DONE (D119-D124). H (Hosting) on hold: Pharos stays private; design.md section 5 records which sources could be shown online (D106). Nightly task now 07:30 UTC (D63)
+- **Milestone:** M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z. M2 re-scoped to 'SEC landed' (D127, D128: review session 2026-11-05): steps 0-1 DONE (D113-D124); the universe moved to milestone U. H (Hosting) on hold: Pharos stays private; design.md section 5 records which sources could be shown online (D106). Nightly task now 07:30 UTC (D63)
 - **Health:** GREEN at 2026-11-05 02:15 UTC (`pharos health`): C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261105T001427Z
-- **Last session:** 2026-11-05 (twelfth): M2 step 2a, `filings` staging (sec_filings.sql, stage_sec.py; not yet wired), equal to the spike on the full index (27,374,700 rows, 0 differences either way). #109 found (re-reading every nightly re-landing grows without bound) and closed by D125 (roll-forward keeping every version, Sunday rebuild); at scale the fold equals the rebuild on row count and row hash. #110 and #111 opened. Step 2b `submission_filings` (D126: key (cik, accession); 6 acceptance-time conflicts flagged, #112 closed), correct at scale but 1,089 s (#113). 417 tests. Earlier sessions: git log
-- **Next action:** M2 step 2: #113 first (fold speed at full scale, with #111's memory cap), since every nightly fold pays it; then annual_reports, filer (details incremental per D93), events, firm_year; then declare the sec_universe group and wire it into refresh (#110 and #111 decided before wiring). #94, #102 and #103 wait for hosting (D106)
+- **Last session:** 2026-11-05 (thirteenth): review session (scratch/review-2026-11-05.md, all five items). D127 two levels of rigor, landed by default; D128 M2 narrowed to 'SEC landed' (Pharos's data root held no SEC data), the universe moved to milestone U; D129 decision log moved to docs/decisions.md, as-built rows stopped; #114 opened. The uncommitted #113 work in stage_sec.py is left out of this commit. Earlier sessions: git log
+- **Next action:** #114 (apply D127 to the hard rules), then M2 step 2. #94, #102 and #103 wait for hosting (D106)
 - **Blockers / open questions:** none. #17 and #25 are built together when C14 first fires on a price. Full list in Open issues below; cite only IDs that appear there.
 
 ## Open issues
@@ -35,6 +35,7 @@
 | 110 | The Sunday full rebuild still reads every landing, so it grows with the number of nights, not with SEC's data: the full-index's `filing_versions` (D125) and the details' `universe_filer` (D93) both. Measured 2026-11-05: a rebuild of 2 full-index landings (27.8M rows) took 514 s at an 8 GB memory cap and one landing 123 s uncapped; raw gains about 180M full-index rows a year (estimate, from 277k-370k rows a quarter). D93 measured the details rebuild at 215 s for 365 snapshots. Acceptance #8 holds every nightly run, Sundays included, to 30 minutes. Options not yet weighed: a rarer rebuild (monthly, or on demand only), a rebuild checked in slices, or accepting the Sunday run outside the 30-minute limit | The Sunday run breaks the 30-minute limit first, then grows without bound; the control on the roll-forward gets dearer every week | M2 step 2, before the SEC group is wired into refresh (decision-log entry) |
 | 111 | DuckDB's default memory_limit is 80% of RAM (25.0 GiB on JAMESTOWN, read 2026-11-05). A scale test holding two 27M-row staging connections in one process ran the machine critically low on memory and was stopped by Claude Code (2026-11-05); one connection capped at 8 GB ran clean but about 3x slower (384 s vs 123 s for one full-index landing). The SEC stager sets no limit today | A nightly run on a machine in use could starve other programs, or spill slowly if capped too low | M2 step 2, when the SEC group is wired into refresh (set a cap from a measurement of run time against it) |
 | 113 | `submission_filings` staging is slow at full scale: 1,089 s for one 27.4M-row landing at an 8 GB memory cap (2026-11-05). Profile: transform 34 s, per-landing conflict step 28 s after narrowing it to keys repeated in a landing, fold 621 s (a GROUP BY over every value column, about 20, mostly text), newest-per-key window 96 s. A fold grouped on key plus a hash of the values, with an exact collision check, was tried and stopped by Claude Code for low system memory before it finished; the full-index fold (D125) has the same shape at 384 s. Every nightly fold regroups the whole base, so this is a nightly cost, not only a rebuild cost | The SEC group's nightly run alone could take 20+ minutes against acceptance #8's 30, before annual_reports, filer, events and firm_year are added | M2 step 2, with #111 (memory cap) and #110, before wiring (measure under a cap that leaves the machine usable) |
+| 114 | D127 (landed vs trusted) is recorded but not applied. CLAUDE.md's hard rules still hold every source to the trusted level ('Any new source ships with completeness, uniqueness, and freshness checks'; every new or changed check needs a fault test), and M2's plan still builds SEC at that level: D18's write-once snapshot for SEC raw, the nightly SEC cadence, #110 / #111 / #113, checks C21-C39 | Work continues at the trusted level by default, the cost D127 exists to remove; the rules and D127 contradict each other | Next, after the review items in scratch/review-2026-11-05.md (decision-log rows per change) |
 
 ---
 
@@ -125,7 +126,31 @@ Moving the refresh to GitHub Actions (raw in R2): floating, only on a measured n
 
 ---
 
-## M2: Universe (red-penned 2026-11-04, D109-D112; building: step 0 done)
+## M2: SEC landed (D128, 2026-11-05; steps 0-1 done)
+
+**Goal.** Every SEC bulk dataset Pharos uses sits in Pharos's own data root at the landed level (D127), loaded by the nightly refresh, staged, published and queryable in DuckDB. No analysis on it.
+
+### Build order
+- [x] 0. Source groups (D113-D117): see U, step 0.
+- [x] 1. Loaders for the full-index, submissions and the tickers file (D119-D124): see U, step 1.
+- [ ] 2. Stage each dataset. `filings` and `submission_filings` stage as built (D125, D126); the submissions details and the tickers file stage too. Then declare the SEC group and wire it into refresh, with a DuckDB memory cap (#111).
+- [ ] 3. companyfacts: a loader (bulk zip, D57), staged as landed. Its cadence is defaulted at build and flagged (#47).
+- [ ] 4. One freshness check per dataset (C25, C31, C34 as specified in U, plus one for companyfacts), each with a fault-injection test, and a one-row description per dataset in design.md section 5.
+
+### Acceptance criteria
+1. One `uv run pharos refresh` on the real data root lands, stages and publishes all four datasets; each is a table in `catalog.duckdb`.
+2. Each dataset has a freshness check and a one-row description.
+3. With the SEC download made to fail, a run still publishes prices + macro (U's acceptance #10).
+4. Run time and memory peak of the first run and of a nightly run are measured and recorded, not held to a limit.
+
+**Done** when 1-4 pass and health is green.
+
+### Out of scope for M2
+Everything in U below; any analysis on the SEC data.
+
+---
+
+## U: Universe (moved out of M2 by D128; kept as red-penned 2026-11-04, D109-D112. Steps 0 and 1 below were built under M2)
 
 **Goal.** A survivorship-free, year-by-year list of every filer (CIK) that filed an annual report with the SEC: who joined, who left, who was there from the start. A filer is not yet a company: a company that re-registered under a new CIK appears as two filers until CIKs are linked, which is out of scope here (D54). A waterfall page narrows that population, one named step at a time, to the analysed set: what remains after every step, the last being domestic filers whose annual report that year carries XBRL financials. That is the set M4's cross-section page reads (D66). It refreshes nightly under the same health system as M1, and it becomes the expected set that M3's fundamentals are checked against.
 
@@ -189,14 +214,14 @@ Moving the refresh to GitHub Actions (raw in R2): floating, only on a measured n
 
 **Built** when 1-10 pass. **Done** after 7 consecutive green nightly runs with the universe in them.
 
-### Out of scope for M2
+### Out of scope for U
 Financials of any kind (M3); foreign filers in the analysed set (US GAAP only for now, D109; open to change later); linking several CIKs into one company (predecessors, re-registrations); reading filing text; paid sources (CRSP); membership on a specific date (Form 25 / 15 dates are stored; they set the yearly listing status (D65) but not membership).
 
 ---
 
 ## Later milestones (one line each until current)
 - **M1.5: Exploration tools (#41).** After M2 (D51).
-- **M3: Fundamentals, formerly M2.** companyfacts in full → raw facts with accession and filed date, every filer and concept (D57); curated in staging, balance sheet first. Equity, preferred, both share counts, goodwill and intangibles. Book value per share and P/B as the first derived series via ASOF on available_date. XBRL checks: balance identity, share-count divergence, scale errors. Financial Statement Data Sets for multi-class names. OTC decision.
+- **M3: Fundamentals, formerly M2.** companyfacts is landed in M2 (D128); M3 curates it: companyfacts in full → raw facts with accession and filed date, every filer and concept (D57); curated in staging, balance sheet first. Equity, preferred, both share counts, goodwill and intangibles. Book value per share and P/B as the first derived series via ASOF on available_date. XBRL checks: balance identity, share-count divergence, scale errors. Financial Statement Data Sets for multi-class names. OTC decision.
 - **M4: Cross-section page (formerly M3, universe moved to M2).** Domestic 10-K filers. SIC → Fama-French industries. P/B distribution, industry medians, scatter. Coverage heatmap scales to the universe.
 - **M5: Flow statements + quarterly panel.** YTD differencing, Q4 derivation, 52/53-week handling, fiscal→calendar alignment, concept map with fallback chains, ratio library.
 - **M6: BEA national accounts breakdown.** The GDP tracker folded in: small-multiples page with drill-down.

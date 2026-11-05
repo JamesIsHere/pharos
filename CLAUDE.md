@@ -4,11 +4,12 @@ Pharos (named for the lighthouse of Alexandria) is a local-first data platform: 
 
 ## Read first
 - `docs/plan.md`: status block and current milestone. Work only on the current milestone.
-- `docs/design.md`: data model, time semantics, health system, decision log. Read it before changing any schema, layer, source, or check.
+- `docs/design.md`: data model, time semantics, health system. Read it before changing any schema, layer, source, or check.
+- `docs/decisions.md`: the decision log (D-numbers). Not read by default; open it when a change touches a past decision.
 
 ## Session protocol
 1. Start: run `uv run pharos health`. If anything is red, fix the data first. Never build features on red.
-2. During: one milestone at a time. If a design decision changes, add a row to the decision log in `docs/design.md` in the same commit. Any concern or finding not fixed in the turn it comes up gets a row in "Open issues" in `docs/plan.md` before that turn ends; fixing one deletes the row and the commit cites its ID.
+2. During: one milestone at a time. If a design decision changes, add a row to `docs/decisions.md` in the same commit: only for a choice between real alternatives, never to describe what was built (D129). Any concern or finding not fixed in the turn it comes up gets a row in "Open issues" in `docs/plan.md` before that turn ends; fixing one deletes the row and the commit cites its ID.
 3. End: update the status block at the top of `docs/plan.md`, then commit. The commit message says what changed and why. Git history is the log; don't create separate log or state files.
 
 ## Stack
@@ -55,7 +56,7 @@ data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.du
 ### Sources
 - yfinance is unofficial. Always pass `auto_adjust` explicitly (its default has changed between versions), validate the schema on every pull, and fail loudly on drift.
 - If a new split event is detected for a ticker, re-pull that ticker's full history as a new vintage.
-- SEC (M2+): User-Agent from `SEC_USER_AGENT`, at most 10 requests/s, prefer bulk files (`submissions.zip` from M2, `companyfacts.zip` from M3, D57) over the API.
+- SEC (M2+): User-Agent from `SEC_USER_AGENT`, at most 10 requests/s, prefer bulk files (`submissions.zip` from M2, `companyfacts.zip` from M2, D57, D128) over the API.
 - FRED: key from `FRED_API_KEY`.
 - Secrets live in `.env` (gitignored) locally and in GitHub Secrets in CI. **The repo is public.** Never commit keys or data.
 
