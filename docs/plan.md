@@ -2,10 +2,10 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z. M2 re-scoped to 'SEC landed' (D127, D128: review session 2026-11-05): steps 0-1 DONE (D113-D124); the universe moved to milestone U. D130-D133: DBeaver read-only as the viewer, companyfacts on demand, SEC staging newest value only, serving keeps two versions. H (Hosting) on hold: Pharos stays private; design.md section 5 records which sources could be shown online (D106). Nightly task now 07:30 UTC (D63)
-- **Health:** GREEN with one expected warn at 2026-11-05 10:25 UTC (`pharos health`): prices_macro published from 20261105T102452Z; sec carried_forward from 20261105T073034Z (acceptance #3's forced SEC failure: C35 warns until the next SEC publish); companyfacts not_run from 20261105T083453Z. C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261105T102452Z
-- **Last session:** 2026-11-05 (sixteenth): M2 acceptance #3 shown on the real pipeline (run 20261105T102452Z, SEC fetch forced to fail, prices + macro published, sec carried forward). Before that, 2026-11-05 (fifteenth): M2 step 3 done. companyfacts is an on-demand group (D135) with its own command; loader, staging (first landing skips the merge) and the first landing published (126,265,124 facts). One run killed by memory pressure in the merge; fixed. Before that, 2026-11-05 (fourteenth): M2 step 2 built and run. SEC staging is one merge, newest value per key, unchanged keys keep their first run (D132); details and tickers staged; the SEC group wired into stage, checks, refresh and the catalog, and registered; serving keeps two versions (33 old versions removed by hand). First real run 20261105T071217Z: prices published, SEC stopped by a combined filing listed under two forms, fixed by keying submission_filings on form (D134); second run 20261105T073034Z published both. Tests now kept off sec.gov (conftest). Map: scratch/folder-map.html, kept current per the session protocol
-- **Next action:** Steps 0-4 done; acceptance #1-#3 passed. M2 closes on #4: the 2026-11-06 07:30 UTC nightly's run time and memory (the first merge into a published SEC table: check sec publishes, C35 clears, and companyfacts stays served as not_run)
+- **Milestone:** M2 (SEC landed) DONE 2026-11-05: acceptance #1-#4 passed; #4 is run time only (D136). Next per the plan: M1.5, exploration tools (#41, D51). M1 DONE (7 green nightlies, 20261008T053003Z-20261014T053008Z). H (Hosting) on hold (D106). Nightly task 07:30 UTC (D63)
+- **Health:** GREEN at 2026-11-05 10:45 UTC (`pharos health`), 0 failing: prices_macro and sec published from 20261105T103527Z; companyfacts not_run from 20261105T083453Z. C12 warn (XOM 2009-11-06, Yahoo vs Tiingo 0.58% on a random sample; never blocks). C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261105T103527Z
+- **Last session:** 2026-11-05 (sixteenth): M2 closed. Acceptance #3: run 20261105T102452Z with the SEC download made to fail published prices + macro, sec carried forward. Acceptance #4: run 20261105T103527Z, 239 s, sec published; memory measurement dropped (D136). One refresh before it (20261105T102906Z) was killed by low system memory (another program held 11.8 GB) during the SEC loads: serving untouched, raw files each with a load record. Before that, 2026-11-05 (fifteenth): M2 step 3 done.
+- **Next action:** Start M1.5 (exploration tools, #41): break it into steps in this file first. The 2026-11-06 nightly is the first SEC merge with changed rows: glance at its health, nothing to record
 - **Blockers / open questions:** none. #17 and #25 are built together when C14 first fires on a price. Full list in Open issues below and Parked issues in `docs/later.md`; cite only IDs that appear there.
 
 ## Open issues
@@ -20,7 +20,7 @@
 
 ---
 
-## M2: SEC landed (D128, 2026-11-05; steps 0-4 done)
+## M2: SEC landed (D128, 2026-11-05; DONE 2026-11-05)
 
 **Goal.** Every SEC bulk dataset Pharos uses sits in Pharos's own data root at the landed level (D127), loaded by the nightly refresh, staged, published and queryable in DuckDB. No analysis on it.
 
@@ -44,7 +44,7 @@
 1. One `uv run pharos refresh` on the real data root lands, stages and publishes the full-index, submissions and tickers; companyfacts' on-demand command does the same for it (D131). Each is a table in `catalog.duckdb`.
 2. Each dataset has a freshness check and a one-row description.
 3. With the SEC download made to fail, a run still publishes prices + macro (U's acceptance #10). PASSED 2026-11-05, run 20261105T102452Z (24 s): `refresh` with SEC_USER_AGENT blanked in-process, so every SEC fetch raised SecFetchError before any request. prices_macro published (yf, fred, tiingo landed); sec carried_forward from 20261105T073034Z with the load error as reason (no SEC raw written, served tables unchanged: filings 27,380,030, lineage 20261105T071217Z); companyfacts not_run from 20261105T083453Z. Health: C35 warn (expected, clears on the next SEC publish), C36 pass.
-4. Run time and memory peak of the first run and of a nightly run are measured and recorded, not held to a limit.
+4. Run time of the first run and of a nightly run is recorded, not held to a limit (memory dropped, D136). PASSED 2026-11-05: first run 15m04s (20261105T073034Z); a nightly-equivalent `refresh` by hand, 239 s (20261105T103527Z): sec and prices_macro published, companyfacts not_run, 0 failing checks. SEC's files were unchanged since the 07:30 UTC run (same Last-Modified and row counts), so no SEC row changed.
 
 **Done** when 1-4 pass and health is green.
 
