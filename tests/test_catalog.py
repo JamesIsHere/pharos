@@ -53,3 +53,23 @@ def test_open_catalog_fails_loudly_and_survives(root):
         holder.close()
     assert "raw_fred_series" not in view_counts(path)[0]  # old catalog intact
     assert not path.with_suffix(".building").exists()
+
+
+def test_sec_views_appear_where_its_files_are(monkeypatch, tmp_path):
+    # SEC raw and serving views exist once SEC files do, and not before (D130)
+    import pandas as pd
+    from pharos import catalog
+    from pharos.runs import write_raw
+    monkeypatch.setenv("PHAROS_TEST_MODE", "1")
+    monkeypatch.setenv("PHAROS_DATA_ROOT", str(tmp_path))
+    assert not any(n.startswith(("raw_sec", "serving_tickers")) for n in catalog.views())
+    write_raw(pd.DataFrame([{"cik": 1, "name": "A", "ticker": "AAA", "exchange": "NYSE"}]),
+              "sec", "tickers", "20261105T073000Z")
+    version = tmp_path / "serving" / "20261105T073000Z"
+    version.mkdir(parents=True)
+    import duckdb
+    duckdb.execute(f"COPY (SELECT 1 AS cik) TO '{(version / 'tickers.parquet').as_posix()}' (FORMAT parquet)")
+    (tmp_path / "serving" / "CURRENT").write_text(version.name, encoding="utf-8")
+    names = catalog.views()
+    assert "raw_sec_tickers" in names and "serving_tickers" in names
+    assert "serving_filings" not in names                     # no file, no view

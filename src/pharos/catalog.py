@@ -16,10 +16,14 @@ from pathlib import Path
 
 import duckdb
 
+from pharos.groups import PRICES_MACRO, SEC
 from pharos.paths import data_root
 from pharos.publish import current_version
 
-RAW_DATASETS = [("yf", "prices"), ("fred", "observations"), ("fred", "series"), ("tiingo", "prices")]
+# every declared group, registered or not: a view exists only where files do
+DECLARED = (PRICES_MACRO, SEC)
+RAW_DATASETS = [d for g in DECLARED for d in g.datasets]
+TABLES = [t for g in DECLARED for t in g.tables]
 
 
 class CatalogLockedError(RuntimeError):
@@ -36,12 +40,14 @@ def views() -> dict[str, str]:
             out[f"raw_{source}_{dataset}"] = _read(folder / "*.parquet")
     staged = sorted(p for p in (root / "staging").glob("*") if p.is_dir())
     if staged:
-        for table in ("observations", "series_catalog"):
-            out[f"staging_{table}"] = _read(staged[-1] / f"{table}.parquet")
+        for table in TABLES:
+            if (staged[-1] / f"{table}.parquet").exists():
+                out[f"staging_{table}"] = _read(staged[-1] / f"{table}.parquet")
     version = current_version()
     if version is not None:
-        for table in ("observations", "series_catalog"):
-            out[f"serving_{table}"] = _read(version / f"{table}.parquet")
+        for table in TABLES:
+            if (version / f"{table}.parquet").exists():
+                out[f"serving_{table}"] = _read(version / f"{table}.parquet")
     loads = root / "health" / "loads"
     if any(loads.glob("*.parquet")):
         out["health_loads"] = _read(loads / "*.parquet")
