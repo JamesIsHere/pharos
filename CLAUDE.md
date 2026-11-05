@@ -9,7 +9,7 @@ Pharos (named for the lighthouse of Alexandria) is a local-first data platform: 
 
 ## Session protocol
 1. Start: run `uv run pharos health`. If anything is red, fix the data first. Never build features on red.
-2. During: one milestone at a time. If a design decision changes, add a row to `docs/decisions.md` in the same commit: only for a choice between real alternatives, never to describe what was built (D129). Any concern or finding not fixed in the turn it comes up gets a row in "Open issues" in `docs/plan.md` before that turn ends; fixing one deletes the row and the commit cites its ID.
+2. During: one milestone at a time. If a design decision changes, add a row to `docs/decisions.md` in the same commit: only for a choice between real alternatives, never to describe what was built (D129). A concern not fixed in the turn it comes up gets a row in "Open issues" in `docs/plan.md` only if it blocks the current milestone or could lose or corrupt data; anything else is one line in the reply or the commit message. Fixing a row deletes it and the commit cites its ID.
 3. End: update the status block at the top of `docs/plan.md`, then commit. The commit message says what changed and why. Git history is the log; don't create separate log or state files.
 
 ## Stack
@@ -34,7 +34,7 @@ checks/            *.sql, one check per file
 app/               Home.py, common.py, pages/1_Health.py, pages/2_Charts.py
 scripts/           open-dashboard.ps1, nightly-refresh.ps1, register-tasks.ps1, pharos.ico (make_icon.py)
 tests/             incl. test_faults.py
-docs/              design.md, plan.md
+docs/              design.md, plan.md, decisions.md
 data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.duckdb   (gitignored, never committed)
 ```
 
@@ -62,9 +62,9 @@ data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.du
 
 ### Health
 - A check is a SQL file in `checks/` that returns failing rows. Zero rows means pass. Header comment: `id`, `severity` (error|warn), `gate` (yes|no), `group` (a source group from src/pharos/groups.py, or `run` for a non-gating check about the run itself, D114), `description`. A warn check may add `ack_key` (the columns naming one problem); without it its rows can't be acknowledged (D75). Gate checks test the staged data and can block a publish; monitor checks (`gate: no`) test the world (staleness, lateness, drift) and never block (D17).
-- Any new source ships with completeness, uniqueness, and freshness checks in the same change.
+- Every source is landed or trusted (D127). Landed, the default: schema validated on every load, one freshness check, a one-row description in design.md section 5; definitions defaulted by Claude and flagged, not sent for sign-off. Trusted adds completeness and uniqueness checks, reconciliation, and James's sign-off on definitions. A source moves up only when an analysis depends on it, by a row in docs/decisions.md. Prices and macro are trusted.
 - Freshness is evaluated at view time, not only at run time. A pipeline that silently didn't run must show red.
-- Any new or changed check needs a fault-injection test in `tests/test_faults.py` proving it fires.
+- A new or changed check on a trusted source needs a fault-injection test in `tests/test_faults.py` proving it fires. Checks on a landed source need none.
 - Never loosen a threshold or delete a check to get green without a decision-log entry explaining why.
 
 ### App
