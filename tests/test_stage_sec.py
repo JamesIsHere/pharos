@@ -9,11 +9,10 @@ import pytest
 
 from pharos.runs import write_raw
 from pharos.stage import StageError
-from pharos.stage_sec import FOLD, FULL, bind_sessions, rebuild_night, stage_filings
+from pharos.stage_sec import INDEX, Base, bind_sessions, connect, stage_table
 
 R1, R2, R3 = "20261105T073000Z", "20261106T073000Z", "20261107T073000Z"   # Thursday to Saturday
 RUNS = [R1, R2, R3]
-SUNDAY = "20261108T073000Z"
 STAMP = datetime(2026, 11, 4, 6, 0, tzinfo=timezone.utc)
 
 
@@ -36,11 +35,10 @@ def land(run_id, rows):
     write_raw(pd.DataFrame(rows), "sec", "full_index", run_id, last_modified=STAMP)
 
 
-def staged(runs, base=None, run_id=None):
-    con = duckdb.connect()
+def staged(runs, base=None):
+    con = connect()
     bind_sessions(con)
-    result = stage_filings(con, runs, run_id or runs[-1], base)
-    return Staged(con, result)
+    return Staged(con, stage_table(con, INDEX, runs, base))
 
 
 class Staged:
@@ -54,12 +52,12 @@ class Staged:
 
 
 def save_base(root, run_id):
-    """Stage the runs up to run_id and keep its filing_versions as a staging folder."""
+    """Stage the runs up to run_id and keep its filings as a serving version."""
     con = staged([r for r in RUNS if r <= run_id])
-    folder = root / "staging" / run_id
+    folder = root / "serving" / run_id
     folder.mkdir(parents=True)
-    con.execute(f"COPY filing_versions TO '{(folder / 'filing_versions.parquet').as_posix()}' (FORMAT parquet)")
-    return folder
+    con.execute(f"COPY filings TO '{(folder / 'filings.parquet').as_posix()}' (FORMAT parquet)")
+    return Base(run_id, folder)
 
 
 def filings(con, cols="cik, accession, form, name, date_filed, run_id"):
@@ -119,10 +117,16 @@ def test_key_is_cik_accession_form_name(root):
     assert len(filings(staged([R1]))) == 4
 
 
-def test_two_values_in_one_landing_both_survive(root):
-    # staging never picks between two things one landing says: C23 blocks
+def test_two_values_in_one_landing_stop(root):
+    # staging never picks between two things one landing says (D132)
     land(R1, [index_row(1, A1, filed=date(2026, 10, 6)), index_row(1, A1, filed=date(2026, 10, 7))])
-    assert len(filings(staged([R1]))) == 2
+    with pytest.raises(StageError, match="different values inside one landing"):
+        staged([R1])
+
+
+def test_identical_copies_in_one_landing_are_one_row(root):
+    land(R1, [index_row(1, A1), index_row(1, A1)])
+    assert len(filings(staged([R1]))) == 1
 
 
 def test_empty_name_is_a_key_like_any_other(root):
@@ -162,9 +166,9 @@ def test_no_raw_stops(root):
         staged([R1])
 
 
-# --- roll-forward (D125) ---------------------------------------------------------
+# --- merge (D132) ----------------------------------------------------------------
 
-def table(con, name):
+def table(con, name="filings"):
     return sorted(con.execute(f"SELECT * FROM {name}").fetchall(), key=repr)
 
 
@@ -172,38 +176,44 @@ SCENARIOS = {
     "unchanged": [[index_row(1, A1)], [index_row(1, A1)], [index_row(1, A1)]],
     "changed": [[index_row(1, A1, filed=date(2026, 10, 6))], [index_row(1, A1, filed=date(2026, 10, 7))],
                 [index_row(1, A1, filed=date(2026, 10, 7))]],
-    # the case that needs every version kept, not only the winners: A, B, back to A
     "changed back": [[index_row(1, A1, filed=date(2026, 10, 6))], [index_row(1, A1, filed=date(2026, 10, 7))],
                      [index_row(1, A1, filed=date(2026, 10, 6))]],
     "removed": [[index_row(1, A1), index_row(2, A2)], [index_row(1, A1)], [index_row(1, A1)]],
     "added": [[index_row(1, A1)], [index_row(1, A1)], [index_row(1, A1), index_row(2, A2)]],
+    "empty name": [[{**index_row(1, A1), "company_name": None}]] * 3,
 }
 
 
 @pytest.mark.parametrize("scenario", SCENARIOS)
-@pytest.mark.parametrize("base_run", [R1, R2])
-def test_fold_equals_full_rebuild(root, scenario, base_run):
+@pytest.mark.parametrize("base_run", [R1, R2, R3])
+def test_merge_into_base_equals_reading_every_landing(root, scenario, base_run):
     for run, rows in zip(RUNS, SCENARIOS[scenario]):
         land(run, rows)
     full = staged(RUNS)
-    folded = staged(RUNS, base=save_base(root, base_run))
-    assert folded.result.mode == FOLD and folded.result.base_run == base_run
-    for name in ("filing_versions", "filings"):
-        assert table(folded, name) == table(full, name), name
+    merged = staged(RUNS, base=save_base(root, base_run))
+    assert merged.result.base_run == base_run
+    assert merged.result.runs_read == tuple(r for r in RUNS if r > base_run)
+    assert table(merged) == table(full)
 
 
-def test_no_base_rebuilds(root):
+def test_changed_back_takes_the_run_it_changed_back_in(root):
+    for run, rows in zip(RUNS, SCENARIOS["changed back"]):
+        land(run, rows)
+    assert filings(staged(RUNS), "date_filed, run_id") == [(date(2026, 10, 6), R3)]
+
+
+def test_no_base_reads_every_landing(root):
     land(R1, [index_row(1, A1)])
-    assert staged([R1]).result.mode == FULL
-    assert staged([R1], base=root / "staging" / R1).result.mode == FULL   # folder missing
+    assert staged([R1]).result.base_run is None
+    assert staged([R1], base=Base(R1, root / "serving" / R1)).result.base_run is None   # table missing
 
 
-def test_rebuild_night_builds_both_for_comparison(root):
+def test_later_run_without_a_file_keeps_the_base(root):
     land(R1, [index_row(1, A1)])
-    land(SUNDAY, [index_row(1, A1), index_row(2, A2)])
-    con = staged([R1, SUNDAY], base=save_base(root, R1))
-    assert con.result.mode == FULL and con.result.compared
-    assert table(con, "filing_versions_incremental") == table(con, "filing_versions")
+    base = save_base(root, R1)
+    write_raw(pd.DataFrame(), "sec", "full_index", R2)           # recorded, no file
+    con = staged([R1, R2], base=base)
+    assert con.result.runs_read == () and filings(con, "accession, run_id") == [(A1, R1)]
 
 
 def test_base_outside_the_staged_runs_stops(root):
@@ -214,10 +224,5 @@ def test_base_outside_the_staged_runs_stops(root):
         staged([R1], base=base)
 
 
-@pytest.mark.parametrize("run_id, sunday", [
-    ("20261108T073000Z", True),    # 02:30 New York, Sunday
-    ("20261108T033000Z", False),   # 22:30 New York, still Saturday
-    ("20261109T043000Z", True),    # 23:30 New York, still Sunday
-])
-def test_rebuild_night_is_sunday_in_new_york(run_id, sunday):
-    assert rebuild_night(run_id) is sunday
+def test_memory_is_capped(root):
+    assert connect().execute("SELECT current_setting('memory_limit')").fetchone()[0] == "7.4 GiB"   # 8 GB, shown in GiB

@@ -9,8 +9,8 @@
 --   xnys_sessions               session DATE, every XNYS trading day from 1980
 --
 -- One output row per raw row: no dedup here. stage_sec first collapses the
--- copies of one filing inside one landing (D126), then rolls landings forward
--- (D125).
+-- copies of one filing inside one landing (D126), then merges landings
+-- (D132).
 --
 -- Casts: the dates are 'YYYY-MM-DD' text and acceptance is
 -- 'YYYY-MM-DDTHH:MM:SS.000Z', UTC (measured 2026-11-05: same-day filings

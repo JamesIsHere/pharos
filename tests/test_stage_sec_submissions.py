@@ -1,4 +1,4 @@
-"""Filing-history staging (stage_sec.stage_submission_filings), on raw landings
+"""Filing-history staging (stage_sec.SUBMISSIONS), on raw landings
 written straight through write_raw in the submissions loader's shape."""
 
 from datetime import date, datetime, timezone
@@ -9,7 +9,7 @@ import pytest
 
 from pharos.runs import write_raw
 from pharos.stage import StageError
-from pharos.stage_sec import FOLD, bind_sessions, stage_submission_filings
+from pharos.stage_sec import SUBMISSIONS, Base, bind_sessions, connect, stage_table
 
 R1, R2, R3 = "20261105T073000Z", "20261106T073000Z", "20261107T073000Z"   # Thursday to Saturday
 RUNS = [R1, R2, R3]
@@ -47,9 +47,9 @@ class Staged:
 
 
 def staged(runs, base=None):
-    con = duckdb.connect()
+    con = connect()
     bind_sessions(con)
-    return Staged(con, stage_submission_filings(con, runs, runs[-1], base))
+    return Staged(con, stage_table(con, SUBMISSIONS, runs, base))
 
 
 def rows(con, cols="cik, accession, acceptance, acceptance_conflict, source_file, run_id"):
@@ -83,19 +83,18 @@ def test_copies_differing_only_in_acceptance_collapse_with_a_flag(root):
     assert rows(staged([R1])) == [(1, A1, None, True, OVERFLOW, R1)]
 
 
-def test_copies_differing_in_more_than_acceptance_both_survive(root):
-    # for C30 to block: staging never picks between two things one landing says
+def test_copies_differing_in_more_than_acceptance_stop(root):
+    # staging never picks between two things one landing says (D132)
     land(R1, [filing(accepted="2026-10-06T20:15:00.000Z", items="", source=MAIN),
               filing(accepted="2026-10-07T00:15:00.000Z", items="2.02", source=OVERFLOW)])
-    assert len(rows(staged([R1]))) == 2
+    with pytest.raises(StageError, match="different values inside one landing"):
+        staged([R1])
 
 
 def test_a_filing_moving_between_zip_files_is_not_a_change(root):
     land(R1, [filing(source=MAIN)])
     land(R2, [filing(source=OVERFLOW)])
-    con = staged([R1, R2])
-    assert rows(con, "source_file, run_id") == [(MAIN, R1)]
-    assert con.execute("SELECT count(*) FROM submission_filing_versions").fetchone() == (1,)
+    assert rows(staged([R1, R2]), "source_file, run_id") == [(MAIN, R1)]
 
 
 def test_changed_value_takes_newest_landing(root):
@@ -121,19 +120,18 @@ def test_no_raw_stops(root):
         staged([R1])
 
 
-# --- roll-forward (D125) on the filing history ----------------------------------
+# --- merge (D132) on the filing history -----------------------------------------
 
-def table(con, name):
-    return sorted(con.execute(f"SELECT * FROM {name}").fetchall(), key=repr)
+def table(con):
+    return sorted(con.execute("SELECT * FROM submission_filings").fetchall(), key=repr)
 
 
 def save_base(root, run_id):
     con = staged([r for r in RUNS if r <= run_id])
-    folder = root / "staging" / run_id
+    folder = root / "serving" / run_id
     folder.mkdir(parents=True)
-    con.execute(f"COPY submission_filing_versions TO "
-                f"'{(folder / 'submission_filing_versions.parquet').as_posix()}' (FORMAT parquet)")
-    return folder
+    con.execute(f"COPY submission_filings TO '{(folder / 'submission_filings.parquet').as_posix()}' (FORMAT parquet)")
+    return Base(run_id, folder)
 
 
 CONFLICT = [filing(accepted="2026-10-06T20:15:00.000Z", source=MAIN),
@@ -149,11 +147,10 @@ SCENARIOS = {
 
 @pytest.mark.parametrize("scenario", SCENARIOS)
 @pytest.mark.parametrize("base_run", [R1, R2])
-def test_fold_equals_full_rebuild(root, scenario, base_run):
+def test_merge_into_base_equals_reading_every_landing(root, scenario, base_run):
     for run, landing in zip(RUNS, SCENARIOS[scenario]):
         land(run, landing)
     full = staged(RUNS)
-    folded = staged(RUNS, base=save_base(root, base_run))
-    assert folded.result.mode == FOLD
-    for name in ("submission_filing_versions", "submission_filings"):
-        assert table(folded, name) == table(full, name), name
+    merged = staged(RUNS, base=save_base(root, base_run))
+    assert merged.result.base_run == base_run
+    assert table(merged) == table(full)
