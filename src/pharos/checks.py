@@ -52,6 +52,8 @@ HEADER_FIELDS = ("id", "severity", "gate", "group", "description")
 # each into serving/<version>/inputs/ (D76). Each group declares its own.
 INPUTS_DIR = "inputs"
 VIEW_INPUTS = PRICES_MACRO.inputs
+# the per-group manifest columns refresh writes (D115)
+GROUP_COLUMNS = ("group", "group_outcome", "group_reason", "group_source_run")
 
 
 class CheckError(RuntimeError):
@@ -202,10 +204,15 @@ def bind_run(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None =
     # refresh writes it after publish.
     manifests = data_root() / "health" / "run_manifest"
     if any(manifests.glob("*.parquet")):
-        con.execute(f"CREATE VIEW run_manifest AS SELECT * FROM "
-                    f"read_parquet('{manifests.as_posix()}/*.parquet', union_by_name = true)")
+        source = f"read_parquet('{manifests.as_posix()}/*.parquet', union_by_name = true)"
+        # manifests from before source groups have no group columns; when none
+        # has them, add them as NULL so a check always sees one shape (D116)
+        have = {c[0] for c in con.execute(f"DESCRIBE SELECT * FROM {source}").fetchall()}
+        extra = "".join(f', NULL::VARCHAR AS "{c}"' for c in GROUP_COLUMNS if c not in have)
+        con.execute(f"CREATE VIEW run_manifest AS SELECT *{extra} FROM {source}")
     else:
-        con.execute("CREATE TABLE run_manifest (run_id VARCHAR, status VARCHAR, published_at TIMESTAMPTZ)")
+        con.execute("CREATE TABLE run_manifest (run_id VARCHAR, status VARCHAR, published_at TIMESTAMPTZ, "
+                    + ", ".join(f'"{c}" VARCHAR' for c in GROUP_COLUMNS) + ")")
 
 
 def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = None,

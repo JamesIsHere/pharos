@@ -65,7 +65,7 @@ def toy(staged_run, monkeypatch, tmp_path):
     defaults[0] = folder
     monkeypatch.setattr(checks_mod.run_checks, "__defaults__", tuple(defaults))
 
-    state = {"toy": [1, 2, 3], "toy_fails": False, "prices_fail": False}
+    state = {"toy": [1, 2, 3], "toy_fails": False, "prices_fail": False, "checks": folder}
 
     def prices(run_id):
         if state["prices_fail"]:

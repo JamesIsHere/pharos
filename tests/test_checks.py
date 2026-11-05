@@ -63,7 +63,7 @@ def test_every_shipped_check_names_its_group():
     by_group = {}
     for c in discover():
         by_group.setdefault(c.group, []).append(c.id)
-    assert by_group["run"] == ["C01"]
+    assert by_group["run"] == ["C01", "C35", "C36"]
     assert set(by_group) <= set(GROUPS) | {"run"}
 
 

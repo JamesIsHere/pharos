@@ -941,3 +941,37 @@ def test_missing_price_is_c09_not_c16(staged_run):
            f"SELECT * REPLACE (NULL::DOUBLE AS value) FROM t WHERE {NVDA_DAY} UNION ALL SELECT * FROM t WHERE NOT ({NVDA_DAY})")
     e = run_checks(staged_run)
     assert (result(e, "C09")["status"], result(e, "C16")["status"], e.verdict) == ("error", "pass", "blocked")
+
+
+# --- source groups: C35 / C36 (D81-D83, D116) --------------------------------
+
+from test_groups import RUNS, toy  # noqa: E402,F401  (the toy second group and its run ids)
+
+
+def _status(check_id):
+    """A check's status at view time. The overall color isn't asserted: the
+    fixture's prices stop on Oct 6, so C17 is red at this clock regardless, and
+    health's roll-up (warn -> yellow, error -> red) is pinned elsewhere."""
+    from datetime import datetime, timezone
+    from pharos import health
+    h = health.evaluate(now=datetime(2026, 10, 10, 15, tzinfo=timezone.utc), record=False)
+    return next(r for r in h.results if r["check_id"] == check_id)["status"]
+
+
+def test_c35_warns_then_c36_errors_then_both_clear(toy):
+    toy["run"](RUNS[0])
+    assert (_status("C35"), _status("C36")) == ("pass", "pass")
+    toy["toy"] = [-1]                                       # C96 blocks toy: carried forward
+    toy["run"](RUNS[1])
+    assert (_status("C35"), _status("C36")) == ("warn", "pass")
+    toy["run"]("20261010T120000Z")                          # a second run in a row
+    assert (_status("C35"), _status("C36")) == ("warn", "error")
+    toy["toy"] = [4]                                        # the next good run clears both
+    toy["run"](RUNS[2])
+    assert (_status("C35"), _status("C36")) == ("pass", "pass")
+
+
+def test_c36_errors_for_a_group_that_never_published(toy):
+    toy["toy_fails"] = True
+    toy["run"](RUNS[0])
+    assert (_status("C35"), _status("C36")) == ("pass", "error")   # never published is not carried forward
