@@ -45,7 +45,7 @@ def test_missing_header_field_stops(checks_dir, field):
         discover(checks_dir)
 
 
-@pytest.mark.parametrize("field,value", [("severity", "fatal"), ("gate", "maybe"), ("group", "sec")])
+@pytest.mark.parametrize("field,value", [("severity", "fatal"), ("gate", "maybe"), ("group", "nonesuch")])
 def test_invalid_header_value_stops(checks_dir, field, value):
     write_check(checks_dir, "C90", PASS_SQL, **{field: value})
     with pytest.raises(CheckError, match=field):
@@ -59,12 +59,12 @@ def test_a_run_level_check_cannot_gate(checks_dir):
 
 
 def test_every_shipped_check_names_its_group():
-    from pharos.groups import GROUPS
+    from pharos.groups import DECLARED
     by_group = {}
     for c in discover():
         by_group.setdefault(c.group, []).append(c.id)
     assert by_group["run"] == ["C01", "C35", "C36"]
-    assert set(by_group) <= set(GROUPS) | {"run"}
+    assert set(by_group) <= {g.name for g in DECLARED} | {"run"}
 
 
 def test_filename_must_match_id(checks_dir):

@@ -101,11 +101,11 @@ Entity tables beside the series model. Each row carries the four columns every o
 | yfinance | M1 | daily close (split-adjusted), splits, dividends | Unofficial. Wrapped and schema-checked; `auto_adjust` always explicit | No: Yahoo terms 2(h) bar distributing or publicly performing its content without written permission |
 | second price source | M1 | reconciliation only | Independent of Yahoo. Candidates: Tiingo free tier, Alpha Vantage free tier, Stooq. Pick in M1 and log the decision | No: Tiingo (chosen, D35) free accounts are 'internal and personal use only', no redistribution 'in any form' |
 | FRED / ALFRED | M1 | `GDP` (nominal, SAAR), `GDPC1` (real), `CPIAUCSL` (monthly CPI) | Pull all vintages. Freshness uses FRED release dates, not a hard-coded lag (releases slip, e.g. shutdowns) | Not now (#103): the API terms bar storing its content; the series are public domain at BEA/BLS |
-| SEC companyfacts.zip | M2 (D128) | XBRL facts, all filers, landed on demand (D131) | Keeps accession + filed date per fact = point-in-time is reconstructible | Yes (SEC data is public; unverified, from prior) |
+| SEC companyfacts.zip | M2 (D128) | XBRL facts, all filers, landed on demand (D131): `company_facts` (one row per fact, keyed cik, taxonomy, concept, unit, accession, start_date, end_date), `company_concepts` | Keeps accession + filed date per fact = point-in-time is reconstructible. Landed level; freshness C40 | Yes (SEC data is public; unverified, from prior) |
 | SEC Financial Statement Data Sets | M3 | dimensional facts (multi-class shares), `pre` table | companyfacts drops dimensional facts | Yes (as above) |
-| SEC EDGAR full-index (`master.gz` per quarter) | M2 | every filing: CIK, name, form, date filed | Annual reports, events and gap years (D54, D65); current and previous quarter re-landed each run | Yes (as above) |
-| SEC submissions.zip | M2 | company details (name, SIC, state, tickers, exchanges) and filing history | Nightly bulk; details snapshot every run, history past the watermark (D58) | Yes (as above) |
-| SEC company_tickers_exchange.json | M2 | current ticker to CIK and exchange | Current only: dead or renamed tickers need manual mapping | Yes (as above) |
+| SEC EDGAR full-index (`master.gz` per quarter) | M2 | every filing: CIK, name, form, date filed: `filings` | Annual reports, events and gap years (D54, D65); current and previous quarter re-landed each run. Landed level; freshness C25 | Yes (as above) |
+| SEC submissions.zip | M2 | company details (name, SIC, state, tickers, exchanges) and filing history: `submission_details`, `submission_filings` | Nightly bulk; details snapshot every run, history past the watermark (D58). Landed level; freshness C31 | Yes (as above) |
+| SEC company_tickers_exchange.json | M2 | current ticker to CIK and exchange: `tickers` | Current only: dead or renamed tickers need manual mapping. Landed level; freshness C34 | Yes (as above) |
 | BEA NIPA | M6 | GDP expenditure detail | The GDP tracker, folded in | Yes, with BEA's notice: its API terms allow building a service to 'display' its data |
 
 ## 6. Refresh pipeline rules
@@ -143,7 +143,11 @@ Completeness requires a declared expectation. `config/watchlist.csv` plus each s
 | C19 | uniqueness | error | no | `(ticker, obs_date)` repeated in this run's Tiingo file (D37) |
 | C20 | freshness | warn | no | Tiingo's latest close for an active ticker older than the latest due XNYS session (D37) |
 | C35 | carry-forward | warn | no | a source group was carried forward in the latest run: served from an earlier run (`group: run`, D81, D82, D116) |
-| C36 | carry-forward | error | no | a source group has not published fresh in 2 or more runs in a row, or has never published (`group: run`, D82, D83, D116) |
+| C36 | carry-forward | error | no | a source group has not published fresh in 2 or more runs in a row, or has never published (`group: run`, D82, D83, D116). A run that didn't attempt a group (`not_run`) doesn't count (D135) |
+| C25 | freshness | error | no | latest full-index filing date older than 3 business days (weekdays) at the clock (`group: sec`, D60) |
+| C31 | freshness | warn | no | latest submissions.zip Last-Modified older than 36 hours at the clock (`group: sec`, D60) |
+| C34 | freshness | warn | no | latest ticker file Last-Modified older than 14 days at the clock; provisional (`group: sec`, D60) |
+| C40 | freshness | warn | no | latest companyfacts landing older than 92 days at the clock; on demand, never red (`group: companyfacts`, D131) |
 | C12 | reconciliation | warn | no | sampled split-adjusted closes differ from Tiingo by > 0.5%, a ticker both sources have shares no date with Tiingo, or a reviewed reclassification (D40) matches no Tiingo distribution; sample = 5 dates per ticker drawn by hash(run_id) + the latest common date, defined once in `transform/reconcile_sample.sql` (D38) |
 | C13 | baseline | warn | no | first_date moved later, row_count below baseline, or a baselined series gone, vs the opening-balance audit; also fires while no baseline is recorded. Metrics defined once in `transform/baseline_metrics.sql` (C04's row rule), shared with the audit (D39) |
 | C14 | accuracy | error | yes | same `(series_id, obs_date, vintage)` with different values across raw snapshots (silent source correction). Prices: current vintage per series only (D23); FRED: every key |

@@ -16,12 +16,11 @@ from pathlib import Path
 
 import duckdb
 
-from pharos.groups import COMPANYFACTS, PRICES_MACRO, SEC
+from pharos.groups import DECLARED
 from pharos.paths import data_root
 from pharos.publish import current_version
 
 # every declared group, registered or not: a view exists only where files do
-DECLARED = (PRICES_MACRO, SEC, COMPANYFACTS)
 RAW_DATASETS = [d for g in DECLARED for d in g.datasets]
 TABLES = [t for g in DECLARED for t in g.tables]
 

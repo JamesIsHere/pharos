@@ -42,7 +42,7 @@ import duckdb
 import exchange_calendars as xc
 
 from pharos import config
-from pharos.groups import GROUPS, PRICES_MACRO, RUN, Group
+from pharos.groups import DECLARED, GROUPS, PRICES_MACRO, RUN, Group
 from pharos.paths import PROJECT_ROOT, data_root
 from pharos.runs import sha256_of
 from pharos.stage import any_complete_runs, bind_config, bind_raw, complete_runs
@@ -113,8 +113,9 @@ def parse(path: Path) -> Check:
         raise CheckError(f"{path.name}: severity must be error or warn, not {header['severity']!r}")
     if header["gate"] not in ("yes", "no"):
         raise CheckError(f"{path.name}: gate must be yes or no, not {header['gate']!r}")
-    if header["group"] != RUN and header["group"] not in GROUPS:
-        raise CheckError(f"{path.name}: group must be one of {sorted(GROUPS) + [RUN]}, not {header['group']!r}")
+    declared = sorted({g.name for g in DECLARED} | set(GROUPS))
+    if header["group"] != RUN and header["group"] not in declared:
+        raise CheckError(f"{path.name}: group must be one of {declared + [RUN]}, not {header['group']!r}")
     if header["group"] == RUN and header["gate"] == "yes":
         raise CheckError(f"{path.name}: a `group: run` check can't gate: a gate blocks one group's publish (D81)")
     if not re.fullmatch(re.escape(header["id"]) + r"(_\w+)?", path.stem):

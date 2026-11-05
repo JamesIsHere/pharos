@@ -5,7 +5,7 @@
 - **Milestone:** M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z. M2 re-scoped to 'SEC landed' (D127, D128: review session 2026-11-05): steps 0-1 DONE (D113-D124); the universe moved to milestone U. D130-D133: DBeaver read-only as the viewer, companyfacts on demand, SEC staging newest value only, serving keeps two versions. H (Hosting) on hold: Pharos stays private; design.md section 5 records which sources could be shown online (D106). Nightly task now 07:30 UTC (D63)
 - **Health:** GREEN at 2026-11-05 09:41 UTC (`pharos health`): companyfacts published from 20261105T083453Z; prices_macro and sec not_run, served from 20261105T073034Z. C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261105T083453Z
 - **Last session:** 2026-11-05 (fifteenth): M2 step 3 done. companyfacts is an on-demand group (D135) with its own command; loader, staging (first landing skips the merge) and the first landing published (126,265,124 facts). One run killed by memory pressure in the merge; fixed. Before that, 2026-11-05 (fourteenth): M2 step 2 built and run. SEC staging is one merge, newest value per key, unchanged keys keep their first run (D132); details and tickers staged; the SEC group wired into stage, checks, refresh and the catalog, and registered; serving keeps two versions (33 old versions removed by hand). First real run 20261105T071217Z: prices published, SEC stopped by a combined filing listed under two forms, fixed by keying submission_filings on form (D134); second run 20261105T073034Z published both. Tests now kept off sec.gov (conftest). Map: scratch/folder-map.html, kept current per the session protocol
-- **Next action:** Step 3 done (companyfacts published, D135). Start step 4 (freshness checks and one-row descriptions). The 2026-11-06 07:30 UTC nightly is the first that merges into a published SEC table and the first to carry companyfacts as not_run: check its run time, that sec publishes, and that companyfacts stays served
+- **Next action:** Steps 0-4 done. M2 closes on its acceptance criteria: #4 needs the 2026-11-06 07:30 UTC nightly's run time and memory (the first merge into a published SEC table, and the first to carry companyfacts as not_run: check sec publishes and companyfacts stays served); #3 (SEC download made to fail, prices still publish) is not yet shown on the real pipeline this session
 - **Blockers / open questions:** none. #17 and #25 are built together when C14 first fires on a price. Full list in Open issues below and Parked issues in `docs/later.md`; cite only IDs that appear there.
 
 ## Open issues
@@ -20,7 +20,7 @@
 
 ---
 
-## M2: SEC landed (D128, 2026-11-05; steps 0-3 done)
+## M2: SEC landed (D128, 2026-11-05; steps 0-4 done)
 
 **Goal.** Every SEC bulk dataset Pharos uses sits in Pharos's own data root at the landed level (D127), loaded by the nightly refresh, staged, published and queryable in DuckDB. No analysis on it.
 
@@ -38,7 +38,7 @@
   - `uv run pharos companyfacts` runs the companyfacts group alone (D135); refresh never attempts it, and a group a run didn't attempt is `not_run`, served unchanged.
   - First run 20261105T083453Z: landed 126,265,124 facts and 4,837,491 concepts (raw 892 MB + 56 MB, about 10 min), then killed in staging by memory pressure: the merge spilled 60 GB. A first landing now skips the merge (same table, tested). Staged and published that landing with `pharos stage --run` / `pharos publish --run`: 92 s staging (peak 7.66 GB, measured on a throwaway root with the same rows), 8 s publish; the version is 4.3 GB. No run manifest for this run (the kill skipped it; the stage/publish commands write none).
   - The next companyfacts landing takes the full merge against a 126M-row base: measure it on a throwaway root before running it.
-- [ ] 4. One freshness check per dataset (C25, C31, C34 as specified in U, plus one for companyfacts), and a one-row description per dataset in design.md section 5.
+- [x] 4. One freshness check per dataset (C25, C31, C34 as specified in U, plus one for companyfacts), and a one-row description per dataset in design.md section 5. Done 2026-11-05: C25 (full-index, error, 3 weekdays), C31 (submissions, warn, 36 h), C34 (tickers, warn, 14 days), C40 (companyfacts landing, warn, 92 days: defaulted, flagged). All pass on today's data and all fire at a clock of 2027-03-01. Section 5 rows name each dataset's tables and check; section 7 has the four rows.
 
 ### Acceptance criteria
 1. One `uv run pharos refresh` on the real data root lands, stages and publishes the full-index, submissions and tickers; companyfacts' on-demand command does the same for it (D131). Each is a table in `catalog.duckdb`.

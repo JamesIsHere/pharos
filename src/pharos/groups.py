@@ -68,8 +68,12 @@ COMPANYFACTS = Group(
     on_demand=True,
 )
 
+# every declared group, registered or not: a check may name any of them, and
+# runs only while its group is registered (tests unregister the SEC groups)
+DECLARED: tuple[Group, ...] = (PRICES_MACRO, SEC, COMPANYFACTS)
+
 # registered groups: loaded, staged and published by their runs
-GROUPS: dict[str, Group] = {g.name: g for g in (PRICES_MACRO, SEC, COMPANYFACTS)}
+GROUPS: dict[str, Group] = {g.name: g for g in DECLARED}
 
 # What happened to a group in one run (manifest and serving/<run>/groups.parquet):
 PUBLISHED = "published"              # this run's staged tables are served

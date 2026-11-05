@@ -795,6 +795,8 @@ def test_every_ack_key_names_columns_its_check_returns(staged_run):
     con = duckdb.connect()
     bind(con, staged_run)
     for c in discover():
+        if c.group not in ("prices_macro", "run"):
+            continue   # bound by its own group's binder; its columns are checked at view time
         cols = [d[0] for d in con.execute(f"SELECT * FROM ({c.sql}) LIMIT 0").description]
         assert set(c.ack_key) <= set(cols), (c.id, c.ack_key, cols)
     assert {c.id for c in discover() if c.ack_key} == {c.id for c in discover() if c.severity == "warn"}
