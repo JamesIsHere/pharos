@@ -66,8 +66,9 @@ def write_raw(download, source: str, dataset: str, run_id: str, *,
               last_modified: datetime | None = None, source_count: int | None = None) -> Path | None:
     """Write one download to raw/<source>/<dataset>/<run_id>.parquet.
 
-    `download` is anything DuckDB can read as a table (a pandas DataFrame from a
-    loader). Every row gets run_id and loaded_at for lineage. An empty download
+    `download` is anything DuckDB can read as a table: a pandas DataFrame from a
+    loader, or a DuckDB relation over parsed files, which streams to disk
+    without being held in memory (D93). Every row gets run_id and loaded_at for lineage. An empty download
     writes no data file but is still recorded, so "the source returned nothing"
     is evidence, not silence. Returns the file path, or None if empty.
 
@@ -92,12 +93,16 @@ def write_raw(download, source: str, dataset: str, run_id: str, *,
     if rows_downloaded > 0:
         target.parent.mkdir(parents=True, exist_ok=True)
         partial = target.with_suffix(".partial")
-        con.register("download", download)
-        con.execute(
-            f"""COPY (SELECT *, '{run_id}' AS run_id, TIMESTAMPTZ '{loaded_at}' AS loaded_at
-                     FROM download)
-                TO '{partial.as_posix()}' (FORMAT parquet)"""
-        )
+        if isinstance(download, duckdb.DuckDBPyRelation):
+            # a relation belongs to its own connection: write it from there
+            download.project(f"*, '{run_id}' AS run_id, TIMESTAMPTZ '{loaded_at}' AS loaded_at")                 .write_parquet(partial.as_posix())
+        else:
+            con.register("download", download)
+            con.execute(
+                f"""COPY (SELECT *, '{run_id}' AS run_id, TIMESTAMPTZ '{loaded_at}' AS loaded_at
+                         FROM download)
+                    TO '{partial.as_posix()}' (FORMAT parquet)"""
+            )
         rows_written = _count_rows(con, partial)
         # still write-once if target appeared meanwhile, on any OS: a hard link
         # refuses an existing name everywhere, where rename overwrites on POSIX (#72)
