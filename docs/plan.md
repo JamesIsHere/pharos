@@ -5,7 +5,7 @@
 - **Milestone:** M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z. M2 re-scoped to 'SEC landed' (D127, D128: review session 2026-11-05): steps 0-1 DONE (D113-D124); the universe moved to milestone U. D130-D133: DBeaver read-only as the viewer, companyfacts on demand, SEC staging newest value only, serving keeps two versions. H (Hosting) on hold: Pharos stays private; design.md section 5 records which sources could be shown online (D106). Nightly task now 07:30 UTC (D63)
 - **Health:** GREEN at 2026-11-05 07:45 UTC (`pharos health`): prices_macro and sec both published from 20261105T073034Z. C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261105T073034Z
 - **Last session:** 2026-11-05 (fourteenth): M2 step 2 built and run. SEC staging is one merge, newest value per key, unchanged keys keep their first run (D132); details and tickers staged; the SEC group wired into stage, checks, refresh and the catalog, and registered; serving keeps two versions (33 old versions removed by hand). First real run 20261105T071217Z: prices published, SEC stopped by a combined filing listed under two forms, fixed by keying submission_filings on form (D134); second run 20261105T073034Z published both. Tests now kept off sec.gov (conftest). Map: scratch/folder-map.html, kept current per the session protocol
-- **Next action:** Nightly task re-enabled 2026-11-05 07:52 UTC (next run 2026-11-06 07:30 UTC). Then archive data/spikes/ (the last item of step 2) and start step 3 (companyfacts on demand). The next nightly is the first that merges into a published SEC table: check its run time and that sec publishes
+- **Next action:** Nightly task re-enabled 2026-11-05 07:52 UTC (next run 2026-11-06 07:30 UTC). Step 2 done. Start step 3 (companyfacts on demand). The next nightly is the first that merges into a published SEC table: check its run time and that sec publishes
 - **Blockers / open questions:** none. #17 and #25 are built together when C14 first fires on a price. Full list in Open issues below and Parked issues in `docs/later.md`; cite only IDs that appear there.
 
 ## Open issues
@@ -20,20 +20,20 @@
 
 ---
 
-## M2: SEC landed (D128, 2026-11-05; steps 0-1 done)
+## M2: SEC landed (D128, 2026-11-05; steps 0-2 done)
 
 **Goal.** Every SEC bulk dataset Pharos uses sits in Pharos's own data root at the landed level (D127), loaded by the nightly refresh, staged, published and queryable in DuckDB. No analysis on it.
 
 ### Build order
 - [x] 0. Source groups (D113-D117): see U, step 0, in `docs/later.md`.
 - [x] 1. Loaders for the full-index, submissions and the tickers file (D119-D124): see U, step 1, in `docs/later.md`.
-- [ ] 2. Stage each dataset, newest value per key (D132), and wire the group in. All done 2026-11-05 except archiving data/spikes/:
+- [x] 2. Stage each dataset, newest value per key (D132), and wire the group in. Done 2026-11-05:
   - DONE 2026-11-05: stage_sec.py: replace roll_forward/fold/newest/rebuild_night with one merge: the base is the table in the current serving version (absent: build from every landing); rows from runs after the base's run override base rows by key; keep D126's acceptance-conflict collapse; assert the key unique (a duplicate stops the group). Stage `submission_details` and `tickers` the same way. Delete the `*_versions` tables and their tests.
   - DONE 2026-11-05: groups.py: declare group `sec` (declared as SEC, not yet in GROUPS: it registers with the wiring below, or every nightly records it never_published and C36 is red): required sec/full_index, sec/submission_details, sec/submission_filings, sec/tickers; tables filings, submission_filings, submission_details, tickers; inputs none until step 4.
   - DONE 2026-11-05: stage.STAGERS, checks.BINDERS (a minimal binder: run-level names and the group's tables, at run and view time), refresh.LOADERS (load_index, load_submissions, load_tickers), catalog.py (raw and serving views for the SEC tables, for DBeaver).
   - DONE 2026-11-05: memory cap (#111, closed): stage_sec.connect() sets 8 GB, spilling to <data root>/tmp/duckdb, one connection per dataset. Measured: Python's working set peaked at 11.75 GB (first run) and 11.67 GB (second), during SEC staging: the cap bounds DuckDB's buffers, not the whole process. Left at 8 GB.
   - DONE 2026-11-05: serving keeps two versions (D133). A version with SEC is 2.8 GB (estimate was 1.7).
-  - DONE 2026-11-05: first real runs by hand. 20261105T071217Z: 13m52s, lands everything (raw: full-index 479 MB, filings 1.1 GB, details 109 MB, tickers 0.3 MB); sec stopped at staging (D134). 20261105T073034Z: 15m04s, both published; no base yet, so staging read both landings. Served: filings 27,380,030, submission_filings 27,378,552, submission_details 991,698, tickers 10,409; every row keeps the first run's lineage (nothing changed between the runs). Still to do: archive data/spikes/; record the first nightly's time (acceptance #4).
+  - DONE 2026-11-05: first real runs by hand. 20261105T071217Z: 13m52s, lands everything (raw: full-index 479 MB, filings 1.1 GB, details 109 MB, tickers 0.3 MB); sec stopped at staging (D134). 20261105T073034Z: 15m04s, both published; no base yet, so staging read both landings. Served: filings 27,380,030, submission_filings 27,378,552, submission_details 991,698, tickers 10,409; every row keeps the first run's lineage (nothing changed between the runs). data/spikes/ moved to data/archive/spikes-2026-11-04/ (3.6 GB, nothing deleted). Still to record: the first nightly's run time (acceptance #4).
 - [ ] 3. companyfacts: a loader (bulk zip, D57), staged as landed. It lands on demand, by its own command, not in the nightly refresh (D131); its freshness check warns on the landing's age, never red.
 - [ ] 4. One freshness check per dataset (C25, C31, C34 as specified in U, plus one for companyfacts), and a one-row description per dataset in design.md section 5.
 
