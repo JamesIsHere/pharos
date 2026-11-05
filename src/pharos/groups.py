@@ -7,10 +7,9 @@ check blocks only its own group, and reads only its own group's tables and raw
 data. Checks about the run itself (the age of the last publish, which groups
 were carried forward) declare `group: run`; they are monitors and never gate.
 
-M1's data is the one registered group, prices_macro. SEC is declared here
-(M2 step 2) but joins GROUPS only in the commit that gives it a stager, a
-check binder and its loaders: registered before then, every nightly would
-record it never_published, and C36 turns red on that (D83).
+Two registered groups: prices_macro (M1) and sec (M2). A group joins GROUPS
+only with its stager, check binder and loaders: registered without them,
+every nightly would record it never_published, and C36 turns red (D83).
 """
 
 from dataclasses import dataclass
@@ -51,8 +50,8 @@ SEC = Group(
     inputs=(),
 )
 
-# registered groups: loaded, staged and published by refresh. SEC joins when wired (above)
-GROUPS: dict[str, Group] = {g.name: g for g in (PRICES_MACRO,)}
+# registered groups: loaded, staged and published by refresh
+GROUPS: dict[str, Group] = {g.name: g for g in (PRICES_MACRO, SEC)}
 
 # What happened to a group in one run (manifest and serving/<run>/groups.parquet):
 PUBLISHED = "published"              # this run's staged tables are served

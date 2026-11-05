@@ -21,6 +21,17 @@ def no_tiingo_network(monkeypatch):
     monkeypatch.setenv("TIINGO_API_KEY", "")
 
 
+@pytest.fixture(autouse=True)
+def no_sec_network(monkeypatch):
+    """No test reaches sec.gov. The pipeline tests run the prices group only:
+    with sec registered, every refresh() in a test downloaded EDGAR's full index
+    (2026-11-05, 4.3 GB before it was stopped). A blank User-Agent makes any
+    SEC fetch refuse before a request. SEC's own tests call stage_sec directly."""
+    from pharos.groups import GROUPS
+    monkeypatch.delitem(GROUPS, "sec", raising=False)
+    monkeypatch.setenv("SEC_USER_AGENT", "")
+
+
 def tiingo_rows(ticker, days, closes):
     n = len(days)
     return pd.DataFrame({"ticker": [ticker] * n, "tiingo_symbol": [ticker.replace(".", "-")] * n,
