@@ -138,6 +138,7 @@ def publish(run_id: str | None = None, not_staged: dict[str, str] | None = None)
         _build(run_id, version, outcomes, current)
     _point(run_id)
     prune_staging(run_id)
+    prune_serving(keep={run_id} | ({current.name} if current is not None else set()))
     return Publication(run_id, evaluation, version, outcomes)
 
 
@@ -147,6 +148,19 @@ def prune_staging(published_run: str) -> list[str]:
     folder = data_root() / "staging"
     old = sorted(p for p in folder.iterdir() if p.is_dir() and RUN_ID.fullmatch(p.name)
                  and p.name < published_run) if folder.is_dir() else []
+    for p in old:
+        shutil.rmtree(p)
+    return [p.name for p in old]
+
+
+def prune_serving(keep: set[str]) -> list[str]:
+    """Delete every serving version folder not in keep: after a publish, the
+    version CURRENT names and the one it replaced (D133). Raw is the record;
+    any version rebuilds from raw at its commit. Only run-id folders are
+    touched; returns the run ids removed."""
+    folder = serving_dir()
+    old = sorted(p for p in folder.iterdir() if p.is_dir() and RUN_ID.fullmatch(p.name)
+                 and p.name not in keep) if folder.is_dir() else []
     for p in old:
         shutil.rmtree(p)
     return [p.name for p in old]
