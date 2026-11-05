@@ -263,3 +263,20 @@ def test_sec_declaration_matches_its_stager():
 def test_sec_is_not_registered_before_it_is_wired():
     # registered without a stager, every nightly records it never_published: C36 red (D83)
     assert "sec" not in GROUPS or "sec" in stage_mod.STAGERS
+
+
+def test_refresh_loads_only_registered_groups(monkeypatch):
+    # a loader for a group not in GROUPS is switched off: SEC's waits for its registration
+    calls = []
+    monkeypatch.setitem(refresh_mod.LOADERS, "unregistered", lambda run_id: calls.append(run_id))
+    monkeypatch.setattr(refresh_mod, "provenance", lambda: ("0" * 40, False))
+    monkeypatch.setattr(refresh_mod, "stage", lambda run_id: (_ for _ in ()).throw(RuntimeError("stop")))
+    monkeypatch.setitem(refresh_mod.LOADERS, "prices_macro", lambda run_id: None)
+    monkeypatch.setattr(refresh_mod, "REFERENCE_LOADERS", {})      # no Tiingo call
+    monkeypatch.setattr(refresh_mod, "write_manifest", lambda *a, **k: None)
+    monkeypatch.setattr(refresh_mod.health, "evaluate", lambda: None)
+    monkeypatch.setattr(refresh_mod.health, "acknowledgments", lambda: None)
+    monkeypatch.setattr(refresh_mod.notify, "send_status", lambda *a: None)
+    with pytest.raises(RuntimeError, match="stop"):
+        refresh_mod.refresh()
+    assert calls == []

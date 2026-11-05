@@ -37,7 +37,7 @@ import duckdb
 
 from pharos import health, notify
 from pharos.groups import FAILED, GROUPS, PRICES_MACRO
-from pharos.loaders import fred, tiingo, yahoo
+from pharos.loaders import fred, sec_index, sec_submissions, sec_tickers, tiingo, yahoo
 from pharos.paths import data_root
 from pharos.publish import Publication, publish
 from pharos.runs import new_run_id, provenance
@@ -51,8 +51,16 @@ def _load_prices_macro(run_id: str) -> None:
     fred.load_macro(run_id)
 
 
-# group -> its required loads, and its reference loads (whose failure is only recorded, D37)
-LOADERS = {"prices_macro": _load_prices_macro}
+def _load_sec(run_id: str) -> None:
+    sec_index.load_index(run_id)
+    sec_submissions.load_submissions(run_id)
+    sec_tickers.load_tickers(run_id)
+
+
+# group -> its required loads, and its reference loads (whose failure is only recorded, D37).
+# Only groups registered in GROUPS are loaded: a loader here for an unregistered
+# group is built but switched off
+LOADERS = {"prices_macro": _load_prices_macro, "sec": _load_sec}
 REFERENCE_LOADERS = {("tiingo", "prices"): lambda run_id: tiingo.load_prices(run_id)}
 
 
@@ -66,14 +74,15 @@ def refresh() -> tuple[str, Publication | None]:
         code = provenance()        # no commit, no run: its staging could never be rebuilt (D103)
         health.acknowledgments()   # a bad config/expected_states.csv fails the run before it loads
         first = None
-        for name, load in LOADERS.items():
+        active = {name: load for name, load in LOADERS.items() if name in GROUPS}
+        for name, load in active.items():
             try:
                 load(run_id)
             except Exception as e:
                 # this group can't stage this run; the others go on (D81)
                 group_errors[name] = "load failed: " + traceback.format_exc(limit=5)
                 first = first or e
-        if len(group_errors) == len(LOADERS):
+        if len(group_errors) == len(active):
             raise first
         for key, load in REFERENCE_LOADERS.items():
             try:
