@@ -4,7 +4,16 @@ design.md D18: raw is a snapshot log, one write-once file per source and dataset
 per run. write_raw() is the single writer, so the rule is enforced in one place:
 it refuses to overwrite, never leaves a half-written file under a real name, and
 records a control total (rows downloaded vs rows actually in the file) for C06.
+
+The load record (health/loads/<run_id>__<source>__<dataset>.parquet) also holds
+the file's sha256 as written, which C05 recomputes (D108), and two values a
+loader may pass: the download's HTTP Last-Modified and the count the source
+itself states for the download (D91, D119). Records written before these
+columns existed lack them; every reader reads the log with union_by_name, and
+an older record reads NULL (D91).
 """
+
+import hashlib
 
 import os
 import re
@@ -53,13 +62,18 @@ def provenance() -> tuple[str, bool]:
     return commit, dirty
 
 
-def write_raw(download, source: str, dataset: str, run_id: str) -> Path | None:
+def write_raw(download, source: str, dataset: str, run_id: str, *,
+              last_modified: datetime | None = None, source_count: int | None = None) -> Path | None:
     """Write one download to raw/<source>/<dataset>/<run_id>.parquet.
 
     `download` is anything DuckDB can read as a table (a pandas DataFrame from a
     loader). Every row gets run_id and loaded_at for lineage. An empty download
     writes no data file but is still recorded, so "the source returned nothing"
     is evidence, not silence. Returns the file path, or None if empty.
+
+    last_modified: the HTTP Last-Modified of the download (timezone-aware), for
+    the freshness checks. source_count: the count the source states for this
+    download (e.g. the CIK files in submissions.zip), for completeness checks.
     """
     root = data_root()
     target = root / "raw" / source / dataset / f"{run_id}.parquet"
@@ -71,6 +85,9 @@ def write_raw(download, source: str, dataset: str, run_id: str) -> Path | None:
     con = duckdb.connect()
     path_written = None
     rows_written = 0
+    digest = None
+    if last_modified is not None and last_modified.tzinfo is None:
+        raise ValueError("last_modified must be timezone-aware")
 
     if rows_downloaded > 0:
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -91,6 +108,7 @@ def write_raw(download, source: str, dataset: str, run_id: str) -> Path | None:
             raise RawExistsError(f"{target} appeared during the write; raw files are write-once") from e
         partial.unlink()
         path_written = target
+        digest = sha256_of(target)   # of the file as written: C05 recomputes it (D108)
 
     record = root / "health" / "loads" / f"{run_id}__{source}__{dataset}.parquet"
     record.parent.mkdir(parents=True, exist_ok=True)
@@ -99,11 +117,24 @@ def write_raw(download, source: str, dataset: str, run_id: str) -> Path | None:
                          {f"'{path_written.as_posix()}'" if path_written else "NULL"}::VARCHAR AS path,
                          {rows_downloaded}::BIGINT AS rows_downloaded,
                          {rows_written}::BIGINT AS rows_written,
-                         TIMESTAMPTZ '{loaded_at}' AS loaded_at)
-            TO '{record.as_posix()}' (FORMAT parquet)"""
+                         TIMESTAMPTZ '{loaded_at}' AS loaded_at,
+                         ?::VARCHAR AS sha256,
+                         ?::TIMESTAMPTZ AS last_modified,
+                         ?::BIGINT AS source_count)
+            TO '{record.as_posix()}' (FORMAT parquet)""",
+        [digest, last_modified, source_count],
     )
     con.close()
     return path_written
+
+
+def sha256_of(path: Path) -> str:
+    """Hex sha256 of a file's bytes, read in 1 MB blocks."""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
 
 
 def _count_rows(con: duckdb.DuckDBPyConnection, path: Path) -> int:

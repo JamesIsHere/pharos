@@ -87,3 +87,39 @@ def test_target_appearing_during_the_write_is_refused(root, monkeypatch):
     with pytest.raises(RawExistsError, match="appeared during the write"):
         write_raw(sample(), "yf", "prices", "20260101T000000Z")
     assert target.read_bytes() == b"someone else's file" and not list(root.rglob("*.partial"))
+
+
+# --- load-record columns added by D91 / D108 (D119) --------------------------
+
+def record(root, run_id, source, dataset) -> dict:
+    path = root / "health" / "loads" / f"{run_id}__{source}__{dataset}.parquet"
+    rel = duckdb.sql(f"SELECT * FROM read_parquet('{path.as_posix()}')")
+    return dict(zip(rel.columns, rel.fetchone()))
+
+
+def test_record_holds_sha256_of_the_file_as_written(root):
+    import hashlib
+    path = write_raw(sample(), "yf", "prices", "20260101T000000Z")
+    r = record(root, "20260101T000000Z", "yf", "prices")
+    assert r["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+    assert (r["last_modified"], r["source_count"]) == (None, None)   # M1's loaders pass neither
+
+
+def test_record_holds_last_modified_and_source_count(root):
+    from datetime import datetime, timezone
+    stamp = datetime(2026, 11, 4, 6, 21, tzinfo=timezone.utc)
+    write_raw(sample(), "sec", "submissions", "20260101T000000Z", last_modified=stamp, source_count=991_508)
+    r = record(root, "20260101T000000Z", "sec", "submissions")
+    assert (r["last_modified"], r["source_count"]) == (stamp, 991_508)
+
+
+def test_naive_last_modified_is_refused(root):
+    from datetime import datetime
+    with pytest.raises(ValueError, match="timezone-aware"):
+        write_raw(sample(), "sec", "submissions", "20260101T000000Z", last_modified=datetime(2026, 11, 4))
+    assert not (root / "health" / "loads").exists()   # refused before anything is written
+
+
+def test_empty_download_has_no_hash(root):
+    write_raw(sample(0), "fred", "events", "20260101T000000Z")
+    assert record(root, "20260101T000000Z", "fred", "events")["sha256"] is None

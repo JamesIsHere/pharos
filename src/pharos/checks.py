@@ -44,6 +44,7 @@ import exchange_calendars as xc
 from pharos import config
 from pharos.groups import GROUPS, PRICES_MACRO, RUN, Group
 from pharos.paths import PROJECT_ROOT, data_root
+from pharos.runs import sha256_of
 from pharos.stage import any_complete_runs, bind_config, bind_raw, complete_runs
 
 CHECKS_DIR = PROJECT_ROOT / "checks"
@@ -54,6 +55,8 @@ INPUTS_DIR = "inputs"
 VIEW_INPUTS = PRICES_MACRO.inputs
 # the per-group manifest columns refresh writes (D115)
 GROUP_COLUMNS = ("group", "group_outcome", "group_reason", "group_source_run")
+# load-record columns added after the first records were written (D91, D108, D119)
+LOAD_COLUMNS_ADDED = {"sha256": "VARCHAR", "last_modified": "TIMESTAMPTZ", "source_count": "BIGINT"}
 
 
 class CheckError(RuntimeError):
@@ -240,22 +243,28 @@ def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = Non
     if tables is None:
         # run time: the gate checks read raw/, and config/ is read as it stands
         bind_raw(con, [r for r in runs if r <= run_id], group)
-        # the group's raw files on disk with the row count read from each footer (C05)
+        # the group's raw files on disk with the row count read from each footer
+        # and the hash of the bytes (C05, D108)
         con.execute("CREATE TABLE raw_files (source VARCHAR, dataset VARCHAR, run_id VARCHAR, "
-                    "path VARCHAR, rows_on_disk BIGINT)")
+                    "path VARCHAR, rows_on_disk BIGINT, sha256_on_disk VARCHAR)")
         for f in sorted((data_root() / "raw").glob("*/*/*.parquet")):
             if f"{f.parent.parent.name}/{f.parent.name}" not in mine:
                 continue
             n = con.execute(f"SELECT sum(num_rows) FROM parquet_file_metadata('{f.as_posix()}')").fetchone()[0]
-            con.execute("INSERT INTO raw_files VALUES (?, ?, ?, ?, ?)",
-                        [f.parent.parent.name, f.parent.name, f.stem, f.as_posix(), n])
+            con.execute("INSERT INTO raw_files VALUES (?, ?, ?, ?, ?, ?)",
+                        [f.parent.parent.name, f.parent.name, f.stem, f.as_posix(), n, sha256_of(f)])
         bind_view_inputs(con, run_id)
     else:
         # view time: the version's own copy of what its checks read (D76)
         load_view_inputs(con, tables, group)
     loads = (data_root() / "health" / "loads").as_posix() + "/*.parquet"
     names = ", ".join(f"'{m}'" for m in sorted(mine))   # declared dataset names, not user input
-    con.execute(f"CREATE VIEW loads AS SELECT * FROM read_parquet('{loads}', union_by_name = true) "
+    source = f"read_parquet('{loads}', union_by_name = true)"
+    # load records from before D91/D108 lack the newer columns; when none has
+    # them, add them as NULL so a check always sees one shape
+    have = {c[0] for c in con.execute(f"DESCRIBE SELECT * FROM {source}").fetchall()}
+    extra = "".join(f", NULL::{kind} AS {c}" for c, kind in LOAD_COLUMNS_ADDED.items() if c not in have)
+    con.execute(f"CREATE VIEW loads AS SELECT *{extra} FROM {source} "
                 f"WHERE source || '/' || dataset IN ({names})")
 
     # Views shared by a check and another reader, one SQL file each:

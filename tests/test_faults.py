@@ -155,6 +155,75 @@ def test_c05_truncated_file_blocks(staged_run):
     assert "row count changed" in r["sample"]
 
 
+def rewrite_raw(run_id, select, source="yf", dataset="prices"):
+    """Rewrite a raw file in place as `select` over its rows (named t)."""
+    path = raw_file(run_id, source, dataset)
+    con = duckdb.connect()
+    con.execute(f"CREATE TABLE t AS SELECT * FROM read_parquet('{path.as_posix()}')")
+    con.execute(f"COPY ({select}) TO '{path.as_posix()}' (FORMAT parquet)")
+    con.close()
+
+
+SAME_COUNT_EDIT = "SELECT * REPLACE (CASE WHEN obs_date = (SELECT min(obs_date) FROM t) THEN close * 2 ELSE close END AS close) FROM t"
+
+
+def test_c05_same_count_rewrite_blocks(staged_run):
+    # #28, D108: one close doubled, row count unchanged: only the hash sees it
+    rewrite_raw(staged_run, SAME_COUNT_EDIT)
+    e = run_checks(staged_run)
+    r = result(e, "C05")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1)
+    assert "content changed" in r["sample"] and "row count changed" not in r["sample"]
+    assert e.verdict == "blocked"
+
+
+def test_c05_record_without_hash_keeps_row_count_test(staged_run):
+    # a record from before D108 has no sha256: the same edit passes C05, as it
+    # did before; the limit D108 accepts for files written before the hash
+    strip_load_columns(staged_run, "yf", "prices")
+    rewrite_raw(staged_run, SAME_COUNT_EDIT)
+    assert result(run_checks(staged_run), "C05")["status"] == "pass"
+
+
+def strip_load_columns(run_id, source, dataset):
+    """Rewrite one load record in the shape it had before D91/D108."""
+    record = data_root() / "health" / "loads" / f"{run_id}__{source}__{dataset}.parquet"
+    con = duckdb.connect()
+    con.execute(f"CREATE TABLE t AS SELECT * EXCLUDE (sha256, last_modified, source_count) "
+                f"FROM read_parquet('{record.as_posix()}')")
+    con.execute(f"COPY t TO '{record.as_posix()}' (FORMAT parquet)")
+    con.close()
+
+
+def test_mixed_old_and_new_load_records_read_alike(staged_run):
+    # D91: one record in the old shape among new ones. Without union_by_name a
+    # reader takes the first file's columns and drops the new ones silently.
+    from pharos import catalog, stage as stage_mod
+    strip_load_columns(staged_run, "fred", "observations")   # sorts before fred/series and yf/prices
+    assert staged_run in stage_mod.complete_runs()
+    e = run_checks(staged_run)
+    assert [result(e, c)["status"] for c in ("C05", "C06")] == ["pass", "pass"]
+    rows = duckdb.sql(f"SELECT source || '/' || dataset, sha256 IS NULL FROM ({catalog.views()['health_loads']}) "
+                      f"WHERE run_id = '{staged_run}' ORDER BY 1").fetchall()
+    assert rows == [("fred/observations", True), ("fred/series", False),
+                    ("tiingo/prices", False), ("yf/prices", False)]
+
+
+def test_mixed_load_records_reach_the_manifest(staged_run):
+    # A guard, not a control: the manifest reads only columns both shapes have,
+    # and DuckDB reads only the columns a query uses, so the reader without
+    # union_by_name passes this too (checked 2026-11-05, DuckDB 1.5.6). A
+    # SELECT * over new-then-old files does fail ('schema mismatch in glob');
+    # union_by_name keeps it safe once the manifest reads a new column (D91).
+    from datetime import datetime, timezone
+    from pharos.refresh import write_manifest
+    strip_load_columns(staged_run, "yf", "prices")   # the old shape sorts last, after new-shape files
+    write_manifest(staged_run, datetime.now(timezone.utc), None, "test")
+    m = data_root() / "health" / "run_manifest" / f"{staged_run}.parquet"
+    rows = dict(duckdb.sql(f"SELECT source || '/' || dataset, rows_landed FROM read_parquet('{m.as_posix()}')").fetchall())
+    assert all(rows[k] is not None for k in ("fred/observations", "fred/series", "yf/prices"))
+
+
 def test_c05_file_without_record_blocks(staged_run):
     stray = raw_file("20991231T000000Z")
     stray.write_bytes(raw_file(staged_run).read_bytes())

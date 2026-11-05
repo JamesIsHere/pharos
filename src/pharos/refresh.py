@@ -129,7 +129,7 @@ def write_manifest(run_id: str, started_at: datetime, publication: Publication |
 
     loads = sorted((root / "health" / "loads").glob(f"{run_id}__*.parquet"))
     if loads:
-        con.execute(f"CREATE VIEW loads AS SELECT * FROM read_parquet({[p.as_posix() for p in loads]})")
+        con.execute(f"CREATE VIEW loads AS SELECT * FROM read_parquet({[p.as_posix() for p in loads]}, union_by_name = true)")
     else:
         con.execute("CREATE TABLE loads (source VARCHAR, dataset VARCHAR, "
                     "rows_downloaded BIGINT, rows_written BIGINT)")

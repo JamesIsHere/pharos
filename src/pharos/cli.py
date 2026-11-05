@@ -31,7 +31,7 @@ def cmd_load(args: argparse.Namespace) -> int:
     records = (data_root() / "health" / "loads" / f"{run_id}__*.parquet").as_posix()
     for source, dataset, downloaded, written, path in duckdb.sql(
             f"""SELECT source, dataset, rows_downloaded, rows_written, path
-                FROM read_parquet('{records}') ORDER BY source, dataset""").fetchall():
+                FROM read_parquet('{records}', union_by_name = true) ORDER BY source, dataset""").fetchall():
         print(f"  {source}/{dataset:<13} {downloaded:>9,} downloaded {written:>9,} written  {path or '(empty)'}")
     return 0
 
