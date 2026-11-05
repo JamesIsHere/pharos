@@ -11,7 +11,8 @@ Pharos (named for the lighthouse of Alexandria) is a local-first data platform: 
 ## Session protocol
 1. Start: run `uv run pharos health`. If anything is red, fix the data first. Never build features on red.
 2. During: one milestone at a time. If a design decision changes, add a row to `docs/decisions.md` in the same commit: only for a choice between real alternatives, never to describe what was built (D129). A concern not fixed in the turn it comes up gets a row in "Open issues" in `docs/plan.md` only if it blocks the current milestone or could lose or corrupt data; anything else is one line in the reply or the commit message. Fixing a row deletes it and the commit cites its ID.
-3. End: update the status block at the top of `docs/plan.md`, then commit. The commit message says what changed and why. Git history is the log; don't create separate log or state files.
+3. Map: `scratch/folder-map.html` is James's at-a-glance page (not in git). After each commit, update only its last-update time and its "Where we stand" box (done, now, queued): a line or two, never a rewrite.
+4. End: update the status block at the top of `docs/plan.md`, then commit. The commit message says what changed and why. Git history is the log; don't create separate log or state files.
 
 ## Stack
 Python 3.12 via uv (lockfile committed) · DuckDB (query engine) · Parquet (storage of record) · Polars (edges only) · Streamlit + Plotly · Windows / PowerShell.
