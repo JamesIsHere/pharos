@@ -4,6 +4,7 @@ Pharos (named for the lighthouse of Alexandria) is a local-first data platform: 
 
 ## Read first
 - `docs/plan.md`: status block and current milestone. Work only on the current milestone.
+- `docs/later.md`: done, on-hold and parked milestones (M1, H, U) and parked issues. Not read by default.
 - `docs/design.md`: data model, time semantics, health system. Read it before changing any schema, layer, source, or check.
 - `docs/decisions.md`: the decision log (D-numbers). Not read by default; open it when a change touches a past decision.
 
@@ -34,7 +35,7 @@ checks/            *.sql, one check per file
 app/               Home.py, common.py, pages/1_Health.py, pages/2_Charts.py
 scripts/           open-dashboard.ps1, nightly-refresh.ps1, register-tasks.ps1, pharos.ico (make_icon.py)
 tests/             incl. test_faults.py
-docs/              design.md, plan.md, decisions.md
+docs/              design.md, plan.md, later.md, decisions.md
 data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.duckdb   (gitignored, never committed)
 ```
 

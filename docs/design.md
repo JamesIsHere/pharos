@@ -4,7 +4,7 @@
 
 **Purpose.** A personal analysis platform. Pull up any stock, macro series, or company-level ratio; compare them over time on one chart; cut across companies and industries. It refreshes daily and tells you plainly whether the data can be trusted.
 
-It is also the datacenter for macro and company data: every company that has filed annual reports with the SEC, domestic or foreign, including the ones that have since stopped, kept at the most detailed level each source offers, as a corpus for analysis. Other projects read it rather than gathering their own. The universe (M2) is its base: a survivorship-free, point-in-time list of filers per year, with listing status and exits, against which every company dataset is checked for completeness (D51, D54, D65).
+It is also the datacenter for macro and company data: every company that has filed annual reports with the SEC, domestic or foreign, including the ones that have since stopped, kept at the most detailed level each source offers, as a corpus for analysis. Other projects read it rather than gathering their own. The universe (milestone U, parked by D128) is its base: a survivorship-free, point-in-time list of filers per year, with listing status and exits, against which every company dataset is checked for completeness (D51, D54, D65).
 
 **Non-goals (v1).**
 - No intraday data, no trading or execution.
@@ -30,7 +30,7 @@ publish    one new version: each passing group's fresh tables; each failing grou
    |       carried forward from the last version it published in, or left out if
    |       it never has; no group passes -> run BLOCKED, serving/ untouched (D115)
    v
-serving/   <run_id>/: series_catalog + observations (from M2 also universe_filer,
+serving/   <run_id>/: series_catalog + observations (from U also universe_filer,
            universe_firm_year, universe_events) <- the contract; groups.parquet
            (each group's outcome and source run); inputs/ (what view-time checks
            read, D76); CURRENT names the served version
@@ -70,7 +70,7 @@ Primary key: `(series_id, obs_date, vintage)`. The serving view defaults to the 
 ### events (raw)
 Splits and dividends per ticker: `ticker, event_date, type, ratio_or_amount, run_id`.
 
-### universe tables (M2, D59)
+### universe tables (U, D59; parked by D128)
 Entity tables beside the series model. Each row carries the four columns every observation needs.
 
 | table | one row per | obs_date | available_date | vintage |
@@ -101,7 +101,7 @@ Entity tables beside the series model. Each row carries the four columns every o
 | yfinance | M1 | daily close (split-adjusted), splits, dividends | Unofficial. Wrapped and schema-checked; `auto_adjust` always explicit | No: Yahoo terms 2(h) bar distributing or publicly performing its content without written permission |
 | second price source | M1 | reconciliation only | Independent of Yahoo. Candidates: Tiingo free tier, Alpha Vantage free tier, Stooq. Pick in M1 and log the decision | No: Tiingo (chosen, D35) free accounts are 'internal and personal use only', no redistribution 'in any form' |
 | FRED / ALFRED | M1 | `GDP` (nominal, SAAR), `GDPC1` (real), `CPIAUCSL` (monthly CPI) | Pull all vintages. Freshness uses FRED release dates, not a hard-coded lag (releases slip, e.g. shutdowns) | Not now (#103): the API terms bar storing its content; the series are public domain at BEA/BLS |
-| SEC companyfacts.zip | M3 | XBRL facts, all filers, nightly bulk | Keeps accession + filed date per fact = point-in-time is reconstructible | Yes (SEC data is public; unverified, from prior) |
+| SEC companyfacts.zip | M2 (D128) | XBRL facts, all filers, landed on demand (D131) | Keeps accession + filed date per fact = point-in-time is reconstructible | Yes (SEC data is public; unverified, from prior) |
 | SEC Financial Statement Data Sets | M3 | dimensional facts (multi-class shares), `pre` table | companyfacts drops dimensional facts | Yes (as above) |
 | SEC EDGAR full-index (`master.gz` per quarter) | M2 | every filing: CIK, name, form, date filed | Annual reports, events and gap years (D54, D65); current and previous quarter re-landed each run | Yes (as above) |
 | SEC submissions.zip | M2 | company details (name, SIC, state, tickers, exchanges) and filing history | Nightly bulk; details snapshot every run, history past the watermark (D58) | Yes (as above) |
