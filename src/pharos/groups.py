@@ -22,6 +22,7 @@ class Group:
     required: tuple[tuple[str, str], ...]    # (source, dataset): all needed for the group to stage
     reference: tuple[tuple[str, str], ...]   # loaded every run, never required
     tables: tuple[str, ...]                  # staged, checked and served
+    inputs: tuple[str, ...]                  # what its view-time checks read, copied into a version's inputs/ (D76)
 
     @property
     def datasets(self) -> tuple[tuple[str, str], ...]:
@@ -33,6 +34,15 @@ PRICES_MACRO = Group(
     required=(("yf", "prices"), ("fred", "observations"), ("fred", "series")),
     reference=(("tiingo", "prices"),),
     tables=("observations", "series_catalog"),
+    inputs=("raw_tiingo_prices", "watchlist_windows", "fred_expected", "required_series",
+            "trading_days", "reclassified", "settings"),
 )
 
 GROUPS: dict[str, Group] = {g.name: g for g in (PRICES_MACRO,)}
+
+# What happened to a group in one run (manifest and serving/<run>/groups.parquet):
+PUBLISHED = "published"              # this run's staged tables are served
+CARRIED_FORWARD = "carried_forward"  # it failed this run; the previous version's tables are served (D81)
+NEVER_PUBLISHED = "never_published"  # it failed and has never published: the version has none (D83)
+BLOCKED = "blocked"                  # the run published nothing: a gate check failed
+FAILED = "failed"                    # the run published nothing: it failed to load, stage or be checked

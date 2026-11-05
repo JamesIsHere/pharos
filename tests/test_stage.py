@@ -64,7 +64,8 @@ def land(run_id, px=None, obs=None, series=None, skip=()):
             write_raw(frame, source, dataset, run_id)
 
 
-def staged(path, sql="SELECT * FROM obs ORDER BY ALL"):
+def staged(staging, sql="SELECT * FROM obs ORDER BY ALL"):
+    path = staging.path
     con = duckdb.connect()
     con.execute(f"CREATE VIEW obs AS SELECT * FROM read_parquet('{(path / 'observations.parquet').as_posix()}')")
     return con.execute(sql).fetchall()

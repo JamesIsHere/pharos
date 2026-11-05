@@ -147,9 +147,10 @@ def test_fault_2_duplicate_day(published):
     from test_faults import tamper
     run3 = "20261009T140000Z"
     def stage_then_duplicate(run_id):
-        stage(run_id)
+        staging = stage(run_id)
         tamper(run_id, "observations", "SELECT * FROM t UNION ALL (SELECT * FROM t "
                                        f"WHERE series_id = 'yf:close:NVDA' AND obs_date = DATE '{day}' LIMIT 1)")
+        return staging
     published.setattr(refresh_mod, "stage", stage_then_duplicate)
     before = serving_bytes()
     pub = run(published, run3, bars(SESSIONS[-5:], full=False))

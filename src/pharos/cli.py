@@ -42,11 +42,16 @@ def cmd_stage(args: argparse.Namespace) -> int:
     from pharos import catalog
     from pharos.stage import stage
 
-    target = stage(args.run)
-    print(f"staged {target}")
-    for table in ("series_catalog", "observations"):
-        n = duckdb.sql(f"SELECT count(*) FROM read_parquet('{(target / f'{table}.parquet').as_posix()}')").fetchone()[0]
-        print(f"  {table:<15} {n:>9,} rows")
+    from pharos.groups import GROUPS
+
+    s = stage(args.run)
+    print(f"staged {s.path}")
+    for name in s.staged:
+        for table in GROUPS[name].tables:
+            n = duckdb.sql(f"SELECT count(*) FROM read_parquet('{(s.path / f'{table}.parquet').as_posix()}')").fetchone()[0]
+            print(f"  {name:<14} {table:<15} {n:>9,} rows")
+    for name, why in s.failed.items():
+        print(f"  {name:<14} NOT STAGED: {why.strip().splitlines()[-1]}")
     print(f"catalog {catalog.rebuild()}")
     return 0
 

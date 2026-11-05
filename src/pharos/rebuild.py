@@ -90,13 +90,23 @@ def rebuild_staging(run_id: str, code_dir: Path | None = None) -> Rebuild:
 
     staging = data / "staging" / run_id
     served = root / "serving" / run_id
-    return Rebuild(run_id, commit, dirty, staging, compare(staging, served) if served.is_dir() else None)
+    if not served.is_dir():
+        return Rebuild(run_id, commit, dirty, staging, None)
+    # only the groups this run published: a carried-forward group's tables came
+    # from an earlier run's raw (D81)
+    from pharos.groups import GROUPS, PUBLISHED
+    from pharos.publish import composition
+    mine = [t for g, c in composition(served).items() if c["outcome"] == PUBLISHED and c["source_run"] == run_id
+            for t in GROUPS[g].tables]
+    return Rebuild(run_id, commit, dirty, staging, compare(staging, served, mine))
 
 
-def compare(rebuilt: Path, served: Path) -> dict[str, tuple[int, int]]:
-    """Row-for-row difference of every table in either folder: (rows only in
-    the rebuild, rows only in the served version). (0, 0) is identical."""
-    tables = sorted({p.stem for p in rebuilt.glob("*.parquet")} | {p.stem for p in served.glob("*.parquet")})
+def compare(rebuilt: Path, served: Path, tables: list[str] | None = None) -> dict[str, tuple[int, int]]:
+    """Row-for-row difference of each table (default: every table in either
+    folder): (rows only in the rebuild, rows only in the served version).
+    (0, 0) is identical."""
+    tables = sorted(tables if tables is not None else
+                    {p.stem for p in rebuilt.glob("*.parquet")} | {p.stem for p in served.glob("*.parquet")})
     out = {}
     con = duckdb.connect()
     for t in tables:

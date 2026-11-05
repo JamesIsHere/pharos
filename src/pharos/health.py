@@ -143,7 +143,7 @@ def acknowledge(results: list[dict]) -> list[dict]:
              for s in states if (s["check_id"], *s["key"]) not in matched]
     last = results[-1]                    # a monitor: evaluate() lists gate results first
     out.append({"run_id": last["run_id"], "context": last.get("context"), "check_id": STATES_CHECK,
-                "severity": "warn", "gate": False,
+                "group": "run", "severity": "warn", "gate": False,
                 "description": "acknowledged expected state that no longer fails: remove it from config/expected_states.csv",
                 "status": "warn" if stale else "pass", "failing_row_count": len(stale),
                 "sample": json.dumps(stale) if stale else None, "error": None,
@@ -178,7 +178,8 @@ def _recorded_gate_results(run_id: str) -> list[dict]:
     out = []
     for check in (c for c in discover() if c.gate):
         out.append(rows.get(check.id) or {
-            "run_id": run_id, "context": "run", "check_id": check.id, "severity": check.severity,
+            "run_id": run_id, "context": "run", "check_id": check.id, "group": check.group,
+            "severity": check.severity,
             "gate": True, "description": check.description, "status": "broken", "failing_row_count": None,
             "sample": None, "error": "no recorded result for this run", "evaluated_at": None})
     return out

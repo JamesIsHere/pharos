@@ -22,6 +22,12 @@ run-level fields repeated. Long, not wide: a new source adds rows, not columns.
   manifests is last_published_at, the app's cache key.
 - git_commit and git_dirty name the code the run ran (D103), read before
   anything loads; a run that can't read them fails without loading.
+- Source groups (D81): each group's loaders run on their own, so one group
+  failing to load or stage is recorded and the others go on. A run crashes
+  (status failed, re-raised) only when no group can stage. Every dataset row
+  carries its group's outcome for the run (published, carried_forward,
+  never_published, blocked or failed), the reason it wasn't fresh, and the
+  run its served tables came from (group_source_run).
 """
 
 import traceback
@@ -30,14 +36,24 @@ from datetime import datetime, timezone
 import duckdb
 
 from pharos import health, notify
-from pharos.groups import PRICES_MACRO
+from pharos.groups import FAILED, GROUPS, PRICES_MACRO
 from pharos.loaders import fred, tiingo, yahoo
 from pharos.paths import data_root
 from pharos.publish import Publication, publish
 from pharos.runs import new_run_id, provenance
-from pharos.stage import DATASETS, stage
+from pharos.stage import stage
 
 REFERENCE_DATASETS = list(PRICES_MACRO.reference)   # loaded every run, never required (D36, D37)
+
+
+def _load_prices_macro(run_id: str) -> None:
+    yahoo.load_prices(run_id)
+    fred.load_macro(run_id)
+
+
+# group -> its required loads, and its reference loads (whose failure is only recorded, D37)
+LOADERS = {"prices_macro": _load_prices_macro}
+REFERENCE_LOADERS = {("tiingo", "prices"): lambda run_id: tiingo.load_prices(run_id)}
 
 
 def refresh() -> tuple[str, Publication | None]:
@@ -45,24 +61,36 @@ def refresh() -> tuple[str, Publication | None]:
     run_id = new_run_id()
     started_at = datetime.now(timezone.utc)
     publication, error, reference_errors, code = None, None, {}, (None, None)
+    group_errors: dict[str, str] = {}
     try:
         code = provenance()        # no commit, no run: its staging could never be rebuilt (D103)
         health.acknowledgments()   # a bad config/expected_states.csv fails the run before it loads
-        yahoo.load_prices(run_id)
-        fred.load_macro(run_id)
-        try:
-            tiingo.load_prices(run_id)
-        except Exception:
-            # reference only: the run goes on, the manifest keeps the error and
-            # C18 turns health red until Tiingo is back (D37)
-            reference_errors[("tiingo", "prices")] = traceback.format_exc(limit=5)
-        stage(run_id)
-        publication = publish(run_id)
+        first = None
+        for name, load in LOADERS.items():
+            try:
+                load(run_id)
+            except Exception as e:
+                # this group can't stage this run; the others go on (D81)
+                group_errors[name] = "load failed: " + traceback.format_exc(limit=5)
+                first = first or e
+        if len(group_errors) == len(LOADERS):
+            raise first
+        for key, load in REFERENCE_LOADERS.items():
+            try:
+                load(run_id)
+            except Exception:
+                # reference only: the run goes on, the manifest keeps the error and
+                # C18 turns health red until Tiingo is back (D37)
+                reference_errors[key] = traceback.format_exc(limit=5)
+        staging = stage(run_id)
+        for name, why in staging.failed.items():
+            group_errors.setdefault(name, "stage failed: " + why)
+        publication = publish(run_id, group_errors)
     except Exception:
         error = traceback.format_exc(limit=5)
         raise
     finally:
-        write_manifest(run_id, started_at, publication, error, reference_errors, code)
+        write_manifest(run_id, started_at, publication, error, reference_errors, code, group_errors)
         status = health.evaluate()   # rewrites health/latest.md after every run, crashed ones too
         notify.send_status(run_id, status)   # never raises (#96)
     return run_id, publication
@@ -70,7 +98,8 @@ def refresh() -> tuple[str, Publication | None]:
 
 def write_manifest(run_id: str, started_at: datetime, publication: Publication | None,
                    error: str | None, reference_errors: dict | None = None,
-                   code: tuple[str | None, bool | None] = (None, None)) -> None:
+                   code: tuple[str | None, bool | None] = (None, None),
+                   group_errors: dict[str, str] | None = None) -> None:
     finished_at = datetime.now(timezone.utc)
     if publication is None:
         status = "failed"
@@ -87,9 +116,16 @@ def write_manifest(run_id: str, started_at: datetime, publication: Publication |
     target = root / "health" / "run_manifest" / f"{run_id}.parquet"
     target.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect()
-    con.execute("CREATE TABLE ds (source VARCHAR, dataset VARCHAR, dataset_error VARCHAR)")
-    con.executemany("INSERT INTO ds VALUES (?, ?, ?)",
-                    [(s, d, (reference_errors or {}).get((s, d))) for s, d in DATASETS + REFERENCE_DATASETS])
+    # one row per raw dataset, each carrying its group's outcome for the run (D81)
+    outcomes = publication.groups if publication else {
+        g: {"outcome": FAILED, "source_run": None, "reason": (group_errors or {}).get(g) or error}
+        for g in GROUPS}
+    con.execute("CREATE TABLE ds (source VARCHAR, dataset VARCHAR, dataset_error VARCHAR, \"group\" VARCHAR, "
+                "group_outcome VARCHAR, group_reason VARCHAR, group_source_run VARCHAR)")
+    con.executemany("INSERT INTO ds VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    [(s, d, (reference_errors or {}).get((s, d)), g.name, outcomes[g.name]["outcome"],
+                      outcomes[g.name]["reason"], outcomes[g.name]["source_run"])
+                     for g in GROUPS.values() for s, d in g.datasets])
 
     loads = sorted((root / "health" / "loads").glob(f"{run_id}__*.parquet"))
     if loads:
@@ -120,7 +156,8 @@ def write_manifest(run_id: str, started_at: datetime, publication: Publication |
                    ?::INTEGER AS checks_error, ?::INTEGER AS checks_broken,
                    ?::INTEGER AS checks_acknowledged,
                    ?::VARCHAR AS error, ds.dataset_error,
-                   ?::VARCHAR AS git_commit, ?::BOOLEAN AS git_dirty
+                   ?::VARCHAR AS git_commit, ?::BOOLEAN AS git_dirty,
+                   ds."group", ds.group_outcome, ds.group_reason, ds.group_source_run
             FROM ds
             LEFT JOIN loads AS l USING (source, dataset)
             LEFT JOIN latest AS t ON t.source = ds.source
