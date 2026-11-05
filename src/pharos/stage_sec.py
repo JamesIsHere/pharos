@@ -1,8 +1,7 @@
 """Raw SEC landings -> the SEC group's staging tables (M2 step 2).
 
-The group is declared in groups.py and given a stager in stage.STAGERS only
-once its loaders are wired into refresh, so until then nothing here runs on a
-real night.
+stage_group() is the SEC group's stager (stage.STAGERS["sec"]). It runs on a
+real night only once groups.SEC is registered in GROUPS.
 
 Each dataset stages as a merge (D132): newest value per key.
 - The base is the dataset's table in the serving version the group last
@@ -45,6 +44,7 @@ from typing import Callable
 import duckdb
 import exchange_calendars as xc
 
+from pharos.groups import CARRIED_FORWARD, PUBLISHED
 from pharos.paths import data_root
 from pharos.runs import raw_select
 from pharos.stage import StageError, _require_none, _sql
@@ -253,3 +253,33 @@ def _require_unique(con, ds: Dataset) -> None:
                       "ORDER BY ALL LIMIT 5").fetchall()
     if dup:
         raise StageError(f"{ds.table}: key ({key}) not unique after the merge (first {len(dup)}: {dup})")
+
+
+def current_base() -> Base | None:
+    """The serving version CURRENT names, if it holds the SEC group's tables
+    (published by a run, or carried forward from one); else None."""
+    from pharos.publish import composition, current_version   # publish imports stage
+    version = current_version()
+    if version is None:
+        return None
+    held = composition(version).get("sec")
+    if held is None or held["outcome"] not in (PUBLISHED, CARRIED_FORWARD):
+        return None
+    return Base(held["source_run"], version)
+
+
+def stage_group(included: list[str], target: Path, base: Base | None = None) -> dict[str, Merged]:
+    """The SEC group's stager: each dataset merged into its served table and
+    written to target/<table>.parquet. One connection per dataset, so memory
+    never holds two of the 27M-row tables at once (#111).
+    base: default, the live serving version (current_base)."""
+    base = base if base is not None else current_base()
+    merged = {}
+    for ds in DATASETS:
+        con = connect()
+        if ds.sql in ("sec_filings", "sec_submission_filings"):
+            bind_sessions(con)
+        merged[ds.table] = stage_table(con, ds, included, base)
+        con.execute(f"COPY {ds.table} TO '{(target / f'{ds.table}.parquet').as_posix()}' (FORMAT parquet)")
+        con.close()
+    return merged

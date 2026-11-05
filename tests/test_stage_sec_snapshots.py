@@ -99,3 +99,72 @@ def test_details_merge_into_base_equals_reading_every_landing(root):
     everything = "SELECT * FROM submission_details ORDER BY cik"
     assert merged.execute(everything).fetchall() == full.execute(everything).fetchall()
     assert rows(full, "submission_details", "cik, sic, run_id") == [(1, "2000", R2), (2, "1000", R1)]
+
+
+# --- the group's stager (stage.STAGERS["sec"]) -----------------------------------
+
+def land_all(run_id):
+    from datetime import date as d
+    land("full_index", run_id, [{"cik": 1, "company_name": "A CORP", "form_type": "10-K",
+                                 "date_filed": d(2026, 10, 6), "filename": "edgar/data/1/0000000001-26-000001.txt",
+                                 "quarter": "2026Q4", "last_modified": STAMP}])
+    land("submission_filings", run_id, [{
+        "cik": 1, "accession_number": "0000000001-26-000001", "filing_date": "2026-10-06", "report_date": "",
+        "acceptance_date_time": "2026-10-06T20:15:00.000Z", "act": "34", "form": "10-K", "file_number": "",
+        "film_number": "", "items": "", "core_type": "10-K", "size": 1, "is_xbrl": 1, "is_inline_xbrl": 1,
+        "is_xbrl_numeric": 1, "primary_document": "a.htm", "primary_doc_description": "", "source_file": "CIK0000000001.json"}])
+    land("submission_details", run_id, [detail()])
+    land("tickers", run_id, [ticker()])
+
+
+def version_holding_sec(root, version_run, source_run, outcome="published"):
+    """A serving version whose groups.parquet says the SEC group came from source_run."""
+    import duckdb
+    folder = root / "serving" / version_run
+    folder.mkdir(parents=True)
+    duckdb.execute(f"""COPY (SELECT 'sec' AS "group", '{outcome}' AS outcome, '{source_run}' AS source_run,
+                                    NULL::VARCHAR AS reason)
+                       TO '{(folder / 'groups.parquet').as_posix()}' (FORMAT parquet)""")
+    (root / "serving" / "CURRENT").write_text(version_run, encoding="utf-8")
+    return folder
+
+
+def test_stage_group_writes_the_four_tables(root):
+    from pharos.groups import SEC
+    from pharos.stage_sec import stage_group
+    land_all(R1)
+    target = root / "staging" / R1
+    target.mkdir(parents=True)
+    merged = stage_group([R1], target)
+    assert sorted(p.stem for p in target.glob("*.parquet")) == sorted(SEC.tables)
+    assert all(m.base_run is None for m in merged.values())   # no serving yet
+
+
+def test_current_base_follows_the_groups_source_run(root):
+    from pharos.stage_sec import current_base
+    assert current_base() is None                                       # nothing published
+    folder = version_holding_sec(root, R2, R1, outcome="carried_forward")
+    assert current_base() == Base(R1, folder)
+
+
+def test_current_base_none_when_sec_never_published(root):
+    from pharos.stage_sec import current_base
+    version_holding_sec(root, R1, "None", outcome="never_published")
+    assert current_base() is None
+
+
+def test_stage_group_merges_into_the_live_version(root):
+    from pharos.stage_sec import stage_group
+    land_all(R1)
+    first = root / "staging" / R1
+    first.mkdir(parents=True)
+    stage_group([R1], first)
+    version = version_holding_sec(root, R1, R1)
+    for f in first.glob("*.parquet"):
+        (version / f.name).write_bytes(f.read_bytes())
+    land_all(R2)
+    second = root / "staging" / R2
+    second.mkdir(parents=True)
+    merged = stage_group([R1, R2], second)
+    assert {m.base_run for m in merged.values()} == {R1}
+    assert {m.runs_read for m in merged.values()} == {(R2,)}
