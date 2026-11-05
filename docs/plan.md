@@ -3,9 +3,9 @@
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
 - **Milestone:** M1 DONE: 7 consecutive green nightly runs, 20261008T053003Z through 20261014T053008Z. M2 re-scoped to 'SEC landed' (D127, D128: review session 2026-11-05): steps 0-1 DONE (D113-D124); the universe moved to milestone U. D130-D133: DBeaver read-only as the viewer, companyfacts on demand, SEC staging newest value only, serving keeps two versions. H (Hosting) on hold: Pharos stays private; design.md section 5 records which sources could be shown online (D106). Nightly task now 07:30 UTC (D63)
-- **Health:** GREEN at 2026-11-05 07:45 UTC (`pharos health`): prices_macro and sec both published from 20261105T073034Z. C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261105T073034Z
-- **Last session:** 2026-11-05 (fourteenth): M2 step 2 built and run. SEC staging is one merge, newest value per key, unchanged keys keep their first run (D132); details and tickers staged; the SEC group wired into stage, checks, refresh and the catalog, and registered; serving keeps two versions (33 old versions removed by hand). First real run 20261105T071217Z: prices published, SEC stopped by a combined filing listed under two forms, fixed by keying submission_filings on form (D134); second run 20261105T073034Z published both. Tests now kept off sec.gov (conftest). Map: scratch/folder-map.html, kept current per the session protocol
-- **Next action:** Nightly task re-enabled 2026-11-05 07:52 UTC (next run 2026-11-06 07:30 UTC). Step 2 done. Start step 3 (companyfacts on demand). The next nightly is the first that merges into a published SEC table: check its run time and that sec publishes
+- **Health:** GREEN at 2026-11-05 09:41 UTC (`pharos health`): companyfacts published from 20261105T083453Z; prices_macro and sec not_run, served from 20261105T073034Z. C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261105T083453Z
+- **Last session:** 2026-11-05 (fifteenth): M2 step 3 done. companyfacts is an on-demand group (D135) with its own command; loader, staging (first landing skips the merge) and the first landing published (126,265,124 facts). One run killed by memory pressure in the merge; fixed. Before that, 2026-11-05 (fourteenth): M2 step 2 built and run. SEC staging is one merge, newest value per key, unchanged keys keep their first run (D132); details and tickers staged; the SEC group wired into stage, checks, refresh and the catalog, and registered; serving keeps two versions (33 old versions removed by hand). First real run 20261105T071217Z: prices published, SEC stopped by a combined filing listed under two forms, fixed by keying submission_filings on form (D134); second run 20261105T073034Z published both. Tests now kept off sec.gov (conftest). Map: scratch/folder-map.html, kept current per the session protocol
+- **Next action:** Step 3 done (companyfacts published, D135). Start step 4 (freshness checks and one-row descriptions). The 2026-11-06 07:30 UTC nightly is the first that merges into a published SEC table and the first to carry companyfacts as not_run: check its run time, that sec publishes, and that companyfacts stays served
 - **Blockers / open questions:** none. #17 and #25 are built together when C14 first fires on a price. Full list in Open issues below and Parked issues in `docs/later.md`; cite only IDs that appear there.
 
 ## Open issues
@@ -20,7 +20,7 @@
 
 ---
 
-## M2: SEC landed (D128, 2026-11-05; steps 0-2 done)
+## M2: SEC landed (D128, 2026-11-05; steps 0-3 done)
 
 **Goal.** Every SEC bulk dataset Pharos uses sits in Pharos's own data root at the landed level (D127), loaded by the nightly refresh, staged, published and queryable in DuckDB. No analysis on it.
 
@@ -34,7 +34,10 @@
   - DONE 2026-11-05: memory cap (#111, closed): stage_sec.connect() sets 8 GB, spilling to <data root>/tmp/duckdb, one connection per dataset. Measured: Python's working set peaked at 11.75 GB (first run) and 11.67 GB (second), during SEC staging: the cap bounds DuckDB's buffers, not the whole process. Left at 8 GB.
   - DONE 2026-11-05: serving keeps two versions (D133). A version with SEC is 2.8 GB (estimate was 1.7).
   - DONE 2026-11-05: first real runs by hand. 20261105T071217Z: 13m52s, lands everything (raw: full-index 479 MB, filings 1.1 GB, details 109 MB, tickers 0.3 MB); sec stopped at staging (D134). 20261105T073034Z: 15m04s, both published; no base yet, so staging read both landings. Served: filings 27,380,030, submission_filings 27,378,552, submission_details 991,698, tickers 10,409; every row keeps the first run's lineage (nothing changed between the runs). data/spikes/ moved to data/archive/spikes-2026-11-04/ (3.6 GB, nothing deleted). Still to record: the first nightly's run time (acceptance #4).
-- [ ] 3. companyfacts: a loader (bulk zip, D57), staged as landed. It lands on demand, by its own command, not in the nightly refresh (D131); its freshness check warns on the landing's age, never red.
+- [x] 3. companyfacts: a loader (bulk zip, D57), staged as landed. It lands on demand, by its own command, not in the nightly refresh (D131); its freshness check warns on the landing's age, never red (step 4). Done 2026-11-05:
+  - `uv run pharos companyfacts` runs the companyfacts group alone (D135); refresh never attempts it, and a group a run didn't attempt is `not_run`, served unchanged.
+  - First run 20261105T083453Z: landed 126,265,124 facts and 4,837,491 concepts (raw 892 MB + 56 MB, about 10 min), then killed in staging by memory pressure: the merge spilled 60 GB. A first landing now skips the merge (same table, tested). Staged and published that landing with `pharos stage --run` / `pharos publish --run`: 92 s staging (peak 7.66 GB, measured on a throwaway root with the same rows), 8 s publish; the version is 4.3 GB. No run manifest for this run (the kill skipped it; the stage/publish commands write none).
+  - The next companyfacts landing takes the full merge against a 126M-row base: measure it on a throwaway root before running it.
 - [ ] 4. One freshness check per dataset (C25, C31, C34 as specified in U, plus one for companyfacts), and a one-row description per dataset in design.md section 5.
 
 ### Acceptance criteria
