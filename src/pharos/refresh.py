@@ -59,13 +59,21 @@ def _load_sec(run_id: str) -> None:
     sec_index.load_index(run_id)
     sec_submissions.load_submissions(run_id)
     sec_tickers.load_tickers(run_id)
+    sec_companyfacts.load_incremental_companyfacts(run_id)
+
+
+def _load_sec_full_companyfacts(run_id: str) -> None:
+    """Refresh the SEC group while forcing a new full Company Facts baseline."""
+    sec_index.load_index(run_id)
+    sec_submissions.load_submissions(run_id)
+    sec_tickers.load_tickers(run_id)
+    sec_companyfacts.load_companyfacts(run_id)
 
 
 # group -> its required loads, and its reference loads (whose failure is only recorded, D37).
 # Only groups registered in GROUPS are loaded: a loader here for an unregistered
 # group is built but switched off
-LOADERS = {"prices_macro": _load_prices_macro, "sec": _load_sec,
-           "companyfacts": sec_companyfacts.load_companyfacts}   # on demand only (D135)
+LOADERS = {"prices_macro": _load_prices_macro, "sec": _load_sec}
 REFERENCE_LOADERS = {("tiingo", "prices"): lambda run_id: tiingo.load_prices(run_id)}
 
 
@@ -83,7 +91,13 @@ def run_on_demand(name: str) -> tuple[str, Publication | None]:
     return _run([name], {})
 
 
-def _run(names: list[str], reference_loaders: dict) -> tuple[str, Publication | None]:
+def refresh_companyfacts_full() -> tuple[str, Publication | None]:
+    """Force a bulk Company Facts baseline and publish it with fresh SEC data."""
+    return _run(["sec"], {}, {"sec": _load_sec_full_companyfacts})
+
+
+def _run(names: list[str], reference_loaders: dict, loader_overrides: dict | None = None
+         ) -> tuple[str, Publication | None]:
     run_id = new_run_id()
     started_at = datetime.now(timezone.utc)
     publication, error, reference_errors, code = None, None, {}, (None, None)
@@ -92,7 +106,7 @@ def _run(names: list[str], reference_loaders: dict) -> tuple[str, Publication | 
         code = provenance()        # no commit, no run: its staging could never be rebuilt (D103)
         health.acknowledgments()   # a bad config/expected_states.csv fails the run before it loads
         first = None
-        active = {name: LOADERS[name] for name in names}
+        active = {name: (loader_overrides or {}).get(name, LOADERS[name]) for name in names}
         for name, load in active.items():
             try:
                 load(run_id)

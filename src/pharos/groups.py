@@ -7,8 +7,9 @@ check blocks only its own group, and reads only its own group's tables and raw
 data. Checks about the run itself (the age of the last publish, which groups
 were carried forward) declare `group: run`; they are monitors and never gate.
 
-Three registered groups: prices_macro (M1), sec (M2) and companyfacts (M2,
-on demand). A group joins GROUPS
+Two registered groups: prices_macro (M1) and sec (M2). Company Facts belongs
+to the SEC group so submissions and facts cross the publish boundary together.
+A group joins GROUPS
 only with its stager, check binder and loaders: registered without them,
 every nightly would record it never_published, and C36 turns red (D83).
 
@@ -46,31 +47,23 @@ PRICES_MACRO = Group(
             "trading_days", "reclassified", "settings"),
 )
 
-# SEC bulk data at the landed level (D127, D128). Tables are stage_sec's merges
-# (D132); no view-time inputs until its freshness checks (M2 step 4)
+# SEC data at the landed level (D127, D128). Company Facts is incrementally
+# refreshed from CIKs changed in submissions; all six tables are one atomic
+# load/stage/check/publish unit.
 SEC = Group(
     name="sec",
     required=(("sec", "full_index"), ("sec", "submission_details"), ("sec", "submission_filings"),
-              ("sec", "tickers")),
+              ("sec", "tickers"), ("sec", "companyfacts"), ("sec", "companyfacts_concepts"),
+              ("sec", "companyfacts_changes")),
     reference=(),
-    tables=("filings", "submission_filings", "submission_details", "tickers"),
+    tables=("filings", "submission_filings", "submission_details", "tickers",
+            "company_facts", "company_concepts"),
     inputs=(),
-)
-
-# SEC companyfacts (D57, D128): landed on demand by `pharos companyfacts`,
-# never by refresh (D131, D135). No view-time inputs until its freshness check
-COMPANYFACTS = Group(
-    name="companyfacts",
-    required=(("sec", "companyfacts"), ("sec", "companyfacts_concepts")),
-    reference=(),
-    tables=("company_facts", "company_concepts"),
-    inputs=(),
-    on_demand=True,
 )
 
 # every declared group, registered or not: a check may name any of them, and
 # runs only while its group is registered (tests unregister the SEC groups)
-DECLARED: tuple[Group, ...] = (PRICES_MACRO, SEC, COMPANYFACTS)
+DECLARED: tuple[Group, ...] = (PRICES_MACRO, SEC)
 
 # registered groups: loaded, staged and published by their runs
 GROUPS: dict[str, Group] = {g.name: g for g in DECLARED}

@@ -11,6 +11,7 @@ from pharos.paths import PROJECT_ROOT
 
 CONFIG = PROJECT_ROOT / "config"
 WATCHLIST_COLUMNS = ["ticker", "yahoo_symbol", "cik", "trap", "active_from", "active_to"]
+REQUIRED_ENV_SETTINGS = {"PHAROS_DATA_ROOT", "FRED_API_KEY", "TIINGO_API_KEY", "SEC_USER_AGENT"}
 
 
 def load_watchlist() -> list[dict]:
@@ -21,6 +22,16 @@ def load_watchlist() -> list[dict]:
 def load_sources() -> dict:
     with open(CONFIG / "sources.yaml", encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+
+def test_env_example_names_every_required_runtime_setting():
+    lines = (PROJECT_ROOT / ".env.example").read_text(encoding="utf-8").splitlines()
+    named = {
+        line.split("=", 1)[0].strip()
+        for line in lines
+        if "=" in line and not line.lstrip().startswith("#")
+    }
+    assert REQUIRED_ENV_SETTINGS <= named
 
 
 def test_watchlist_columns_exact():

@@ -1,6 +1,7 @@
 """Shared horizontal menu for the exploration pages in explore/. Each page lives in its own folder under explore/,
 so links go up one level."""
-PAGES = (("Test", "../tests/data-tests.html"),
+PAGES = (("Data Tests", "../tests/data-tests.html"),
+         ("Code Tests", "../suite/code-tests.html"),
          ("Industry Code Breakdown", "../codes/industry-codes.html"),
          ("Amazon", "../amazon/amazon.html"),
          ("Log", "../log/log.html"))

@@ -1,6 +1,6 @@
-"""Company-details and ticker staging (stage_sec.DETAILS, stage_sec.TICKERS), on
-raw landings written straight through write_raw in the loaders' shapes."""
+"""Snapshot staging and the unified SEC group stager, using loader-shaped raw rows."""
 
+import shutil
 from datetime import date, datetime, timezone
 
 import pandas as pd
@@ -115,6 +115,23 @@ def land_all(run_id):
         "is_xbrl_numeric": 1, "primary_document": "a.htm", "primary_doc_description": "", "source_file": "CIK0000000001.json"}])
     land("submission_details", run_id, [detail()])
     land("tickers", run_id, [ticker()])
+    land("companyfacts", run_id, [{
+        "cik": 1, "taxonomy": "us-gaap", "concept": "Assets", "unit": "USD", "start": None,
+        "end": "2026-09-30", "val": "100", "accn": "0000000001-26-000001", "fy": 2026,
+        "fp": "FY", "form": "10-K", "filed": "2026-10-06", "frame": None}])
+    land("companyfacts_concepts", run_id, [{
+        "cik": 1, "entity_name": "A CORP", "taxonomy": "us-gaap", "concept": "Assets",
+        "label": "Assets", "description": "Total assets."}])
+    land("companyfacts_changes", run_id, [
+        {"cik": 1, "document_found": True, "mode": "full"}])
+
+
+def copy_tables(source, target):
+    for item in source.glob("*.parquet"):
+        if item.is_dir():
+            shutil.copytree(item, target / item.name)
+        else:
+            shutil.copy2(item, target / item.name)
 
 
 def version_holding_sec(root, version_run, source_run, outcome="published"):
@@ -129,7 +146,7 @@ def version_holding_sec(root, version_run, source_run, outcome="published"):
     return folder
 
 
-def test_stage_group_writes_the_four_tables(root):
+def test_stage_group_writes_all_six_sec_tables(root):
     from pharos.groups import SEC
     from pharos.stage_sec import stage_group
     land_all(R1)
@@ -160,14 +177,41 @@ def test_stage_group_merges_into_the_live_version(root):
     first.mkdir(parents=True)
     stage_group([R1], first)
     version = version_holding_sec(root, R1, R1)
-    for f in first.glob("*.parquet"):
-        (version / f.name).write_bytes(f.read_bytes())
+    copy_tables(first, version)
     land_all(R2)
     second = root / "staging" / R2
     second.mkdir(parents=True)
     merged = stage_group([R1, R2], second)
     assert {m.base_run for m in merged.values()} == {R1}
     assert {m.runs_read for m in merged.values()} == {(R2,)}
+
+
+def test_first_unified_run_uses_the_legacy_companyfacts_base(root):
+    """D139 migration: the old version recorded SEC and facts under different runs."""
+    import duckdb
+    from pharos.stage_sec import stage_group
+    land_all(R1)
+    first = root / "staging" / R1
+    first.mkdir(parents=True)
+    stage_group([R1], first)
+    version = root / "serving" / R1
+    version.mkdir(parents=True)
+    copy_tables(first, version)
+    duckdb.execute(f"""COPY (
+        SELECT 'sec' AS "group", 'published' AS outcome, '{R1}' AS source_run, NULL::VARCHAR AS reason
+        UNION ALL
+        SELECT 'companyfacts', 'published', '20261104T090000Z', NULL::VARCHAR
+    ) TO '{(version / 'groups.parquet').as_posix()}' (FORMAT parquet)""")
+    (root / "serving" / "CURRENT").write_text(R1, encoding="utf-8")
+
+    land_all(R2)
+    second = root / "staging" / R2
+    second.mkdir(parents=True)
+    merged = stage_group([R2], second)
+    assert {merged[t].base_run for t in ("filings", "submission_filings", "submission_details", "tickers")} \
+        == {R1}
+    assert {merged[t].base_run for t in ("company_facts", "company_concepts")} == {"20261104T090000Z"}
+    assert all(m.runs_read == (R2,) for m in merged.values())
 
 
 def test_sec_check_binder_exposes_its_tables_and_loads(root):
@@ -181,5 +225,5 @@ def test_sec_check_binder_exposes_its_tables_and_loads(root):
     con = duckdb.connect()
     BINDERS["sec"](con, R1)
     assert con.execute("SELECT count(*) FROM tickers").fetchone() == (1,)
-    assert con.execute("SELECT count(DISTINCT dataset) FROM loads").fetchone() == (4,)
+    assert con.execute("SELECT count(DISTINCT dataset) FROM loads").fetchone() == (7,)
     assert con.execute("SELECT run_id FROM this_run").fetchone() == (R1,)

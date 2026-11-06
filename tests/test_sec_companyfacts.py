@@ -6,14 +6,18 @@ import zipfile
 from datetime import datetime, timezone
 
 import duckdb
+import pandas as pd
 import pytest
 
 from pharos.loaders import sec
-from pharos.loaders.sec_companyfacts import SchemaDriftError, load_companyfacts
+from pharos.loaders.sec_companyfacts import (SchemaDriftError, changed_ciks, load_companyfacts,
+                                             load_incremental_companyfacts)
 from pharos.paths import data_root
+from pharos.runs import write_raw
 
 STAMP = datetime(2026, 11, 4, 9, 0, tzinfo=timezone.utc)
 RUN = "20261105T090000Z"
+NEXT = "20261106T090000Z"
 
 
 def fact(**over):
@@ -59,8 +63,8 @@ def serve(monkeypatch, root):
     return setup
 
 
-def raw(dataset):
-    p = data_root() / "raw" / "sec" / dataset / f"{RUN}.parquet"
+def raw(dataset, run_id=RUN):
+    p = data_root() / "raw" / "sec" / dataset / f"{run_id}.parquet"
     return duckdb.sql(f"SELECT * EXCLUDE (run_id, loaded_at) FROM read_parquet('{p.as_posix()}') ORDER BY ALL")
 
 
@@ -80,6 +84,8 @@ def test_lands_facts_and_concepts_as_sent(serve):
     rec = data_root() / "health" / "loads" / f"{RUN}__sec__companyfacts.parquet"
     assert duckdb.sql(f"SELECT rows_written, source_count, last_modified FROM read_parquet('{rec.as_posix()}')"
                       ).fetchone() == (3, 2, STAMP)
+    assert raw("companyfacts_changes").select("cik, document_found, mode").fetchall() == [
+        (1, False, "full"), (320193, True, "full")]
     assert not (data_root() / "tmp").exists()                  # the zip and batches are gone
 
 
@@ -87,6 +93,7 @@ def test_cik_from_the_file_name_when_sent_as_text_or_missing(serve):
     serve({"CIK0000000002.json": company(cik_value="0000000002"), "CIK0000000003.json": company(cik_value=None)})
     load_companyfacts(RUN)
     assert {r[0] for r in raw("companyfacts_concepts").fetchall()} == {2, 3}
+    assert {r[0] for r in raw("companyfacts_changes").fetchall()} == {2, 3}
 
 
 @pytest.mark.parametrize("members, match", [
@@ -111,3 +118,47 @@ def test_drift_stops_the_load_before_anything_is_written(serve, members, match):
         load_companyfacts(RUN)
     assert not (data_root() / "raw").exists()
     assert not (data_root() / "tmp").exists()
+
+
+def filing(cik: int, accession: str, document: str = "report.htm") -> dict:
+    return {
+        "cik": cik, "accession_number": accession, "filing_date": "2026-11-05",
+        "report_date": "2026-09-30", "acceptance_date_time": "2026-11-05T12:00:00.000Z",
+        "act": "34", "form": "10-Q", "file_number": "001-00001", "film_number": "261234567",
+        "items": "", "core_type": "10-Q", "size": 100, "is_xbrl": 1, "is_inline_xbrl": 1,
+        "is_xbrl_numeric": 1, "primary_document": document,
+        "primary_doc_description": "Quarterly report", "source_file": f"CIK{cik:010d}.json",
+    }
+
+
+def test_incremental_fetches_only_ciks_with_changed_filing_rows(serve, monkeypatch):
+    # Establish the full raw baseline that partial per-company documents merge into.
+    serve({"CIK0000320193.json": company()})
+    load_companyfacts(RUN)
+
+    old = [filing(1, "0000000001-26-000001"), filing(320193, "0000320193-26-000001")]
+    new = [filing(1, "0000000001-26-000001", "corrected.htm"),
+           filing(320193, "0000320193-26-000001", "corrected.htm")]
+    write_raw(pd.DataFrame(old), "sec", "submission_filings", RUN)
+    write_raw(pd.DataFrame(new), "sec", "submission_filings", NEXT)
+    assert changed_ciks(NEXT) == [1, 320193]
+
+    calls = []
+    def fetch(url, to=None):
+        calls.append(url)
+        if url.endswith("CIK0000000001.json"):
+            raise sec.SecFetchError(f"GET {url}: HTTP 404 Not Found", 404)
+        return sec.Fetched(url, json.dumps(company()).encode(), STAMP)
+    monkeypatch.setattr(sec, "fetch", fetch)
+
+    result = load_incremental_companyfacts(NEXT)
+    assert result == {"members": 2, "facts": 3, "concepts": 2, "mode": "incremental",
+                      "ciks": [1, 320193], "missing_ciks": [1]}
+    assert calls == ["https://data.sec.gov/api/xbrl/companyfacts/CIK0000000001.json",
+                     "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"]
+    assert {r[0] for r in raw("companyfacts", NEXT).fetchall()} == {320193}
+    assert raw("companyfacts_changes", NEXT).select("cik, document_found, mode").fetchall() == [
+        (1, False, "incremental"), (320193, True, "incremental")]
+    record = data_root() / "health" / "loads" / f"{NEXT}__sec__companyfacts.parquet"
+    note, count = duckdb.sql(f"SELECT note, source_count FROM read_parquet('{record.as_posix()}')").fetchone()
+    assert count == 2 and "1 had no SEC Company Facts document" in note

@@ -264,7 +264,7 @@ ol li {{ margin:4px 0; }}
 .cheat tr.off td {{ color:var(--muted); font-style:italic; }}
 {nav.CSS}
 </style></head>
-<body>{nav.html('Test')}<main>
+<body>{nav.html('Data Tests')}<main>
 <h1>Pharos data tests</h1>
 <p class="muted">One-off queries on the data in Pharos's database today (serving version 20261105T103527Z), run 2026-11-05. None of them is part of the plan. Part 1 (tests 1-7): tests 1-5 check that the data is right; tests 6 and 7 size public companies against the economy. Part 2 (tests 8-16): exploration of the public companies themselves. Part 3 (test 17): the macro data.</p>
 

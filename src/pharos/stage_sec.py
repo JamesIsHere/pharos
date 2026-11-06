@@ -30,6 +30,13 @@ Each dataset stages as a merge (D132): newest value per key.
   row stop the group instead of collapsing (none in companyfacts, measured).
   At 126M rows the merge spilled 60 GB and was killed (2026-11-05).
 
+Company Facts is the complete-document exception (D140). Its two logical
+tables are per-CIK partition directories. A run hard-links unchanged CIKs,
+merges lineage only inside changed companies, and replaces or removes those
+partitions before the ordinary checks and atomic publish. The old one-file
+serving table is converted once; subsequent nightly cost follows the change
+set rather than the 126M-row corpus.
+
 Acceptance-time conflicts (D126): submissions.zip lists some filings twice
 under one CIK, in the main file and an overflow file (47 on 2026-11-04). Copies
 that differ in nothing but acceptance time (6, always by the New York offset,
@@ -43,6 +50,8 @@ MEMORY_LIMIT and spills to <data root>/tmp/duckdb, not the working folder.
 8 GB is a default, flagged: it is measured on the first real run.
 """
 
+import os
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -51,6 +60,7 @@ import duckdb
 import exchange_calendars as xc
 
 from pharos.groups import HELD
+from pharos.parquet import parquet_files, scan
 from pharos.paths import data_root
 from pharos.runs import raw_select
 from pharos.stage import StageError, _require_none, _sql
@@ -168,11 +178,11 @@ TICKERS = Dataset(
     asserts=(("ticker IS NULL OR ticker = ''", "ticker rows with no ticker"),),
 )
 
-DATASETS = (INDEX, SUBMISSIONS, DETAILS, TICKERS)
+FILING_DATASETS = (INDEX, SUBMISSIONS, DETAILS, TICKERS)
 
-# companyfacts (D57, D128): the on-demand group (D131, D135), merged the same way.
-# Each landing is a full snapshot, so a merge is the newest landing plus the
-# keys SEC has since dropped (D84)
+# Company Facts (D57, D128, D139): a full baseline followed by per-CIK full
+# documents for companies changed in submissions. The merge replaces touched
+# keys and keeps untouched companies from the base (D84).
 FACTS = Dataset(
     raw="companyfacts", sql="sec_companyfacts", table="company_facts",
     # one fact of one filing; measured unique on the 2026-11-04 file (126,119,741 rows,
@@ -191,6 +201,7 @@ CONCEPTS = Dataset(
 )
 
 FACT_DATASETS = (FACTS, CONCEPTS)
+DATASETS = FILING_DATASETS + FACT_DATASETS
 
 
 def _rows(con, ds: Dataset, runs: list[str]) -> str | None:
@@ -246,7 +257,7 @@ def stage_table(con, ds: Dataset, included: list[str], base: Base | None,
     if new is None and base is None:
         raise StageError(f"no raw files for sec/{ds.raw}")
     if new is None:   # nothing landed since the base: the base stands
-        con.execute(f"CREATE TABLE {ds.table} AS SELECT * FROM read_parquet('{base_file.as_posix()}')")
+        con.execute(f"CREATE TABLE {ds.table} AS SELECT * FROM {scan(base_file)}")
         _require_unique(con, ds)
         _write(con, ds, target)
         return Merged(base.run, ())
@@ -266,7 +277,7 @@ def stage_table(con, ds: Dataset, included: list[str], base: Base | None,
                          f"(first {len(twice)}: {twice}); staging never picks between them")
 
     if base is not None:
-        con.execute(f"CREATE VIEW {ds.table}_base AS SELECT * FROM read_parquet('{base_file.as_posix()}')")
+        con.execute(f"CREATE VIEW {ds.table}_base AS SELECT * FROM {scan(base_file)}")
     else:
         con.execute(f"CREATE VIEW {ds.table}_base AS SELECT {', '.join(columns)} FROM {new} WHERE false")
     con.execute(f"CREATE TABLE {ds.table}_touched AS SELECT DISTINCT {key} FROM {new}")
@@ -325,6 +336,175 @@ def _require_unique(con, ds: Dataset) -> None:
         raise StageError(f"{ds.table}: key ({key}) not unique after the merge (first {len(dup)}: {dup})")
 
 
+def _link_or_copy(src: str, dst: str) -> str:
+    """Clone an immutable partition cheaply; copy when hard links are unavailable."""
+    try:
+        os.link(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
+    return dst
+
+
+def _clone_partitions(source: Path, target: Path) -> None:
+    target.mkdir(parents=True, exist_ok=True)
+    for file in parquet_files(source):
+        relative = file.relative_to(source)
+        out = target / relative
+        out.parent.mkdir(parents=True, exist_ok=True)
+        _link_or_copy(str(file), str(out))
+
+
+def _partition_write(con, select: str, target: Path) -> None:
+    """Write a fresh Hive partition directory, one directory per CIK."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    con.execute(f"COPY ({select}) TO '{target.as_posix()}' "
+                "(FORMAT parquet, PARTITION_BY (cik), WRITE_PARTITION_COLUMNS true, "
+                "FILENAME_PATTERN 'part_{i}')")
+
+
+def _partition_ciks(path: Path) -> set[int]:
+    if not path.is_dir():
+        return set()
+    return {int(p.name.removeprefix("cik=")) for p in path.iterdir()
+            if p.is_dir() and p.name.startswith("cik=") and p.name[4:].isdigit()}
+
+
+def _changes(run_id: str, ds: Dataset) -> tuple[set[int], bool]:
+    """CIKs whose complete documents replace their previous partitions.
+
+    New runs carry an explicit change manifest, including empty/404 documents.
+    The fallback infers CIKs from rows for old raw history and test fixtures
+    written before that manifest existed.
+    """
+    changes = raw_select("sec", "companyfacts_changes", [run_id])
+    if changes is not None:
+        con = duckdb.connect()
+        try:
+            rows = con.execute(f"SELECT DISTINCT cik, mode FROM ({changes})").fetchall()
+        finally:
+            con.close()
+        modes = {mode for _, mode in rows}
+        if not modes <= {"full", "incremental"} or len(modes) != 1:
+            raise StageError(f"companyfacts_changes: unknown modes {sorted(modes)} in {run_id}")
+        return {cik for cik, _ in rows}, "full" in modes
+
+    # An empty manifest has a load record but intentionally no raw file.
+    record = data_root() / "health" / "loads" / f"{run_id}__sec__companyfacts_changes.parquet"
+    if record.exists():
+        return set(), False
+
+    raw = raw_select("sec", ds.raw, [run_id])
+    if raw is None:
+        return set(), False
+    con = duckdb.connect()
+    try:
+        return {row[0] for row in con.execute(f"SELECT DISTINCT cik FROM ({raw})").fetchall()}, False
+    finally:
+        con.close()
+
+
+def _check_new_rows(con, ds: Dataset, rows: str) -> None:
+    """The generic merge's conflict rule, scoped to replacement partitions."""
+    columns = [c[0] for c in con.execute(f"DESCRIBE {rows}").fetchall()]
+    values = [c for c in columns if c not in ds.lineage]
+    key = ", ".join(ds.key)
+    vals = f"row({', '.join(values)})"
+    twice = con.execute(f"""
+        SELECT {key}, run_id FROM {rows} GROUP BY ALL HAVING count(DISTINCT {vals}) > 1
+        ORDER BY ALL LIMIT 5""").fetchall()
+    if twice:
+        raise StageError(f"{ds.table}: a key listed with different values inside one landing "
+                         f"(first {len(twice)}: {twice}); staging never picks between them")
+
+
+def stage_partitioned_table(ds: Dataset, included: list[str], base: Base | None,
+                            target: Path) -> Merged:
+    """Stage a complete-document dataset as a per-CIK copy-on-write snapshot.
+
+    The target remains self-contained: unchanged partitions are hard-linked
+    from the immutable base, while each touched CIK is replaced by its complete
+    newest document.  A legacy one-file base is partitioned once during
+    migration.  Empty and HTTP-404 documents remove an old partition.
+    """
+    out = target / f"{ds.table}.parquet"
+    base_path = base.folder / f"{ds.table}.parquet" if base is not None else None
+    if base_path is not None and not base_path.exists():
+        base, base_path = None, None
+    if base is not None and base.run not in included:
+        raise StageError(f"base run {base.run} is not among the runs staged "
+                         f"({included[0]}..{included[-1]})")
+    later = [r for r in included if base is None or r > base.run]
+
+    if base_path is not None:
+        if base_path.is_dir():
+            _clone_partitions(base_path, out)
+        else:
+            con = connect()
+            _partition_write(con, f"SELECT * FROM {scan(base_path)}", out)
+            con.close()
+
+    for run_id in later:
+        touched, full = _changes(run_id, ds)
+        if full:
+            touched |= _partition_ciks(out)
+        if not touched:
+            continue
+
+        con = connect()
+        if ds is FACTS:
+            bind_sessions(con)
+        new = _rows(con, ds, [run_id])
+        if new is not None:
+            _check_new_rows(con, ds, new)
+            cik_list = ", ".join(str(cik) for cik in sorted(touched))
+            con.execute(f"CREATE VIEW {ds.table}_new AS SELECT * FROM {new} WHERE cik IN ({cik_list})")
+            columns = [c[0] for c in con.execute(f"DESCRIBE {ds.table}_new").fetchall()]
+            values = [c for c in columns if c not in ds.lineage]
+            on_key = " AND ".join(f"b.{k} IS NOT DISTINCT FROM n.{k}" for k in ds.key)
+            same = " AND row(" + ", ".join(f"b.{c}" for c in values) + ") IS NOT DISTINCT FROM row(" \
+                   + ", ".join(f"n.{c}" for c in values) + ")"
+            if parquet_files(out):
+                con.execute(f"CREATE VIEW {ds.table}_old AS SELECT * FROM {scan(out)} "
+                            f"WHERE cik IN ({cik_list})")
+            else:
+                con.execute(f"CREATE VIEW {ds.table}_old AS SELECT {', '.join(columns)} "
+                            f"FROM {ds.table}_new WHERE false")
+            con.execute(f"""
+                CREATE TABLE {ds.table}_replacement AS
+                SELECT b.* FROM {ds.table}_old AS b
+                SEMI JOIN {ds.table}_new AS n ON {on_key}{same}
+                UNION ALL BY NAME
+                SELECT n.* FROM {ds.table}_new AS n
+                ANTI JOIN {ds.table}_old AS b ON {on_key}{same}""")
+            con.execute(f"CREATE VIEW {ds.table} AS SELECT * FROM {ds.table}_replacement")
+            _require_unique(con, ds)
+
+        delta = target / f".{ds.table}-{run_id}.delta"
+        if delta.exists():
+            shutil.rmtree(delta)
+        if new is not None and con.execute(f"SELECT count(*) FROM {ds.table}_replacement").fetchone()[0]:
+            _partition_write(con, f"SELECT * FROM {ds.table}_replacement", delta)
+        con.close()
+
+        # Delta was fully built and checked before the snapshot is changed.
+        for cik in touched:
+            partition = out / f"cik={cik}"
+            if partition.exists():
+                shutil.rmtree(partition)
+        if delta.exists():
+            out.mkdir(parents=True, exist_ok=True)
+            for partition in delta.iterdir():
+                shutil.move(str(partition), str(out / partition.name))
+            delta.rmdir()
+
+    if not parquet_files(out):
+        raise StageError(f"no rows available for sec/{ds.raw}")
+    # Each partition is one CIK and every replacement was checked before it
+    # was installed.  Re-scanning the 126M-row snapshot here would erase the
+    # operating benefit of copy-on-write without adding a new invariant.
+    return Merged(base.run if base is not None else None, tuple(later))
+
+
 def current_base(group: str = "sec") -> Base | None:
     """The serving version CURRENT names, if it holds the group's tables
     (published by a run, carried forward or not run since); else None."""
@@ -343,11 +523,26 @@ def stage_group(included: list[str], target: Path, base: Base | None = None) -> 
     written to target/<table>.parquet. One connection per dataset, so memory
     never holds two of the 27M-row tables at once (#111).
     base: default, the live serving version (current_base)."""
-    return _stage(DATASETS, included, target, base if base is not None else current_base("sec"))
+    if base is not None:
+        runs = sorted(set(included) | {base.run})
+        return _stage(DATASETS, runs, target, base)
+
+    sec_base = current_base("sec")
+    # Migration from versions published before Company Facts joined the SEC
+    # group: its tables have a different source run recorded under the legacy
+    # group name. After the first unified publish, sec_base owns all six.
+    facts_base = current_base("companyfacts") or sec_base
+    merged = _stage(FILING_DATASETS,
+                    sorted(set(included) | ({sec_base.run} if sec_base else set())),
+                    target, sec_base)
+    merged.update(_stage(FACT_DATASETS,
+                         sorted(set(included) | ({facts_base.run} if facts_base else set())),
+                         target, facts_base))
+    return merged
 
 
 def stage_companyfacts(included: list[str], target: Path, base: Base | None = None) -> dict[str, Merged]:
-    """The companyfacts group's stager (D135): its two datasets merged as above."""
+    """Stage only Company Facts; retained for focused rebuilds and tests."""
     return _stage(FACT_DATASETS, included, target,
                   base if base is not None else current_base("companyfacts"))
 
@@ -355,6 +550,9 @@ def stage_companyfacts(included: list[str], target: Path, base: Base | None = No
 def _stage(datasets, included: list[str], target: Path, base: Base | None) -> dict[str, Merged]:
     merged = {}
     for ds in datasets:
+        if ds in FACT_DATASETS:
+            merged[ds.table] = stage_partitioned_table(ds, included, base, target)
+            continue
         con = connect()
         if ds.sql in ("sec_filings", "sec_submission_filings", "sec_companyfacts"):
             bind_sessions(con)

@@ -33,7 +33,9 @@ publish    one new version: each passing group's fresh tables; each failing grou
 serving/   <run_id>/: series_catalog + observations (from U also universe_filer,
            universe_firm_year, universe_events) <- the contract; groups.parquet
            (each group's outcome and source run); inputs/ (what view-time checks
-           read, D76); CURRENT names the served version
+           read, D76); CURRENT names the served version. Most logical tables are
+           one .parquet file; Company Facts uses a same-named directory of
+           per-CIK Parquet partitions behind the same catalog views (D140)
 health/    run_manifest, loads, check_results, baseline, audit, latest.md
    |
    v
@@ -84,6 +86,7 @@ Entity tables beside the series model. Each row carries the four columns every o
 ### health tables
 - `run_manifest`: one write-once file per run, one row per raw dataset (D31): run_id, started_at, finished_at, status (`published` / `blocked` / `failed`), published_at, source, dataset, rows_downloaded, rows_landed, latest_obs_date, checks_pass / checks_warn / checks_error / checks_broken / checks_acknowledged (per run, after acknowledgment, D46), error. `max(published_at)` is `last_published_at`.
 - `loads`: one write-once record per download, `health/loads/<run_id>__<source>__<dataset>.parquet`, written by `runs.write_raw`: run_id, source, dataset, path (NULL for an empty download), rows_downloaded, rows_written (C06), loaded_at; from D119 also sha256 of the file as written (C05, D108), last_modified (the download's HTTP Last-Modified) and source_count (the count the source states for the download); from D121 a note (what the loader decided that the rows can't show, e.g. a stale copy skipped); each NULL where a loader has none and in older records. Read with union_by_name (D91).
+- `raw/sec/companyfacts_changes`: one row per CIK requested from Company Facts, including empty documents and HTTP 404s, with full/incremental mode. It is the replacement manifest for the per-CIK serving partitions: no fact row is still an explicit instruction to remove an older partition (D140).
 - `check_results`: run_id, check_id, severity, status, failing_row_count, every failing row (JSON, in the column named `sample`, D42), evaluated_at. Appended every run.
 - `baseline`: per series first_date, last_date, row_count at the opening-balance audit; written once to `health/baseline/<run_id>.parquet` (D39). Every audit attempt's comparisons go to `health/audit/<run_id>__<stamp>.parquet`.
 
@@ -101,7 +104,7 @@ Entity tables beside the series model. Each row carries the four columns every o
 | yfinance | M1 | daily close (split-adjusted), splits, dividends | Unofficial. Wrapped and schema-checked; `auto_adjust` always explicit | No: Yahoo terms 2(h) bar distributing or publicly performing its content without written permission |
 | second price source | M1 | reconciliation only | Independent of Yahoo. Candidates: Tiingo free tier, Alpha Vantage free tier, Stooq. Pick in M1 and log the decision | No: Tiingo (chosen, D35) free accounts are 'internal and personal use only', no redistribution 'in any form' |
 | FRED / ALFRED | M1 | `GDP` (nominal, SAAR), `GDPC1` (real), `CPIAUCSL` (monthly CPI) | Pull all vintages. Freshness uses FRED release dates, not a hard-coded lag (releases slip, e.g. shutdowns) | Not now (#103): the API terms bar storing its content; the series are public domain at BEA/BLS |
-| SEC companyfacts.zip | M2 (D128) | XBRL facts, all filers, landed on demand (D131): `company_facts` (one row per fact, keyed cik, taxonomy, concept, unit, accession, start_date, end_date), `company_concepts` | Keeps accession + filed date per fact = point-in-time is reconstructible. Landed level; freshness C40 | Yes (SEC data is public; unverified, from prior) |
+| SEC Company Facts | M2 (D128, D139, D140) | XBRL facts, all filers: bulk baseline, then per-CIK documents for companies with changed submission filings. `company_facts` (one row per fact, keyed cik, taxonomy, concept, unit, accession, start_date, end_date), `company_concepts` | Keeps accession + filed date per fact = point-in-time is reconstructible. Served as self-contained per-CIK partition snapshots: unchanged files are reused, changed CIKs replaced, then the SEC group publishes atomically; freshness C40 | Yes (SEC data is public; unverified, from prior) |
 | SEC Financial Statement Data Sets | M3 | dimensional facts (multi-class shares), `pre` table | companyfacts drops dimensional facts | Yes (as above) |
 | SEC EDGAR full-index (`master.gz` per quarter) | M2 | every filing: CIK, name, form, date filed: `filings` | Annual reports, events and gap years (D54, D65); current and previous quarter re-landed each run. Landed level; freshness C25 | Yes (as above) |
 | SEC submissions.zip | M2 | company details (name, SIC, state, tickers, exchanges) and filing history: `submission_details`, `submission_filings` | Nightly bulk; details snapshot every run, history past the watermark (D58). Landed level; freshness C31 | Yes (as above) |
@@ -147,7 +150,7 @@ Completeness requires a declared expectation. `config/watchlist.csv` plus each s
 | C25 | freshness | error | no | latest full-index filing date older than 3 business days (weekdays) at the clock (`group: sec`, D60) |
 | C31 | freshness | warn | no | latest submissions.zip Last-Modified older than 36 hours at the clock (`group: sec`, D60) |
 | C34 | freshness | warn | no | latest ticker file Last-Modified older than 14 days at the clock; provisional (`group: sec`, D60) |
-| C40 | freshness | warn | no | latest companyfacts landing older than 92 days at the clock; on demand, never red (`group: companyfacts`, D131) |
+| C40 | freshness | warn | no | latest Company Facts landing older than 36 hours at the clock (`group: sec`, D139) |
 | C12 | reconciliation | warn | no | sampled split-adjusted closes differ from Tiingo by > 0.5%, a ticker both sources have shares no date with Tiingo, or a reviewed reclassification (D40) matches no Tiingo distribution; sample = 5 dates per ticker drawn by hash(run_id) + the latest common date, defined once in `transform/reconcile_sample.sql` (D38) |
 | C13 | baseline | warn | no | first_date moved later, row_count below baseline, or a baselined series gone, vs the opening-balance audit; also fires while no baseline is recorded. Metrics defined once in `transform/baseline_metrics.sql` (C04's row rule), shared with the audit (D39) |
 | C14 | accuracy | error | yes | same `(series_id, obs_date, vintage)` with different values across raw snapshots (silent source correction). Prices: current vintage per series only (D23); FRED: every key |

@@ -29,6 +29,7 @@ import duckdb
 
 from pharos.db import query
 from pharos.paths import PROJECT_ROOT, data_root
+from pharos.parquet import scan
 from pharos.runs import RUN_ID
 
 
@@ -113,7 +114,7 @@ def compare(rebuilt: Path, served: Path, tables: list[str] | None = None) -> dic
         a, b = rebuilt / f"{t}.parquet", served / f"{t}.parquet"
         if not a.exists() or not b.exists():
             raise RebuildError(f"table {t} is in only one of {rebuilt} and {served}")
-        ra, rb = (f"read_parquet('{p.as_posix()}')" for p in (a, b))
+        ra, rb = (scan(p) for p in (a, b))
         only_a = con.execute(f"SELECT count(*) FROM (SELECT * FROM {ra} EXCEPT ALL SELECT * FROM {rb})").fetchone()[0]
         only_b = con.execute(f"SELECT count(*) FROM (SELECT * FROM {rb} EXCEPT ALL SELECT * FROM {ra})").fetchone()[0]
         out[t] = (only_a, only_b)

@@ -37,9 +37,8 @@ def cmd_load(args: argparse.Namespace) -> int:
 
 
 def cmd_stage(args: argparse.Namespace) -> int:
-    import duckdb
-
     from pharos import catalog
+    from pharos.parquet import row_count, table_path
     from pharos.stage import stage
 
     from pharos.groups import GROUPS
@@ -48,7 +47,7 @@ def cmd_stage(args: argparse.Namespace) -> int:
     print(f"staged {s.path}")
     for name in s.staged:
         for table in GROUPS[name].tables:
-            n = duckdb.sql(f"SELECT count(*) FROM read_parquet('{(s.path / f'{table}.parquet').as_posix()}')").fetchone()[0]
+            n = row_count(table_path(s.path, table))
             print(f"  {name:<14} {table:<15} {n:>9,} rows")
     for name, why in s.failed.items():
         print(f"  {name:<14} NOT STAGED: {why.strip().splitlines()[-1]}")
@@ -97,9 +96,9 @@ def cmd_refresh(args: argparse.Namespace) -> int:
 
 
 def cmd_companyfacts(args: argparse.Namespace) -> int:
-    from pharos.refresh import run_on_demand
+    from pharos.refresh import refresh_companyfacts_full
 
-    return _report_run(*run_on_demand("companyfacts"), " (companyfacts, on demand)")
+    return _report_run(*refresh_companyfacts_full(), " (SEC, full Company Facts baseline)")
 
 
 def cmd_health(args: argparse.Namespace) -> int:
@@ -178,8 +177,8 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("refresh", help="load, stage, check and publish a new run; writes the run manifest")
     p.set_defaults(func=cmd_refresh)
 
-    p = sub.add_parser("companyfacts", help="land, stage, check and publish SEC companyfacts alone: on demand, "
-                                            "never in the nightly refresh (D131, D135)")
+    p = sub.add_parser("companyfacts", help="force a full Company Facts baseline and publish it atomically "
+                                            "with fresh SEC index, submissions and tickers")
     p.set_defaults(func=cmd_companyfacts)
 
     p = sub.add_parser("rebuild-staging", help="rebuild an old run's staging from raw at the run's own commit, "

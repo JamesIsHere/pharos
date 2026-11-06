@@ -69,7 +69,12 @@ def test_sec_views_appear_where_its_files_are(monkeypatch, tmp_path):
     version.mkdir(parents=True)
     import duckdb
     duckdb.execute(f"COPY (SELECT 1 AS cik) TO '{(version / 'tickers.parquet').as_posix()}' (FORMAT parquet)")
+    duckdb.execute(f"COPY (SELECT 1 AS cik, 'Assets' AS concept) "
+                   f"TO '{(version / 'company_facts.parquet').as_posix()}' "
+                   "(FORMAT parquet, PARTITION_BY (cik), WRITE_PARTITION_COLUMNS true)")
     (tmp_path / "serving" / "CURRENT").write_text(version.name, encoding="utf-8")
     names = catalog.views()
     assert "raw_sec_tickers" in names and "serving_tickers" in names
+    assert "serving_company_facts" in names
+    assert duckdb.sql(names["serving_company_facts"]).fetchall() == [(1, "Assets")]
     assert "serving_filings" not in names                     # no file, no view

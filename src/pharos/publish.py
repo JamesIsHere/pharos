@@ -45,6 +45,7 @@ import duckdb
 from pharos.db import records
 from pharos.checks import INPUTS_DIR, Evaluation, bind_view_inputs, groups_in, run_checks
 from pharos.groups import BLOCKED, CARRIED_FORWARD, FAILED, GROUPS, HELD, NEVER_PUBLISHED, NOT_RUN, PUBLISHED
+from pharos.parquet import row_count
 from pharos.paths import data_root
 from pharos.runs import RUN_ID
 from pharos.stage import any_complete_runs, attempted
@@ -211,7 +212,10 @@ def _build(run_id: str, version: Path, outcomes: dict[str, dict], current: Path 
 
 
 def _copy(src: Path, dst: Path) -> None:
-    shutil.copy2(src, dst)
+    if src.is_dir():
+        shutil.copytree(src, dst, copy_function=_link_or_copy)
+    else:
+        shutil.copy2(src, dst)
     n_src, n_dst = _rows(src), _rows(dst)
     if n_src != n_dst:
         raise PublishError(f"{dst.name}: {n_src:,} rows in {src.parent}, {n_dst:,} copied")
@@ -234,4 +238,13 @@ def _point(run_id: str) -> None:
 
 
 def _rows(path: Path) -> int:
-    return duckdb.sql(f"SELECT sum(num_rows) FROM parquet_file_metadata('{path.as_posix()}')").fetchone()[0]
+    return row_count(path)
+
+
+def _link_or_copy(src: str, dst: str) -> str:
+    """Keep immutable partition snapshots cheap on one volume."""
+    try:
+        os.link(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
+    return dst

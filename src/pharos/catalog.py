@@ -17,6 +17,7 @@ from pathlib import Path
 import duckdb
 
 from pharos.groups import DECLARED
+from pharos.parquet import scan
 from pharos.paths import data_root
 from pharos.publish import current_version
 
@@ -73,4 +74,4 @@ def rebuild() -> Path:
 
 
 def _read(path: Path) -> str:
-    return f"SELECT * FROM read_parquet('{path.as_posix()}', union_by_name = true)"
+    return f"SELECT * FROM {scan(path)}"

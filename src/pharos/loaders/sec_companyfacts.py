@@ -1,7 +1,10 @@
-"""EDGAR bulk companyfacts.zip: every XBRL fact SEC extracted, for every filer.
+"""EDGAR Company Facts: every XBRL fact SEC extracted for a filer.
 
-Landed on demand by `pharos companyfacts`, never by the nightly refresh (D131,
-D135). Each landing is a full snapshot (D57). Two raw files a run:
+The first landing (and an explicit ``pharos companyfacts`` run) uses SEC's
+bulk companyfacts.zip as the baseline.  Nightly runs read the submissions
+landing first, find CIKs whose filing rows are new or changed, and fetch the
+per-company Company Facts document only for those CIKs.  Both paths write the
+same three append-only raw datasets:
 - raw/sec/companyfacts/<run_id>.parquet: one row per reported fact (cik,
   taxonomy, concept, unit, start, end, val, accn, fy, fp, form, filed, frame),
   values as sent. `val` is text: JSON sends ints and floats, and 46 ints in
@@ -10,6 +13,10 @@ D135). Each landing is a full snapshot (D57). Two raw files a run:
 - raw/sec/companyfacts_concepts/<run_id>.parquet: one row per (cik, taxonomy,
   concept) with the filer's entity name and the concept's label and
   description, so 126M fact rows don't repeat them.
+- raw/sec/companyfacts_changes/<run_id>.parquet: one row per Company Facts
+  document requested in the run, including empty documents and HTTP 404s.
+  Staging uses it as the authoritative replacement set for copy-on-write
+  partitions; absence of fact rows must be able to delete an older company.
 
 Strict shape, measured on the 2026-11-04 file (20,542 members, 126,119,741
 facts): every member is CIK##########.json; a member is either empty ({},
@@ -40,8 +47,9 @@ from pharos.paths import data_root
 from pharos.runs import write_raw
 
 SOURCE = "sec"
-FACTS, CONCEPTS = "companyfacts", "companyfacts_concepts"
-URL = "https://www.sec.gov/Archives/edgar/daily-index/xbrl/companyfacts.zip"
+FACTS, CONCEPTS, CHANGES = "companyfacts", "companyfacts_concepts", "companyfacts_changes"
+BULK_URL = "https://www.sec.gov/Archives/edgar/daily-index/xbrl/companyfacts.zip"
+COMPANY_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json"
 MEMBER = re.compile(r"CIK(\d{10})\.json")
 BATCH = 2_000_000   # fact rows per temporary Parquet file
 
@@ -53,6 +61,7 @@ FACT_SCHEMA = {"cik": pl.Int64, "taxonomy": pl.String, "concept": pl.String, "un
                "fp": pl.String, "form": pl.String, "filed": pl.String, "frame": pl.String}
 CONCEPT_SCHEMA = {"cik": pl.Int64, "entity_name": pl.String, "taxonomy": pl.String, "concept": pl.String,
                   "label": pl.String, "description": pl.String}
+CHANGE_SCHEMA = {"cik": pl.Int64, "document_found": pl.Boolean, "mode": pl.String}
 
 
 class SchemaDriftError(RuntimeError):
@@ -134,60 +143,71 @@ def _file_cik(name: str, record: dict) -> int:
     return cik
 
 
-def parse(zip_path: Path, folder: Path) -> tuple[list[Path], Path, int, int]:
-    """Parse the zip into fact Parquet batches and one concepts Parquet under
-    folder. Returns (fact files, concepts file, members, fact rows)."""
+def _add_record(name: str, record: object, concepts: dict[str, list], facts: _Facts) -> None:
+    """Validate and append one CIK document, from either SEC endpoint."""
+    if not isinstance(record, dict):
+        raise SchemaDriftError(f"{name}: top level is {type(record).__name__}, expected an object")
+    if not record:
+        return   # an empty bulk member: a filer with nothing (62 on 2026-11-04)
+    keys = set(record)
+    if not ({"entityName", "facts"} <= keys <= {"cik", "entityName", "facts"}):
+        raise SchemaDriftError(f"{name}: top-level keys {sorted(keys)}, expected "
+                               "['cik', 'entityName', 'facts'] (cik optional)")
+    cik = _file_cik(name, record)
+    entity = record["entityName"]
+    if not _is_text(entity) or not isinstance(record["facts"], dict):
+        raise SchemaDriftError(f"{name}: entityName {type(entity).__name__}, "
+                               f"facts {type(record['facts']).__name__}")
+    for taxonomy, body in record["facts"].items():
+        if not isinstance(body, dict):
+            raise SchemaDriftError(f"{name}: taxonomy {taxonomy!r} is {type(body).__name__}")
+        for concept, c in body.items():
+            where = f"{name} {taxonomy}:{concept}"
+            if not isinstance(c, dict) or set(c) != CONCEPT_KEYS:
+                raise SchemaDriftError(f"{where}: concept keys "
+                                       f"{sorted(c) if isinstance(c, dict) else type(c).__name__}, "
+                                       f"expected {sorted(CONCEPT_KEYS)}")
+            if not (_is_text_or_null(c["label"]) and _is_text_or_null(c["description"])
+                    and isinstance(c["units"], dict)):
+                raise SchemaDriftError(f"{where}: label, description or units of the wrong type")
+            concepts["cik"].append(cik)
+            concepts["entity_name"].append(entity)
+            concepts["taxonomy"].append(taxonomy)
+            concepts["concept"].append(concept)
+            concepts["label"].append(c["label"])
+            concepts["description"].append(c["description"])
+            for unit, values in c["units"].items():
+                if not isinstance(values, list):
+                    raise SchemaDriftError(f"{where} [{unit}]: {type(values).__name__}, expected a list")
+                for fact in values:
+                    if not isinstance(fact, dict):
+                        raise SchemaDriftError(f"{where} [{unit}]: a fact is {type(fact).__name__}")
+                    facts.add(cik, taxonomy, concept, unit, fact, f"{where} [{unit}]")
+
+
+def _parse_documents(documents, folder: Path) -> tuple[list[Path], Path, list[tuple[int, bool]], int]:
     concepts = {c: [] for c in CONCEPT_SCHEMA}
     facts = _Facts(folder)
-    members = 0
-    with zipfile.ZipFile(zip_path) as z:
-        for name in z.namelist():
-            if not MEMBER.fullmatch(name):
-                raise SchemaDriftError(f"companyfacts.zip: unexpected member {name!r}")
-            members += 1
-            record = json.loads(z.read(name))
-            if not isinstance(record, dict):
-                raise SchemaDriftError(f"{name}: top level is {type(record).__name__}, expected an object")
-            if not record:
-                continue   # an empty member: a filer with nothing (62 on 2026-11-04)
-            keys = set(record)
-            if not ({"entityName", "facts"} <= keys <= {"cik", "entityName", "facts"}):
-                raise SchemaDriftError(f"{name}: top-level keys {sorted(keys)}, expected "
-                                       "['cik', 'entityName', 'facts'] (cik optional)")
-            cik = _file_cik(name, record)
-            entity = record["entityName"]
-            if not _is_text(entity) or not isinstance(record["facts"], dict):
-                raise SchemaDriftError(f"{name}: entityName {type(entity).__name__}, "
-                                       f"facts {type(record['facts']).__name__}")
-            for taxonomy, body in record["facts"].items():
-                if not isinstance(body, dict):
-                    raise SchemaDriftError(f"{name}: taxonomy {taxonomy!r} is {type(body).__name__}")
-                for concept, c in body.items():
-                    where = f"{name} {taxonomy}:{concept}"
-                    if not isinstance(c, dict) or set(c) != CONCEPT_KEYS:
-                        raise SchemaDriftError(f"{where}: concept keys "
-                                               f"{sorted(c) if isinstance(c, dict) else type(c).__name__}, "
-                                               f"expected {sorted(CONCEPT_KEYS)}")
-                    if not (_is_text_or_null(c["label"]) and _is_text_or_null(c["description"])
-                            and isinstance(c["units"], dict)):
-                        raise SchemaDriftError(f"{where}: label, description or units of the wrong type")
-                    concepts["cik"].append(cik)
-                    concepts["entity_name"].append(entity)
-                    concepts["taxonomy"].append(taxonomy)
-                    concepts["concept"].append(concept)
-                    concepts["label"].append(c["label"])
-                    concepts["description"].append(c["description"])
-                    for unit, values in c["units"].items():
-                        if not isinstance(values, list):
-                            raise SchemaDriftError(f"{where} [{unit}]: {type(values).__name__}, expected a list")
-                        for fact in values:
-                            if not isinstance(fact, dict):
-                                raise SchemaDriftError(f"{where} [{unit}]: a fact is {type(fact).__name__}")
-                            facts.add(cik, taxonomy, concept, unit, fact, f"{where} [{unit}]")
+    members = []
+    for name, record in documents:
+        if not MEMBER.fullmatch(name):
+            raise SchemaDriftError(f"companyfacts: unexpected member {name!r}")
+        members.append((int(MEMBER.fullmatch(name).group(1)), bool(record)))
+        _add_record(name, record, concepts, facts)
     facts.flush()
     concepts_file = folder / "concepts.parquet"
     pl.DataFrame(concepts, schema=CONCEPT_SCHEMA, strict=True).write_parquet(concepts_file)
     return sorted(folder.glob("facts_*.parquet")), concepts_file, members, facts.rows
+
+
+def parse(zip_path: Path, folder: Path) -> tuple[list[Path], Path, list[tuple[int, bool]], int]:
+    """Parse the bulk zip into fact batches and one concepts Parquet file."""
+    with zipfile.ZipFile(zip_path) as z:
+        names = z.namelist()
+        unexpected = [name for name in names if not MEMBER.fullmatch(name)]
+        if unexpected:
+            raise SchemaDriftError(f"companyfacts.zip: unexpected member {unexpected[0]!r}")
+        return _parse_documents(((name, json.loads(z.read(name))) for name in names), folder)
 
 
 def _empty(schema: dict) -> str:
@@ -195,27 +215,152 @@ def _empty(schema: dict) -> str:
                                  for c, t in schema.items()) + " WHERE false"
 
 
-def load_companyfacts(run_id: str) -> dict:
-    """Download, parse and land both datasets. Returns members and row counts."""
-    tmp = data_root() / "tmp" / run_id / "companyfacts"
-    tmp.mkdir(parents=True, exist_ok=True)
+def _land(run_id: str, folder: Path, fact_files: list[Path], concepts_file: Path,
+          documents: list[tuple[int, bool]], n_parsed: int, *, mode: str,
+          last_modified=None, note: str | None = None) -> dict:
+    """Land parsed files from either the bulk or incremental route."""
+    con = duckdb.connect()
     try:
-        got = sec.fetch(URL, to=tmp / "companyfacts.zip")
-        fact_files, concepts_file, members, n_parsed = parse(got.path, tmp)
-        got.path.unlink()   # parsed; the rows are what raw keeps
-        con = duckdb.connect()
         facts = con.sql(f"SELECT * FROM read_parquet({[f.as_posix() for f in fact_files]})" if fact_files
                         else _empty(FACT_SCHEMA))
         concepts = con.sql(f"SELECT * FROM read_parquet('{concepts_file.as_posix()}')")
         n_facts, n_concepts = len(facts), len(concepts)
         if n_facts != n_parsed:
             raise SchemaDriftError(f"read back {n_facts:,} fact rows, parsed {n_parsed:,}")
-        write_raw(facts, SOURCE, FACTS, run_id, last_modified=got.last_modified, source_count=members)
-        write_raw(concepts, SOURCE, CONCEPTS, run_id, last_modified=got.last_modified)
+        members = len(documents)
+        write_raw(facts, SOURCE, FACTS, run_id, last_modified=last_modified,
+                  source_count=members, note=note)
+        write_raw(concepts, SOURCE, CONCEPTS, run_id, last_modified=last_modified,
+                  source_count=members, note=note)
+        changes = pl.DataFrame(
+            {"cik": [cik for cik, _ in documents],
+             "document_found": [found for _, found in documents],
+             "mode": [mode] * members},
+            schema=CHANGE_SCHEMA, strict=True)
+        write_raw(changes, SOURCE, CHANGES, run_id, last_modified=last_modified,
+                  source_count=members, note=note)
+    finally:
         con.close()
+    return {"members": members, "facts": n_facts, "concepts": n_concepts}
+
+
+def load_companyfacts(run_id: str) -> dict:
+    """Download the full bulk baseline and land both datasets."""
+    tmp = data_root() / "tmp" / run_id / "companyfacts"
+    tmp.mkdir(parents=True, exist_ok=True)
+    try:
+        got = sec.fetch(BULK_URL, to=tmp / "companyfacts.zip")
+        fact_files, concepts_file, documents, n_parsed = parse(got.path, tmp)
+        got.path.unlink()   # parsed; the rows are what raw keeps
+        result = _land(run_id, tmp, fact_files, concepts_file, documents, n_parsed,
+                       mode="full", last_modified=got.last_modified, note="full bulk baseline")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
         for folder in (tmp.parent, tmp.parent.parent):   # tmp/<run_id>/, then tmp/, once empty
             if folder.exists() and not any(folder.iterdir()):
                 folder.rmdir()
-    return {"members": members, "facts": n_facts, "concepts": n_concepts}
+    return result
+
+
+def has_baseline() -> bool:
+    """Whether a complete Company Facts landing already exists in raw."""
+    root = data_root() / "raw" / SOURCE
+    return (any((root / FACTS).glob("*.parquet"))
+            and any((root / CONCEPTS).glob("*.parquet")))
+
+
+def changed_ciks(run_id: str) -> list[int]:
+    """CIKs with a new or changed submissions filing in ``run_id``.
+
+    The submissions loader re-lands an overlap window.  Compare each current
+    row with the newest earlier value for the same filing so the overlap does
+    not cause needless Company Facts requests, while source corrections still
+    do.
+    """
+    folder = data_root() / "raw" / SOURCE / "submission_filings"
+    current = folder / f"{run_id}.parquet"
+    if not current.exists():
+        return []
+    earlier = sorted(p for p in folder.glob("*.parquet") if p.stem < run_id)
+    con = duckdb.connect()
+    try:
+        if not earlier:
+            return [r[0] for r in con.execute(
+                f"SELECT DISTINCT cik FROM read_parquet('{current.as_posix()}') ORDER BY cik").fetchall()]
+        values = [c for c in ("cik", "accession_number", "filing_date", "report_date",
+                              "acceptance_date_time", "act", "form", "file_number", "film_number",
+                              "items", "core_type", "size", "is_xbrl", "is_inline_xbrl",
+                              "is_xbrl_numeric", "primary_document", "primary_doc_description")]
+        row_current = "row(" + ", ".join(f"c.{c}" for c in values) + ")"
+        row_prior = "row(" + ", ".join(f"p.{c}" for c in values) + ")"
+        # One submissions landing contains the complete overlap window used by
+        # the next landing, so the newest prior file is the comparison base.
+        # Reading the whole append-only history here would grow nightly work
+        # even though older files cannot change this answer.
+        prior_path = earlier[-1].as_posix()
+        rows = con.execute(f"""
+            WITH current_rows AS (
+                SELECT DISTINCT {', '.join(values)}
+                FROM read_parquet('{current.as_posix()}')
+            ), prior AS (
+                SELECT * EXCLUDE (rn) FROM (
+                    SELECT *, row_number() OVER (
+                        PARTITION BY cik, accession_number, form
+                        ORDER BY run_id DESC, loaded_at DESC, source_file DESC) AS rn
+                    FROM read_parquet('{prior_path}')
+                ) WHERE rn = 1
+            )
+            SELECT DISTINCT c.cik
+            FROM current_rows AS c
+            LEFT JOIN prior AS p USING (cik, accession_number, form)
+            WHERE p.cik IS NULL OR {row_current} IS DISTINCT FROM {row_prior}
+            ORDER BY c.cik
+        """).fetchall()
+        return [r[0] for r in rows]
+    finally:
+        con.close()
+
+
+def load_incremental_companyfacts(run_id: str) -> dict:
+    """Land full documents only for CIKs changed by this run's submissions.
+
+    A new data root has nothing to merge partial documents into, so its first
+    SEC run establishes the bulk baseline automatically.
+    """
+    if not has_baseline():
+        return load_companyfacts(run_id) | {"mode": "full"}
+
+    ciks = changed_ciks(run_id)
+    tmp = data_root() / "tmp" / run_id / "companyfacts"
+    tmp.mkdir(parents=True, exist_ok=True)
+    try:
+        documents = []
+        modified = []
+        missing = []
+        for cik in ciks:
+            try:
+                got = sec.fetch(COMPANY_URL.format(cik=cik))
+            except sec.SecFetchError as e:
+                if e.status != 404:
+                    raise
+                # A submissions filer need not have XBRL facts. SEC expresses
+                # that valid absence as a missing per-company document.
+                documents.append((f"CIK{cik:010d}.json", {}))
+                missing.append(cik)
+                continue
+            documents.append((f"CIK{cik:010d}.json", json.loads(got.content)))
+            if got.last_modified is not None:
+                modified.append(got.last_modified)
+        fact_files, concepts_file, parsed_documents, n_parsed = _parse_documents(documents, tmp)
+        members = len(parsed_documents)
+        note = f"incremental Company Facts for {members} CIKs changed in submissions"
+        if missing:
+            note += f"; {len(missing)} had no SEC Company Facts document (HTTP 404)"
+        result = _land(run_id, tmp, fact_files, concepts_file, parsed_documents, n_parsed,
+                       mode="incremental", last_modified=max(modified) if modified else None, note=note)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+        for folder in (tmp.parent, tmp.parent.parent):
+            if folder.exists() and not any(folder.iterdir()):
+                folder.rmdir()
+    return result | {"mode": "incremental", "ciks": ciks, "missing_ciks": missing}

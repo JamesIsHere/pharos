@@ -1,7 +1,7 @@
 [project]
 name = "pharos"
 version = "0.1.0"
-description = "Local-first data platform: prices, macro, and fundamentals as Parquet, checked before published."
+description = "Local-first data platform: prices, macro series, and SEC source data as Parquet, checked before publishing."
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "duckdb>=1.5.6",

@@ -116,7 +116,11 @@ def stage(run_id: str | None = None) -> Staging:
             staged.append(group.name)
         except Exception as e:
             for table in group.tables:           # never leave a group half-written
-                (target / f"{table}.parquet").unlink(missing_ok=True)
+                table_path = target / f"{table}.parquet"
+                if table_path.is_dir():
+                    shutil.rmtree(table_path)
+                else:
+                    table_path.unlink(missing_ok=True)
             failed[group.name] = traceback.format_exc(limit=5)
             first_error = first_error or e
     if not staged:
@@ -187,13 +191,8 @@ def _stage_sec(included: list[str], target: Path) -> None:
     stage_group(included, target)
 
 
-def _stage_companyfacts(included: list[str], target: Path) -> None:
-    from pharos.stage_sec import stage_companyfacts
-    stage_companyfacts(included, target)
-
-
 # group name -> the function that stages it into staging/<run_id>/
-STAGERS = {"prices_macro": _stage_prices_macro, "sec": _stage_sec, "companyfacts": _stage_companyfacts}
+STAGERS = {"prices_macro": _stage_prices_macro, "sec": _stage_sec}
 
 
 def bind_raw(con, included: list[str], group: Group = PRICES_MACRO) -> None:

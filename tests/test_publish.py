@@ -11,7 +11,7 @@ import pytest
 
 from pharos import publish as pub_mod
 from pharos.paths import data_root
-from pharos.publish import PointerLockedError, current_version, publish
+from pharos.publish import PointerLockedError, _copy, current_version, publish
 from pharos.stage import stage
 from test_faults import RUN2, reland, tamper
 
@@ -42,6 +42,19 @@ def snapshot():
 
 def rows(version, table="observations"):
     return duckdb.sql(f"SELECT count(*) FROM read_parquet('{(version / f'{table}.parquet').as_posix()}')").fetchone()[0]
+
+
+def test_partitioned_table_copy_is_self_contained_and_reuses_files(tmp_path):
+    from pharos.parquet import scan
+    source = tmp_path / "source.parquet"
+    duckdb.execute(f"COPY (SELECT i % 2 AS cik, i AS value FROM range(4) t(i)) "
+                   f"TO '{source.as_posix()}' "
+                   "(FORMAT parquet, PARTITION_BY (cik), WRITE_PARTITION_COLUMNS true)")
+    target = tmp_path / "target.parquet"
+    _copy(source, target)
+    assert duckdb.sql(f"SELECT count(*) FROM {scan(target)}").fetchone() == (4,)
+    for original in source.rglob("*.parquet"):
+        assert original.samefile(target / original.relative_to(source))
 
 
 def test_passing_run_publishes_and_points(staged_run):
