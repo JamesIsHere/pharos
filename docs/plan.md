@@ -2,10 +2,10 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M2 (SEC landed) DONE 2026-11-05: acceptance #1-#4 passed; #4 is run time only (D136). Next per the plan: M1.5, exploration tools (#41, D51). M1 DONE (7 green nightlies, 20261008T053003Z-20261014T053008Z). H (Hosting) on hold (D106). Nightly task 07:30 UTC (D63)
+- **Milestone:** M2 (SEC landed) DONE 2026-11-05: acceptance #1-#4 passed; #4 is run time only (D136). Next milestone: M3, when James calls it; M1.5 dropped (D137). M1 DONE (7 green nightlies, 20261008T053003Z-20261014T053008Z). H (Hosting) on hold (D106). Nightly task 07:30 UTC (D63)
 - **Health:** GREEN at 2026-11-05 10:45 UTC (`pharos health`), 0 failing: prices_macro and sec published from 20261105T103527Z; companyfacts not_run from 20261105T083453Z. C12 warn (XOM 2009-11-06, Yahoo vs Tiingo 0.58% on a random sample; never blocks). C15 ATVI and C16 CPI Oct 2025 acknowledged (D46). serving/CURRENT = 20261105T103527Z
 - **Last session:** 2026-11-05 (sixteenth): M2 closed. Acceptance #3: run 20261105T102452Z with the SEC download made to fail published prices + macro, sec carried forward. Acceptance #4: run 20261105T103527Z, 239 s, sec published; memory measurement dropped (D136). One refresh before it (20261105T102906Z) was killed by low system memory (another program held 11.8 GB) during the SEC loads: serving untouched, raw files each with a load record. Before that, 2026-11-05 (fifteenth): M2 step 3 done.
-- **Next action:** Start M1.5 (exploration tools, #41): break it into steps in this file first. The 2026-11-06 nightly is the first SEC merge with changed rows: glance at its health, nothing to record
+- **Next action:** Exploration continues as pages in `scratch/` (outside the plan, D137): data tests, industry codes, Amazon. The 2026-11-06 nightly is the first SEC merge with changed rows: glance at its health, nothing to record
 - **Blockers / open questions:** none. #17 and #25 are built together when C14 first fires on a price. Full list in Open issues below and Parked issues in `docs/later.md`; cite only IDs that appear there.
 
 ## Open issues
@@ -54,7 +54,6 @@ Everything in U (`docs/later.md`); any analysis on the SEC data; new dashboard p
 ---
 
 ## Later milestones (one line each until current)
-- **M1.5: Exploration tools (#41).** After M2 (D51).
 - **M3: Fundamentals, formerly M2.** companyfacts is landed in M2 (D128); M3 curates it: companyfacts in full → raw facts with accession and filed date, every filer and concept (D57); curated in staging, balance sheet first. Equity, preferred, both share counts, goodwill and intangibles. Book value per share and P/B as the first derived series via ASOF on available_date. XBRL checks: balance identity, share-count divergence, scale errors. Financial Statement Data Sets for multi-class names. OTC decision.
 - **M4: Cross-section page (formerly M3, universe moved to M2).** Domestic 10-K filers. SIC → Fama-French industries. P/B distribution, industry medians, scatter. Coverage heatmap scales to the universe.
 - **M5: Flow statements + quarterly panel.** YTD differencing, Q4 derivation, 52/53-week handling, fiscal→calendar alignment, concept map with fallback chains, ratio library.
