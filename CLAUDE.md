@@ -37,6 +37,7 @@ app/               Home.py, common.py, pages/1_Health.py, pages/2_Charts.py
 scripts/           open-dashboard.ps1, nightly-refresh.ps1, register-tasks.ps1, pharos.ico (make_icon.py)
 tests/             incl. test_faults.py
 docs/              design.md, plan.md, later.md, decisions.md
+explore/           exploration pages (D137, D138): lib/ shared code, one folder per page; scripts tracked, generated .html gitignored. Run: uv run python explore/<page>/build.py
 data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.duckdb   (gitignored, never committed)
 ```
 
