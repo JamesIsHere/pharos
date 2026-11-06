@@ -135,6 +135,7 @@ f8.add_trace(go.Scatter(x=P["obs_date"], y=P["close"], name="AMZN close", line=d
 f8.add_trace(go.Scatter(x=V["obs_date"], y=V["ps"], name="Price-to-sales", line=dict(color="#d97706", width=1)), row=1, col=2)
 f8.update_yaxes(type="log", tickvals=[1, 2, 5, 10, 20, 50, 100, 200, 300], row=1, col=1)
 f8.update_layout(showlegend=False, **{k: val for k, val in LAY.items() if k != "legend"})
+f8.update_annotations(font_size=12)
 
 
 def chart(fig, first=False):
@@ -253,6 +254,7 @@ f9.update_xaxes(tickvals=[f"{y} Q1" for y in range(2010, 2027, 4)], ticktext=[st
                 row=1, col=1)
 f9.update_yaxes(tickformat=".0%", range=[0.2, 0.42], row=1, col=2)
 f9.update_layout(**{**LAY, "margin": dict(l=60, r=20, t=70, b=70)})
+f9.update_annotations(font_size=12)
 
 bad_txt = "; ".join(f"{r['item'].replace('rev', 'revenue').replace('ni', 'net income')} Q4 {r['yr']}: tagged "
                     f"${r['tagged'] / 1e6:,.0f}m, derived ${r['derived'] / 1e6:,.0f}m" for r in q4_bad.iter_rows(named=True))

@@ -91,7 +91,7 @@ def sections(LAY, pct, bn):
     p12 = P.filter(pl.col("cik").is_in(list(SQUEEZED) + [AMZN])).with_columns(
         (pl.col("opinc") / pl.col("rev")).alias("om")).sort("cik", "yr")
     y0 = p12.group_by("cik").agg(pl.col("yr").min().alias("y0"))
-    f12 = make_subplots(rows=1, cols=2, subplot_titles=("Operating margin", "Revenue, indexed to its peak (peak = 1)"))
+    f12 = make_subplots(rows=1, cols=2, subplot_titles=("Operating margin", "Revenue / own peak"))
     pal = ["#dc2626", "#d97706", "#7c3aed", "#059669", "#0891b2", "#db2777", "#65a30d"]
     rows = []
     for (cik, label), color in zip(list(SQUEEZED.items()) + [(AMZN, "Amazon")], pal + ["#1e3a8a"]):
@@ -109,6 +109,7 @@ def sections(LAY, pct, bn):
             rows.append((label, pk_m["yr"][0], pk_r["yr"][0], m["om"][-1], m["yr"][-1], d["yr"].min(), m["yr"].max()))
     f12.update_yaxes(tickformat=".0%", row=1, col=1)
     f12.update_layout(title="", **{**LAY, "margin": dict(l=60, r=20, t=60, b=70)})
+    f12.update_annotations(font_size=12)
     stub = [r for r in rows if r[6] < 2015]
     full = [r for r in rows if r not in stub]
     first = [r for r in full if r[1] < r[2]]
@@ -136,8 +137,8 @@ def sections(LAY, pct, bn):
     p13 = P.filter(pl.col("cik").is_in(list(PEERS)) & pl.col("yr").is_between(2010, 2025)).with_columns(
         (pl.col("capex") / pl.col("rev")).alias("ci"), (pl.col("inv") / pl.col("cogs") * 365).alias("dio"),
         (pl.col("ap") / pl.col("cogs") * 365).alias("dpo"), (pl.col("opinc") / pl.col("rev")).alias("om"))
-    f13 = make_subplots(rows=1, cols=3, subplot_titles=("Capital spending / revenue", "Inventory, days",
-                                                        "Payables minus inventory, days"))
+    f13 = make_subplots(rows=1, cols=3, horizontal_spacing=0.09, subplot_titles=("Capex / revenue", "Inventory, days",
+                                                        "Payables less inventory, days"))
     for cik, (label, color) in PEERS.items():
         d = p13.filter(pl.col("cik") == cik).sort("yr")
         wd = 3 if cik == AMZN else 1.6
@@ -146,6 +147,7 @@ def sections(LAY, pct, bn):
                                      legendgroup=label, showlegend=col == 1), row=1, col=col)
     f13.update_yaxes(tickformat=".0%", row=1, col=1)
     f13.update_layout(title="", **{**LAY, "margin": dict(l=50, r=20, t=60, b=70)})
+    f13.update_annotations(font_size=12)
     l13 = p13.filter(pl.col("yr") == 2025).with_columns(pl.col("cik").replace_strict({k: v[0] for k, v in PEERS.items()}).alias("who"))
     def g(who, c):
         return l13.filter(pl.col("who") == who)[c][0]
