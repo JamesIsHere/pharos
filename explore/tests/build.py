@@ -105,32 +105,32 @@ EXPLORE = [
      "Before measuring concentration, which grain of SEC's industry codes leaves enough companies in each "
      "industry. An industry with two companies always shows one of them at 50% or more, which says nothing. "
      "Base for tests 8-15: companies with 2024 revenue from their 10-K's own figures, SPACs excluded (the method of test 6).",
-     "4,362 companies had 2024 revenue. At the finest grain (4-digit SIC) they spread over 381 industries; only "
-     "98 hold 10 or more companies, and those cover 75% of the companies and 64% of the revenue; 63 industries "
-     "hold a single company. At 2-digit SIC, 54 of 70 groups clear 10 companies and cover 98% of everything. "
+     "4,613 companies had 2024 revenue. At the finest grain (4-digit SIC) they spread over 387 industries; only "
+     "108 hold 10 or more companies, and those cover 77% of the companies and 65% of the revenue; 59 industries "
+     "hold a single company. At 2-digit SIC, 58 of 70 groups clear 10 companies and cover 99% of everything. "
      "The 15 BEA sectors are all large.",
      "Tests 9 and 10 use a floor of 10 companies. The floor is a choice, not a rule: at 5 companies more "
      "industries qualify and the shares look more extreme."),
     (9, "Concentration inside each industry (2-digit SIC)",
-     "Within each of the 54 broad industries with 10 or more companies: how much of the industry's public revenue "
+     "Within each of the 58 broad industries with 10 or more companies: how much of the industry's public revenue "
      "the largest company holds (dark bar, with its name), and the top four together (light bar). Hover a bar "
      "for the company count and HHI, the sum of squared shares that US merger guidelines use.",
-     "The typical industry's largest company holds 24% of its revenue and the top four hold 59% (medians). 17 of "
-     "the 54 score above 1,800 on HHI, the level US merger guidelines treat as highly concentrated. Most "
-     "concentrated: UPS at 75% of trucking and courier, Netflix 72% (SEC's code for it is video tape rental), "
-     "Walmart 57% of variety stores, Disney 56% of amusement. Least: REITs (American Tower 4%), "
+     "The typical industry's largest company holds 25% of its revenue and the top four hold 63% (medians). 18 of "
+     "the 58 score above 1,800 on HHI, the level US merger guidelines treat as highly concentrated. Most "
+     "concentrated: Netflix 72% (SEC's code for it is video tape rental), Best Buy 70% of consumer electronics "
+     "stores, UPS 64% of trucking and courier, Walmart 57% of variety stores, Disney 56% of amusement. Least: REITs (American Tower 4%), "
      "pharmaceuticals (Johnson & Johnson 8%), medical instruments, electric and gas services.",
      "Shares are of public companies' revenue only, not market share: private firms and companies filing "
      "foreign annual reports (20-F, 40-F) are missing, and foreign sales are included. Each industry is labelled "
      "by its largest 4-digit code. Subsidiaries that file their own 10-K count twice: the largest company in "
      "security brokers (SIC 62) is Citigroup Global Markets Holdings, a Citigroup subsidiary."),
     (10, "The most and least concentrated detailed industries (4-digit SIC)",
-     "The same measure at the finest grain, for the 98 detailed industries with 10 or more companies: the 15 "
+     "The same measure at the finest grain, for the 108 detailed industries with 10 or more companies: the 15 "
      "most concentrated and the 5 least.",
      "Newmont holds 93% of gold and silver ore revenue, Amazon 85% of catalog and mail-order retail, Disney 84% "
-     "of amusement and recreation, Lam Research 84% of special industry machinery, Medtronic 82% of "
-     "electromedical apparatus. At the other end, the largest REIT holds 5% and the largest electric utility "
-     "11%.",
+     "of amusement and recreation, Medtronic 82% of electromedical apparatus, Lam Research 81% of special "
+     "industry machinery. At the other end, the largest REIT holds 4% and the largest electric utility "
+     "10%.",
      "A detailed code with one giant and a tail of small companies always reads as concentrated. Newmont's 93% "
      "probably reflects that most large gold miners are Canadian and file Canadian or foreign annual reports, "
      "not that Newmont dominates gold (not checked here). Some 'companies' are subsidiaries (Flagstar Bank, "
@@ -139,15 +139,15 @@ EXPLORE = [
      "Rank every company by 2024 revenue and add up shares from the top: how many companies it takes to reach "
      "a quarter, half, 80%, 90% and 99% of all public-company revenue. The axis is logarithmic so the top "
      "companies are readable.",
-     "19 companies make up a quarter of all revenue, 83 make up half, 424 make 80% and 800 make 90%. The "
-     "largest 10 hold 17.5%. The median company has $429m of revenue, and 762 companies have under $10m.",
+     "20 companies make up a quarter of all revenue, 88 make up half, 448 make 80% and 845 make 90%. The "
+     "largest 10 hold 17.0%. The median company has $421m of revenue, and 802 companies have under $10m.",
      "The top of the list includes some revenue twice (subsidiaries that file their own 10-K, test 12), which "
      "makes the top look slightly larger than it is."),
     (12, "Where the companies trade",
      "Split the 2024 companies by where their shares trade today, from SEC's exchange field: NYSE, Nasdaq, OTC "
      "(over-the-counter, outside the exchanges), or no ticker at all.",
-     "NYSE: 34% of companies, 62% of revenue, median company $2.1bn. Nasdaq: 43% of companies, 28% of "
-     "revenue, median $250m. OTC: 10% of companies, 1.3% of revenue, median $3.5m, and 75% of them lost money. "
+     "NYSE: 33% of companies, 62% of revenue, median company $2.1bn. Nasdaq: 43% of companies, 28% of "
+     "revenue, median $241m. OTC: 10% of companies, 1.3% of revenue, median $4.0m, and 74% of them lost money. "
      "No ticker: 13% of companies and 8% of revenue.",
      "The exchange is today's, the revenue 2024's. Exxon shows as 'no ticker' because its XOM ticker moved to "
      "a new holding company with a different SEC number (a trap noted in the data map). Most of the no-ticker "
@@ -156,25 +156,25 @@ EXPLORE = [
      "revenue is also inside their parents' (issue #55)."),
     (13, "Who loses money",
      "The share of companies reporting a net loss in 2024, by revenue size and by sector.",
-     "47% of the 4,144 companies with both figures lost money. By size: 89% of companies under $10m of revenue, "
-     "67% at $10-100m, 44% at $100m-1bn, 23% at $1-10bn and 8% at $10bn and up. By sector, utilities (19%) and "
-     "finance (21%) have the fewest loss-makers; information has the most (66%) yet the highest overall margin "
+     "47% of the 4,383 companies with both figures lost money. By size: 88% of companies under $10m of revenue, "
+     "67% at $10-100m, 45% at $100m-1bn, 22% at $1-10bn and 8% at $10bn and up. By sector, utilities (18%) and "
+     "finance (22%) have the fewest loss-makers; information has the most (66%) yet the highest overall margin "
      "(16%): a few very profitable giants and a long tail of loss-making small companies.",
      "A net loss can be one-off (write-downs, litigation). Companies with no revenue at all, such as early "
      "biotechs, are not in this set, so the true share of loss-makers among filers is higher."),
     (14, "Is public-company revenue concentrating over time?",
      "Two views, 2011-2025: the share of all public revenue held by the largest 10 and 100 companies (left), "
      "and the median concentration (HHI) across the broad industries (right).",
-     "The largest 100 held 52% in 2011, fell to 49% by 2017, and rose to 55% by 2025; the largest 10 went from "
+     "The largest 100 held 52% in 2011, fell to 49% by 2017, and rose to 54% by 2025; the largest 10 went from "
      "16% to a low of 14% (2016-17) to 18%. The largest company was Exxon in 2011, Walmart from 2012 to 2024 "
-     "and Amazon in 2025. Inside industries, the median HHI stays between about 1,200 and 1,400 with no trend.",
-     "2025 is incomplete: 3,988 companies against 4,362 in 2024, because fiscal years ending in 2026 are not "
+     "and Amazon in 2025. Inside industries, the median HHI stays between about 1,150 and 1,450 with no trend.",
+     "2025 is incomplete: 4,237 companies against 4,613 in 2024, because fiscal years ending in 2026 are not "
      "all filed yet, which pushes 2025's top shares up. The population also shrank over the period (test 1), "
      "which raises the top companies' share slightly on its own."),
     (15, "Where companies are incorporated",
      "The state of incorporation from SEC's company details, for the 2024 companies.",
-     "Delaware: 51% of companies and 61% of revenue. Nevada: 9% of companies but under 1% of revenue, a home "
-     "for small companies. Maryland: 6%, almost all REITs (161 of its 243). Incorporated outside the US: 5%. "
+     "Delaware: 52% of companies and 62% of revenue. Nevada: 9% of companies but under 1% of revenue, a home "
+     "for small companies. Maryland: 5%, almost all REITs (165 of its 248). Incorporated outside the US: 5%. "
      "Not recorded: 8%.",
      "The field is today's value, not the state at the time."),
     (16, "Amazon's share at every grain of the industry codes, 2011-2025",
@@ -184,7 +184,7 @@ EXPLORE = [
      "Amazon and the other 5961 companies in dollars.",
      "Every line rises every year; only the level depends on the grain. 2011 to 2024: 57% to 85% of 5961 (596 is "
      "the same within a point: its six extra companies are tiny), 8% to 47% of 59, 2.4% to 17% of retail trade, "
-     "0.3% to 2.6% of all public-company revenue. In 2025: 86%, 54%, 19% and 2.9%. Amazon's revenue grew about "
+     "0.3% to 2.6% of all public-company revenue. In 2025: 86%, 54%, 18% and 2.8%. Amazon's revenue grew about "
      "15 times ($48bn to $717bn); the other 5961 companies about 3 times ($37bn to $117bn).",
      "Shares rise when companies leave, not only when Amazon grows. In 59, Medco (2012) and Express Scripts "
      "(2018) stop filing after acquisitions, and Walgreens has no 2025 10-K after going private, which is most "
