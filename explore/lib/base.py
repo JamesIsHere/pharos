@@ -12,6 +12,10 @@ CATALOG = (data_root() / "catalog.duckdb").as_posix()
 
 REVENUE = ("Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet",
            "RevenuesNetOfInterestExpense", "InterestAndDividendIncomeOperating")
+# Fallback only, when none of REVENUE is tagged for the year (TJX and other retailers since 2018). It includes taxes
+# collected for governments, so taking the larger of it and a net figure would inflate excise payers (Philip Morris:
+# $82bn gross vs $31bn net, 2021).
+REVENUE_GROSS = "RevenueFromContractWithCustomerIncludingAssessedTax"
 
 SECTOR_SQL = """case
     when sic is null then 'No SIC code'
@@ -47,7 +51,7 @@ def companies() -> pl.DataFrame:
             from serving_company_facts
             where taxonomy = 'us-gaap' and unit = 'USD' and form in ('10-K', '10-K/A')
               and date_diff('day', start_date, end_date) between 350 and 380 and end_date <= filed
-              and concept in {REVENUE + ('NetIncomeLoss',)}
+              and concept in {REVENUE + (REVENUE_GROSS, 'NetIncomeLoss')}
         ),
         latest as (
             select * from f
@@ -55,7 +59,8 @@ def companies() -> pl.DataFrame:
         ),
         fy as (
             select cik, end_date, year(end_date - interval 182 day) as yr,
-                   max(val) filter (where concept <> 'NetIncomeLoss') as revenue,
+                   coalesce(max(val) filter (where concept in {REVENUE}),
+                            max(val) filter (where concept = '{REVENUE_GROSS}')) as revenue,
                    max(val) filter (where concept = 'NetIncomeLoss') as net_income
             from latest group by cik, end_date
         ),
