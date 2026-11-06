@@ -14,6 +14,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / "lib"))
 import data  # noqa: E402
 import nav   # noqa: E402
+import rivals_page  # noqa: E402
 
 A = data.annual().join(data.macro_annual(), on="yr", how="left")
 CPI_2025 = A.filter(pl.col("yr") == 2025)["cpi"][0]
@@ -268,6 +269,8 @@ S.append((f9, "9. Quarters: the holiday quarter matters less",
     f"swapped Q4 2011 and Q4 2012 ({bad_txt}). SEC's own CY2011Q4 frame carries the wrong value; the derived "
     "Q4 is right. 2008 has only Q2 and Q3 (the first tagged 10-Qs).",
     "Quarterly segment figures (AWS reports every quarter), dimensional like the annual ones."))
+
+S.extend(rivals_page.sections(LAY, pct, bn))
 
 sections = "".join(f"""
 <section>
