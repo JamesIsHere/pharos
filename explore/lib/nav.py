@@ -2,7 +2,8 @@
 so links go up one level."""
 PAGES = (("Test", "../tests/data-tests.html"),
          ("Industry Code Breakdown", "../codes/industry-codes.html"),
-         ("Amazon", "../amazon/amazon.html"))
+         ("Amazon", "../amazon/amazon.html"),
+         ("Log", "../log/log.html"))
 
 CSS = """
 nav.top { position:sticky; top:0; z-index:10; background:var(--bg); border-bottom:1px solid var(--line);
