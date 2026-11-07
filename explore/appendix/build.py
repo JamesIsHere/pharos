@@ -17,6 +17,9 @@ SECTIONS = (
     ("Status and how Pharos works", (
         ("scratch/folder-map.html", "Folder map",
          "What each folder holds, which are in git, and the 'Where we stand' box (done, now, queued) updated after every commit."),
+        ("scratch/run-flow.html", "Run flow",
+         "Diagrams: how a nightly run works, what happened when five FRED series were added on 2026-11-07, and the "
+         "two-lane way of working (quick lane during a session, pipeline lane nightly)."),
         ("scratch/pharos-operating-manual.html", "Operating manual",
          "How Pharos runs: the nightly data refresh and the code-testing cycle, with a brief operating manual."),
         ("scratch/plan-map.html", "Plan map",
