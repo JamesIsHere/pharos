@@ -4,8 +4,8 @@
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
 - **Milestone:** M2 (SEC landed) DONE 2026-11-05: acceptance #1-#4 passed; #4 is run time only (D136). Next milestone: M3, when James calls it; M1.5 dropped (D137). M1 DONE (7 green nightlies, 20261008T053003Z-20261014T053008Z). H (Hosting) on hold (D106). Nightly task 07:30 UTC (D63)
 - **Health:** run 20261106T090019Z published prices_macro and the unified six-table SEC group; serving/CURRENT points to it. The run completed in 27m44s with 126,265,124 Company Facts rows and 4,837,491 concepts. C15/C16 are acknowledged; C35 was a pre-pointer-swap timing artifact from the prior carried-forward version.
-- **Last session:** 2026-11-06: D139's first unified SEC refresh succeeded, but 0 changed CIKs still caused a full 126M-row rewrite. D140 replaces that operating form with self-contained per-CIK copy-on-write snapshots; focused and cross-system regression tests cover reuse, replacement, deletion, legacy migration, publishing and catalog reads.
-- **Next action:** Run one normal refresh to perform the one-time D140 conversion of the current monolithic Company Facts base, then measure the following no-change/incremental refresh before beginning M3.
+- **Last session:** 2026-11-07: exploration. New explore pages: Appendix (index of every page outside the menu), Reporting Consistency, Companies vs Economy, People and Work. D141 adds five FRED series (population, labor, pay); a refresh started to land them was stopped by James as too slow for a source tweak (it runs every group): #115 parks per-group refresh. Run 20261107T065523Z died by that stop; serving unchanged.
+- **Next action:** The next nightly lands the D141 series and performs the one-time D140 conversion; check its run time and health, then M3 when James calls it.
 - **Blockers / open questions:** none. #17 and #25 are built together when C14 first fires on a price. Full list in Open issues below and Parked issues in `docs/later.md`; cite only IDs that appear there.
 
 ## Open issues
@@ -16,7 +16,7 @@
 | 17  | Under dedup rule A a real source correction blocks publish forever (old raw file stays)        | One Yahoo correction freezes serving/; needs a deliberate accept path  | when C14 first fires on a price (build D23 with #25) |
 | 24  | Accept path for a FRED same-key conflict (C14 on every FRED key)                               | A changed ALFRED vintage blocks publish forever                        | only if C14 fires  |
 | 25  | Price vintage is a DATE: two full pulls of one ticker on one day share a vintage               | Same-day accept re-pull leaves the conflict in place                   | with #17 (D23 build) |
-| 34  | A series added after the audit has no baseline row; C13 never compares it. Any re-baseline path built for this must also decide a size cap on isolated print disagreements: D41's shape rule passes one of any size, and C10 only catches moves over 40% (folded in from #37) | A watchlist addition can lose history with C13 green; a re-run audit could pass a large isolated bad print | before any watchlist change |
+| 34  | A series added after the audit has no baseline row; C13 never compares it. Any re-baseline path built for this must also decide a size cap on isolated print disagreements: D41's shape rule passes one of any size, and C10 only catches moves over 40% (folded in from #37) | A watchlist addition can lose history with C13 green; a re-run audit could pass a large isolated bad print | before any further watchlist change; the five D141 series run without it |
 
 ---
 

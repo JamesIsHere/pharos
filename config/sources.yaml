@@ -26,14 +26,27 @@ fred:
     - GDP        # nominal GDP, quarterly, SAAR
     - GDPC1      # real GDP, quarterly, SAAR
     - CPIAUCSL   # CPI, all urban consumers, monthly, seasonally adjusted
+    # People and work (D141): population, the 16+ population, labor force, employed
+    # (household survey), and compensation of employees (national income).
+    - POPTHM     # population, monthly, not seasonally adjusted
+    - CNP16OV    # civilian noninstitutional population 16+, monthly, NSA
+    - CLF16OV    # civilian labor force, monthly, SA
+    - CE16OV     # employed, household survey, monthly, SA
+    - COE        # compensation of employees paid, quarterly, SAAR
   # Days after a period ends by which its first release is expected (checks C02,
   # C17; D33). Measured first-release lags 2023-2026: CPIAUCSL median 12 days,
-  # GDP and GDPC1 median 30; a few days of slack on top. Every series above must
-  # have one, or staging stops.
+  # GDP and GDPC1 median 30; a few days of slack on top. Added series (D141),
+  # measured the same way: POPTHM median 29, CNP16OV/CLF16OV/CE16OV 5, COE 30.
+  # Every series above must have one, or staging stops.
   expected_lag_days:
     GDP: 35
     GDPC1: 35
     CPIAUCSL: 15
+    POPTHM: 35
+    CNP16OV: 12
+    CLF16OV: 12
+    CE16OV: 12
+    COE: 35
 
 sec:
   # submissions.zip filing history: after the first run, each run lands only

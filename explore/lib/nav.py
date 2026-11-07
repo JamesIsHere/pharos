@@ -4,7 +4,11 @@ PAGES = (("Data Tests", "../tests/data-tests.html"),
          ("Code Tests", "../suite/code-tests.html"),
          ("Industry Code Breakdown", "../codes/industry-codes.html"),
          ("Amazon", "../amazon/amazon.html"),
-         ("Log", "../log/log.html"))
+         ("Reporting Consistency", "../consistency/consistency.html"),
+         ("People and Work", "../people/people.html"),
+         ("Companies vs Economy", "../economy/economy.html"),
+         ("Log", "../log/log.html"),
+         ("Appendix", "../appendix/index.html"))
 
 CSS = """
 nav.top { position:sticky; top:0; z-index:10; background:var(--bg); border-bottom:1px solid var(--line);
