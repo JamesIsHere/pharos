@@ -6,6 +6,7 @@ PAGES = (("Data Tests", "../tests/data-tests.html"),
          ("Amazon", "../amazon/amazon.html"),
          ("Reporting Consistency", "../consistency/consistency.html"),
          ("People and Work", "../people/people.html"),
+         ("Where GDP Goes", "../trade/trade.html"),
          ("Companies vs Economy", "../economy/economy.html"),
          ("Log", "../log/log.html"),
          ("Appendix", "../appendix/index.html"))
