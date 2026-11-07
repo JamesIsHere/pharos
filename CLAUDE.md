@@ -12,7 +12,8 @@ Pharos (named for the lighthouse of Alexandria) is a local-first data platform: 
 1. Start: run `uv run pharos health`. If anything is red, fix the data first. Never build features on red.
 2. During: one milestone at a time. If a design decision changes, add a row to `docs/decisions.md` in the same commit: only for a choice between real alternatives, never to describe what was built (D129). A concern not fixed in the turn it comes up gets a row in "Open issues" in `docs/plan.md` only if it blocks the current milestone or could lose or corrupt data; anything else is one line in the reply or the commit message. Fixing a row deletes it and the commit cites its ID.
 3. Map: `scratch/folder-map.html` is James's at-a-glance page (not in git). After each commit, update only its last-update time and its "Where we stand" box (done, now, queued): a line or two, never a rewrite.
-4. End: update the status block at the top of `docs/plan.md`, then commit. The commit message says what changed and why. Git history is the log; don't create separate log or state files.
+4. Two lanes (James, 2026-11-07; picture: `scratch/run-flow.html`). During a session, anything new goes in the quick lane: an explore page fetches it at build time (as tests 6-7 and People and Work do) or queries served data, in seconds. Data worth storing is promoted by one line in `config/sources.yaml`, committed; the nightly lands it with vintages and checks. Never run `pharos refresh` mid-session unless James asks: it runs every source group, SEC included.
+5. End: update the status block at the top of `docs/plan.md`, then commit. The commit message says what changed and why. Git history is the log; don't create separate log or state files.
 
 ## Stack
 Python 3.12 via uv (lockfile committed) · DuckDB (query engine) · Parquet (storage of record) · Polars (edges only) · Streamlit + Plotly · Windows / PowerShell.
