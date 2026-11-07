@@ -144,7 +144,7 @@ def chart(fig, first):
     return pio.to_html(fig, full_html=False, include_plotlyjs=first, config={"displayModeBar": False})
 
 
-built = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+built = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
 html = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

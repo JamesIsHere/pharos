@@ -308,7 +308,7 @@ reach_rows = [
 ]
 reach = "".join(f"<tr><td>{a}</td><td>{b}</td><td>{c}</td></tr>" for a, b, c in reach_rows)
 
-built = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+built = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
 html = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
