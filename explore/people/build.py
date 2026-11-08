@@ -188,6 +188,7 @@ share of the labor force without one.</p>
 <h2>3. Where growth comes from</h2>
 <p>Real GDP growth splits exactly into three parts: population growth, the change in the share of people employed,
 and growth in output per employed person. Each bar is a decade's average a year; the diamond is real GDP growth.</p>
+<p><a href="growth-math.html">To understand how this was calculated, click here.</a></p>
 {div(fig3)}
 {div(fig3b)}
 
@@ -200,3 +201,114 @@ and depreciation, which is where the companies layer begins.</p>
 (HERE / "people.html").write_text(page, encoding="utf-8")
 print("wrote", HERE / "people.html", f"unrate_check={check:.3f}")
 print(dd)
+
+# the cheat sheet for chart 3, from the same numbers (growth-math.html, linked under chart 3 and from the Appendix)
+ex = next(r for r in dec if r["label"] == "2010s")
+ea, eb = yr.filter(pl.col("yr") == 2009), yr.filter(pl.col("yr") == 2019)
+
+
+def row3(name, unit, col_a, col_b, note=""):
+    va, vb = col_a, col_b
+    g = (math.log(vb) - math.log(va)) / 10
+    return (f"<tr><td>{name}</td><td class=num>{va:,.{unit}f}</td><td class=num>{vb:,.{unit}f}</td>"
+            f"<td class=num>{math.log(vb / va):.4f}</td><td class=num>{g:.2%}</td><td>{note}</td></tr>")
+
+
+P_a, P_b = ea["POPTHM"][0], eb["POPTHM"][0]
+E_a, E_b = ea["CE16OV"][0], eb["CE16OV"][0]
+Y_a, Y_b = ea["GDPC1"][0], eb["GDPC1"][0]
+rows_ex = "".join([
+    row3("Population, thousands (P)", 0, P_a, P_b, "-> More people"),
+    row3("Employed, thousands (E)", 0, E_a, E_b, ""),
+    row3("Employed share of the population (E / P)", 4, E_a / P_a, E_b / P_b, "-> More of them employed"),
+    row3("Real GDP, $bn of 2017 (Y)", 0, Y_a, Y_b, "-> the diamond"),
+    row3("Real GDP per employed person, $ (Y / E)", 0, Y_a * 1e9 / (E_a * 1e3), Y_b * 1e9 / (E_b * 1e3),
+         "-> More output per worker"),
+])
+rows_all = "".join(
+    f"<tr><td>{r['label']}</td><td class=num>{r['people']:.2%}</td><td class=num>{r['employed']:.2%}</td>"
+    f"<td class=num>{r['output']:.2%}</td><td class=num>{r['people'] + r['employed'] + r['output']:.2%}</td>"
+    f"<td class=num>{r['total']:.2%}</td><td class=num>{math.exp(r['total']) - 1:.2%}</td></tr>" for r in dec)
+worst = max(abs(r["people"] + r["employed"] + r["output"] - r["total"]) for r in dec)
+if worst > 1e-12:
+    raise SystemExit(f"people: chart 3's parts miss real GDP growth by {worst:.2e}")
+last = dec[-1]
+
+math_page = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Growth Math</title>
+<style>
+:root {{ --bg:#ffffff; --fg:#1d1d1b; --muted:#5f5e58; --line:#e3e1da; --box:#f6f5f1; }}
+body {{ background:var(--bg); color:var(--fg); font:15px/1.55 system-ui, "Segoe UI", sans-serif; margin:0; padding:24px 16px 60px; }}
+main {{ max-width:900px; margin:0 auto; }}
+h1 {{ font-size:24px; margin:0 0 6px; }}
+h2 {{ font-size:19px; margin:30px 0 6px; }}
+.muted {{ color:var(--muted); }}
+.eq {{ background:var(--box); padding:10px 16px; margin:10px 0; font-family:Consolas, monospace; white-space:pre; overflow-x:auto; }}
+table {{ border-collapse:collapse; margin:10px 0; font-size:14px; }}
+th, td {{ border-bottom:1px solid var(--line); padding:5px 10px; text-align:left; }}
+td.num, th.num {{ text-align:right; font-variant-numeric:tabular-nums; }}
+.wrap {{ overflow-x:auto; }}
+{nav.CSS}
+</style></head>
+<body>{nav.html("People and Work")}<main>
+<h1>Where growth comes from: the math</h1>
+<p class="muted">How chart 3 on <a href="people.html">People and Work</a> splits real GDP growth into three bars.
+Built {built} from the same numbers as the chart.</p>
+
+<h2>1. One identity</h2>
+<p>Real GDP is the number of people, times the share of them who have a job, times what each employed person produces.
+The employed count cancels, so this is true by definition, every year, with no estimate in it:</p>
+<div class="eq">Y  =  P  x  (E / P)  x  (Y / E)
+
+Y = real GDP (GDPC1)     P = population (POPTHM)     E = employed people (CE16OV)</div>
+
+<h2>2. Logs turn the product into a sum</h2>
+<p>Take natural logs and the three factors add instead of multiply. The change in each log over a decade, divided by
+its years, is that factor's average growth a year. The three bars are those three numbers, so they add up exactly to
+the diamond.</p>
+<div class="eq">ln Y  =  ln P  +  ln(E / P)  +  ln(Y / E)
+
+growth a year  =  [ln(end value) - ln(start value)] / years</div>
+
+<h2>3. A worked decade: the 2010s</h2>
+<p>A decade runs from the year before it starts to its last year: the 2010s are 2009 to 2019, 10 years. Each value is
+that year's average (12 months, or 4 quarters for GDP).</p>
+<div class="wrap"><table>
+<tr><th></th><th class=num>2009</th><th class=num>2019</th><th class=num>ln(2019 / 2009)</th><th class=num>a year</th><th>bar</th></tr>
+{rows_ex}
+</table></div>
+<p>{ex['people']:.2%} + {ex['employed']:.2%} + {ex['output']:.2%} = {ex['people'] + ex['employed'] + ex['output']:.2%},
+which is the diamond: real GDP grew {ex['total']:.2%} a year.</p>
+
+<h2>4. Every decade</h2>
+<p>The last bar, {last['label']}, is shorter than ten years: it runs to the last year with a December
+(and a fourth quarter) reported.</p>
+<div class="wrap"><table>
+<tr><th>Decade</th><th class=num>More people</th><th class=num>More employed</th><th class=num>More output per worker</th>
+<th class=num>Sum</th><th class=num>Real GDP (log)</th><th class=num>Real GDP (compound)</th></tr>
+{rows_all}
+</table></div>
+<p class="muted">The chart's growth rates are log rates. The compound rate, e<sup>x</sup> - 1, is what a "grew 3% a year"
+headline means; in this table they differ by at most {max(math.exp(r['total']) - 1 - r['total'] for r in dec) * 100:.2f}
+of a percentage point.</p>
+
+<h2>5. What the orange bar is, and is not</h2>
+<p>"More output per worker" is labor productivity: real GDP per employed person. It is not total factor productivity.
+Labor productivity growth mixes four things this page cannot separate:</p>
+<ul>
+<li>more capital per worker (machines, software, buildings);</li>
+<li>a more skilled workforce;</li>
+<li>hours: the bar counts people, not hours, so a shift toward part-time work shows up as lower output per worker;</li>
+<li>total factor productivity: the part of growth no measured input explains.</li>
+</ul>
+<p>Splitting out total factor productivity needs capital stock and hours data. Neither is in Pharos today.</p>
+
+<h2>6. What the green bar is</h2>
+<p>"More of them employed" is employed people over the whole population, children included. It rises when the population
+ages into working years, when more adults look for work, or when unemployment falls; it doesn't say which. Chart 2
+shows participation and unemployment separately.</p>
+</main></body></html>"""
+(HERE / "growth-math.html").write_text(math_page, encoding="utf-8")
+print("wrote", HERE / "growth-math.html")

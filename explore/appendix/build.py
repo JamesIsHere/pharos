@@ -28,6 +28,9 @@ SECTIONS = (
          "Snapshot from 2026-11-05: where the work went, by folder and by kind of work."),
     )),
     ("Reference", (
+        ("explore/people/growth-math.html", "Growth math",
+         "How chart 3 on People and Work splits real GDP growth into people, employment and output per worker, "
+         "with a worked decade. Output per worker is labor productivity, not total factor productivity."),
         ("scratch/data_map/data-map.html", "Data map",
          "All eight served tables and every field: where each comes from, how they connect, traps before querying."),
         ("scratch/sec-user-agent-explainer.html", "SEC User-Agent explainer",
