@@ -1,0 +1,36 @@
+measure,priority,concept,unit,period,fy2014,fy2024,filer_years,first_yr,last_yr,note
+revenue,1,Revenues,USD,annual,2237,1332,27077,2009,2026,"Total revenue, including non-contract revenue (leases, other). Of 400 FY2024 filers tagging both 1 and 2, 148 differ by more than 1% and 123 of those have 1 larger"
+revenue,2,RevenueFromContractWithCustomerExcludingAssessedTax,USD,annual,0,1853,14153,2016,2026,ASC 606 contract revenue net of sales taxes collected
+revenue,3,SalesRevenueNet,USD,annual,1377,0,10130,2009,2019,Pre-ASC 606 concept
+revenue,4,SalesRevenueGoodsNet,USD,annual,296,0,2256,2009,2019,Pre-ASC 606; goods only. FLAG: misses service revenue where it is tagged separately
+revenue,5,SalesRevenueServicesNet,USD,annual,135,0,955,2009,2019,Pre-ASC 606; services only. FLAG: misses goods revenue where it is tagged separately
+revenue,6,RevenueFromContractWithCustomerIncludingAssessedTax,USD,annual,0,248,2296,2017,2026,"Last resort: includes taxes collected for governments (Philip Morris 2021: $82bn gross vs $31bn net), so it never competes with 1-2 (explore/lib/base.py)"
+cost_of_revenue,1,CostOfRevenue,USD,annual,982,968,14485,2009,2026,"Of 52 FY2024 filers tagging both 1 and 2, 28 differ by more than 1% and 20 of those have 1 larger"
+cost_of_revenue,2,CostOfGoodsAndServicesSold,USD,annual,686,1389,16891,2009,2026,
+cost_of_revenue,3,CostOfGoodsSold,USD,annual,1073,0,7567,2009,2019,Pre-2018 taxonomy concept
+cost_of_revenue,4,CostOfServices,USD,annual,180,0,1241,2009,2018,Pre-2018 taxonomy concept; services only
+cost_of_revenue,5,CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization,USD,annual,0,180,1090,2019,2026,FLAG: excludes D&A; gross margin and inventory days read higher than peers on 1-4
+operating_income,1,OperatingIncomeLoss,USD,annual,4206,3637,59678,2009,2026,Single concept; 545 FY2024 non-financial filers tag none
+net_income,1,NetIncomeLoss,USD,annual,4540,3864,62906,2009,2026,"Attributable to the parent. Not used: ProfitLoss (179 FY2024 filers tag it without 1; 75 of them also tag a noncontrolling share, so it is not the parent figure)"
+d_and_a,1,DepreciationDepletionAndAmortization,USD,annual,2460,2116,34628,2009,2026,Cash-flow add-back
+d_and_a,2,DepreciationAndAmortization,USD,annual,903,687,11930,2009,2026,
+d_and_a,3,DepreciationAmortizationAndAccretionNet,USD,annual,65,61,999,2009,2026,Includes accretion (asset retirement obligations)
+d_and_a,4,Depreciation,USD,annual,813,669,11088,2009,2026,FLAG: depreciation only; amortization of intangibles left out
+capex,1,PaymentsToAcquirePropertyPlantAndEquipment,USD,annual,3139,2696,44547,2009,2026,Cash paid; positive
+capex,2,PaymentsToAcquireProductiveAssets,USD,annual,471,343,6242,2009,2026,Broader: PP&E plus other productive assets (software)
+receivables,1,AccountsReceivableNetCurrent,USD,instant,3077,2531,42525,2009,2026,Trade receivables net of allowance
+receivables,2,ReceivablesNetCurrent,USD,instant,366,251,5036,2009,2026,All current receivables
+receivables,3,AccountsAndOtherReceivablesNetCurrent,USD,instant,75,88,1177,2011,2026,Trade plus other
+receivables,4,AccountsNotesAndLoansReceivableNetCurrent,USD,instant,58,48,867,2009,2026,Includes notes and loans: financing receivables (CAT) inflate receivable days
+receivables,5,AccountsReceivableNet,USD,instant,166,93,1866,2010,2026,Unclassified balance sheet (no current/noncurrent split)
+inventory,1,InventoryNet,USD,instant,2588,2131,36014,2009,2026,Single concept; component-only taggers (finished goods etc.) under 25 each in FY2024
+payables,1,AccountsPayableCurrent,USD,instant,3543,3016,49959,2009,2026,
+payables,2,AccountsPayableTradeCurrent,USD,instant,300,233,4059,2009,2026,Trade only
+payables,3,AccountsPayableAndAccruedLiabilitiesCurrent,USD,instant,723,370,8441,2009,2026,FLAG: includes accruals; payables days read high
+payables,4,AccountsPayableAndOtherAccruedLiabilitiesCurrent,USD,instant,34,56,620,2011,2026,FLAG: includes accruals; payables days read high
+net_ppe,1,PropertyPlantAndEquipmentNet,USD,instant,4154,3065,55356,2009,2026,
+net_ppe,2,PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization,USD,instant,0,365,1978,2020,2026,Post-ASC 842 combined line: includes finance-lease right-of-use assets
+current_assets,1,AssetsCurrent,USD,instant,4694,3829,64677,2009,2026,
+current_liabilities,1,LiabilitiesCurrent,USD,instant,4682,3816,64587,2009,2026,
+total_assets,1,Assets,USD,instant,4905,4074,67412,2009,2026,
+equity,1,StockholdersEquity,USD,instant,4583,3814,63146,2009,2026,"Parent equity. Not used: StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest (195 FY2024 filers tag it without 1), MembersEquity (26, LLCs)"
