@@ -8,6 +8,7 @@ only, checked below against US imports from China). Exports are FOB as the expor
 the importer reports them. Every value carries DERIVATION_TYPE 'M' (mixed), so reported and IMF-estimated values
 cannot be told apart. Aggregations run in DuckDB over the parsed frames. Writes flows.html next to this file."""
 import html
+import json
 import re
 import sys
 import urllib.parse
@@ -83,7 +84,7 @@ NAMES = {k: SHORT.get(v, re.sub(r", (Republic of|The|Kingdom of the|Federal Repu
          for k, v in partner_names().items()}
 NAMES.update(ECON)
 
-annual = imts("+".join(ORDER) + f".{X}+{M}..A", str(START))
+annual = imts("+".join(ORDER) + f".{X}+{M}..A", "1940")   # full history: the time lapse uses all of it
 annual = annual.with_columns(pl.col("period").cast(pl.Int32).alias("yr")).drop("period")
 # The US's six largest goods partners in the latest full year, from the annual data.
 us_year = annual.filter((pl.col("rep") == "USA") & (pl.col("par") == "G001")).group_by("yr").len()     .filter(pl.col("len") == 2)["yr"].max()
@@ -185,24 +186,107 @@ facts = [
 ]
 
 # ---- 2. sankey: flows among the 13, colored by exporter for the US and China, gray otherwise
-src, dst, val, col, hov = [], [], [], [], []
-for (r, p), v in lk.items():
-    if r == p:
-        continue
-    src.append(ORDER.index(r))
-    dst.append(len(ORDER) + ORDER.index(p))
-    val.append(v / 1e9)
-    col.append({"USA": "rgba(42,120,214,0.45)", "CHN": "rgba(235,104,52,0.45)"}.get(r, "rgba(181,180,174,0.35)"))
+# A time lapse: one frame per year from the first year in the data. Each frame fills the same height, so it shows
+# shares of that year's flows; the year's dollar total and its count of unreported pairs are printed on the frame.
+# Nodes keep a fixed order (ORDER) and fixed positions within a frame, so a country stays where the eye left it.
+flows_all = con.sql(f"""select yr, rep, par, v from c where ind = '{X}' and rep in {tuple(ORDER)}
+                        and par in {tuple(ORDER)} and rep <> par and v > 0 order by yr""").pl()
+YEARS = sorted(flows_all["yr"].unique().to_list())
+if YEARS[-1] != YEAR or YEARS[0] > 1950:
+    raise SystemExit(f"flows: the time lapse runs {YEARS[0]}-{YEARS[-1]}, expected from about 1948 to {YEAR}")
 node_col = [{"USA": C["USA"], "CHN": C["CHN"]}.get(c, GRAY) for c in ORDER] * 2
-sk = go.Figure(go.Sankey(
-    arrangement="snap",
-    node=dict(label=labels + labels, color=node_col, pad=10, thickness=14, line=dict(width=0),
-              hovertemplate="%{label}: $%{value:,.0f}bn<extra></extra>"),
-    link=dict(source=src, target=dst, value=val, color=col,
-              hovertemplate="%{source.label} to %{target.label}: $%{value:,.1f}bn<extra></extra>")))
-sk.update_layout(template="plotly_white", height=760, margin=dict(l=20, r=20, t=40, b=20), font=dict(size=13),
-                 annotations=[dict(x=0, y=1.04, xref="paper", yref="paper", showarrow=False, text="<b>Exporter</b>"),
-                              dict(x=1, y=1.04, xref="paper", yref="paper", showarrow=False, text="<b>Importer</b>")])
+LINK = {"USA": "rgba(42,120,214,0.45)", "CHN": "rgba(235,104,52,0.45)"}
+PAD = 0.012   # vertical gap between nodes, as a share of the height
+
+
+def positions(sizes: list[float]) -> list[float]:
+    """Node centers top to bottom in ORDER, each node's height proportional to its size, gaps of PAD."""
+    total = sum(sizes) or 1
+    free = 1 - PAD * (len(sizes) - 1) - 0.02
+    ys, at = [], 0.01
+    for s in sizes:
+        h = s / total * free
+        ys.append(at + h / 2)
+        at += h + PAD
+    return ys
+
+
+def frame(yr: int) -> tuple[go.Sankey, list]:
+    d = flows_all.filter(pl.col("yr") == yr)
+    out = {r: 0.0 for r in ORDER}
+    inn = {r: 0.0 for r in ORDER}
+    src, dst, val, col = [], [], [], []
+    for _, r, p, v in d.iter_rows():
+        src.append(ORDER.index(r))
+        dst.append(len(ORDER) + ORDER.index(p))
+        val.append(v / 1e9)
+        col.append(LINK.get(r, "rgba(181,180,174,0.35)"))
+        out[r] += v
+        inn[p] += v
+    # Plotly drops a node with no links and then applies x and y by position to the nodes left, which shifts every
+    # later node (1950: the US and Canada as importers landed in the exporter column). So send only nodes with flows.
+    ys = positions([out[r] for r in ORDER]) + positions([inn[r] for r in ORDER])
+    sizes = [out[r] for r in ORDER] + [inn[r] for r in ORDER]
+    keep = [i for i, s in enumerate(sizes) if s > 0]
+    new = {old: k for k, old in enumerate(keep)}
+    src, dst = [new[i] for i in src], [new[i] for i in dst]
+    tr = go.Sankey(
+        arrangement="fixed",
+        node=dict(label=[(labels + labels)[i] for i in keep], color=[node_col[i] for i in keep], pad=8,
+                  thickness=14, line=dict(width=0),
+                  x=[0.001 if i < len(ORDER) else 0.999 for i in keep], y=[ys[i] for i in keep],
+                  hovertemplate="%{label}: $%{value:,.1f}bn<extra></extra>"),
+        link=dict(source=src, target=dst, value=val, color=col,
+                  hovertemplate="%{source.label} to %{target.label}: $%{value:,.2f}bn<extra></extra>"))
+    missing = len(ORDER) * (len(ORDER) - 1) - d.height
+    note = f"{missing} of the 156 flows not reported" if missing else "all 156 flows reported"
+    total = d["v"].sum()
+    amt = f"${total / 1e12:,.2f} trillion" if total >= 1e12 else f"${total / 1e9:,.0f} billion"
+    ann = [dict(x=0, y=1.07, xref="paper", yref="paper", showarrow=False, xanchor="left", text="<b>Exporter</b>"),
+           dict(x=1, y=1.07, xref="paper", yref="paper", showarrow=False, xanchor="right", text="<b>Importer</b>"),
+           dict(x=0.5, y=1.085, xref="paper", yref="paper", showarrow=False, font=dict(size=26, color=INK),
+                text=f"<b>{yr}</b>"),
+           dict(x=0.5, y=1.035, xref="paper", yref="paper", showarrow=False, font=dict(size=13, color=MUTED),
+                text=f"{amt} among the 13, in that year's dollars; {note}")]
+    return tr, ann
+
+
+# Plotly's own animation does not handle sankey reliably (the animate promise never settles and frames land out of
+# order), so the page carries every year's trace and redraws with Plotly.react from a plain slider and Play button.
+FRAMES = {}
+for y in YEARS:
+    t, a = frame(y)
+    FRAMES[y] = {"data": [t.to_plotly_json()], "ann": a}
+sk = go.Figure(data=[go.Sankey(**{k: v for k, v in FRAMES[YEAR]["data"][0].items() if k != "type"})])
+sk.update_layout(template="plotly_white", height=800, margin=dict(l=20, r=20, t=110, b=20), font=dict(size=13),
+                 annotations=FRAMES[YEAR]["ann"])
+SK_ID = "streams"
+timelapse = f"""<div class="tl"><button id="tl-play" type="button">Play</button>
+<input id="tl-year" type="range" min="{YEARS[0]}" max="{YEARS[-1]}" step="1" value="{YEAR}" aria-label="Year">
+<span id="tl-label">{YEAR}</span></div>
+<script>
+(() => {{
+  const F = {json.dumps(FRAMES, default=str)};
+  const div = document.getElementById("{SK_ID}"), range = document.getElementById("tl-year"),
+        label = document.getElementById("tl-label"), btn = document.getElementById("tl-play");
+  const years = Object.keys(F).map(Number);
+  let timer = null;
+  function show(y) {{
+    if (!F[y]) return;
+    range.value = y; label.textContent = y;
+    Plotly.react(div, F[y].data, Object.assign({{}}, div.layout, {{annotations: F[y].ann}}));
+  }}
+  function stop() {{ clearInterval(timer); timer = null; btn.textContent = "Play"; }}
+  range.addEventListener("input", () => {{ stop(); show(+range.value); }});
+  btn.addEventListener("click", () => {{
+    if (timer) return stop();
+    let i = +range.value >= years[years.length - 1] ? 0 : years.indexOf(+range.value) + 1;
+    btn.textContent = "Pause"; show(years[i]);
+    timer = setInterval(() => {{ i += 1; if (i >= years.length) return stop(); show(years[i]); }}, 450);
+  }});
+  window.showYear = show;   // for render checks
+}})();
+</script>"""
 
 # ---- 3. top five partners, START vs YEAR, by goods trade (exports + imports), share of the economy's total
 top5 = con.sql(f"""with t as (select rep, yr, par, sum(v) v from c where yr in ({START}, {YEAR}) group by all)
@@ -219,8 +303,9 @@ top_table = (f"<table class=top><thead><tr><th>Economy</th><th>{START}</th><th>{
              f"<tbody>{top_rows}</tbody></table>")
 
 # ---- 4. share of each economy's goods trade with the US and with China, START-YEAR
-sh = con.sql("""select c.rep, c.yr, c.par, sum(c.v) / any_value(tot.world) * 100 as s
-                from c join tot using (rep, yr) where c.par in ('USA', 'CHN') group by all order by 1, 2""").pl()
+sh = con.sql(f"""select c.rep, c.yr, c.par, sum(c.v) / any_value(tot.world) * 100 as s
+                from c join tot using (rep, yr) where c.par in ('USA', 'CHN') and c.yr >= {START}
+                group by all order by 1, 2""").pl()
 COLS = 4
 rows_n = -(-len(ORDER) // COLS)
 sm = make_subplots(rows=rows_n, cols=COLS, shared_xaxes="all", shared_yaxes="all",
@@ -331,9 +416,9 @@ def more(g: float, when: str) -> str:
 first = True
 
 
-def div(fig) -> str:
+def div(fig, div_id: str | None = None) -> str:
     global first
-    out = pio.to_html(fig, full_html=False, include_plotlyjs=first, config={"displayModeBar": False})
+    out = pio.to_html(fig, full_html=False, include_plotlyjs=first, config={"displayModeBar": False}, div_id=div_id)
     first = False
     return out
 
@@ -360,6 +445,10 @@ th {{ font-weight:600; }}
 span.usa {{ color:#1c5cab; font-weight:600; }}
 span.chn {{ color:#b8441a; font-weight:600; }}
 ul.facts li {{ margin:4px 0; }}
+.tl {{ display:flex; align-items:center; gap:14px; margin:4px 0 0; }}
+.tl input {{ flex:1; }}
+.tl span {{ font-weight:600; min-width:3em; }}
+.tl button {{ font:inherit; padding:5px 16px; border:1px solid var(--line); background:#fff; border-radius:4px; cursor:pointer; }}
 {nav.CSS}
 </style></head>
 <body>{nav.html("Trade Flows")}<main>
@@ -382,10 +471,15 @@ how much of each exporter's goods go to each destination; the rest of each row's
 13.</p>
 <div class="wrap">{div(hm)}</div>
 
-<h2>The same flows, as streams</h2>
-<p>Every flow among the 13 in {YEAR}, exporters on the left and importers on the right. The US's exports are blue and
-China's orange; hover a stream for its value, or drag a country to untangle it.</p>
-{div(sk)}
+<h2>The same flows, as streams, {YEARS[0]} to {YEAR}</h2>
+<p>Every flow among the 13, exporters on the left and importers on the right, one year at a time: press Play, or drag
+the slider below the chart to a year. The US's exports are blue and China's orange; hover a stream for its value. Each year fills the
+same height, so the picture shows shares of that year's flows; the dollar total above it shows the growth (not
+adjusted for inflation). A flow the exporter did not report is simply absent: the IMF has China's exports by partner
+only for 1961 and from 1978, the US embargoed China until 1971, and South Korea and China had no relations until 1992. The IMF
+keeps East Germany as a separate country, so Germany before 1991 is West Germany.</p>
+{div(sk, SK_ID)}
+{timelapse}
 
 <h2>Biggest partners, {START} and {YEAR}</h2>
 <p>Each economy's five largest partners among all countries, by goods trade (exports plus imports), as a share of its
