@@ -1,5 +1,10 @@
 """Shared base for the exploratory tests (8+): one row per company and fiscal year from the 10-K's own one-year
 figures (the method of test 6), with today's SEC company details. Cached per process; reads catalog.duckdb read-only."""
+import json
+import os
+import urllib.parse
+import urllib.request
+from datetime import date
 from functools import lru_cache
 
 import duckdb
@@ -122,3 +127,38 @@ def with_grains(df: pl.DataFrame) -> pl.DataFrame:
     for letter, lo, hi, _ in reversed(DIVISIONS):
         div = pl.when((pl.col("sic") // 100).is_between(lo, hi)).then(pl.lit(letter)).otherwise(div)
     return df.with_columns((pl.col("sic") // 10).alias("sic3"), (pl.col("sic") // 100).alias("sic2"), div.alias("division"))
+
+
+@lru_cache(maxsize=1)
+def stored_fred() -> frozenset[str]:
+    """FRED ids Pharos serves (serving_series_catalog), without the 'fred:' prefix."""
+    con = duckdb.connect(CATALOG, read_only=True)
+    ids = con.sql("select series_id from serving_series_catalog where series_id like 'fred:%'").fetchall()
+    return frozenset(i[0].removeprefix("fred:") for i in ids)
+
+
+def series(series_id: str, start: str = "1900-01-01", **extra) -> pl.DataFrame:
+    """One FRED series as (date, v), withdrawn values dropped. A series Pharos stores is read from the catalog at
+    its latest vintage, so a page shows the checked data; any other is fetched from FRED live (the quick lane).
+    Promoting a series in config/sources.yaml moves the page onto Pharos after the next nightly, with no page edit.
+    Extra FRED settings (frequency, aggregation_method) always fetch live: Pharos stores series as published."""
+    if series_id in stored_fred() and not extra:
+        con = duckdb.connect(CATALOG, read_only=True)
+        df = con.execute("""select obs_date as date, value as v from serving_observations where series_id = ?
+                            qualify row_number() over (partition by obs_date order by vintage desc) = 1""",
+                         [f"fred:{series_id}"]).pl()
+        df = df.filter(pl.col("date") >= date.fromisoformat(start))
+        print(f"  {series_id}: Pharos")
+    else:
+        params = {"series_id": series_id, "api_key": os.environ["FRED_API_KEY"], "file_type": "json",
+                  "observation_start": start, **extra}
+        obs = json.load(urllib.request.urlopen("https://api.stlouisfed.org/fred/series/observations?"
+                                               + urllib.parse.urlencode(params), timeout=60))["observations"]
+        df = pl.DataFrame({"date": [date.fromisoformat(o["date"]) for o in obs],
+                           "v": [float(o["value"]) if o["value"] != "." else None for o in obs]},
+                          schema={"date": pl.Date, "v": pl.Float64})
+        print(f"  {series_id}: FRED live")
+    df = df.drop_nulls("v").sort("date")
+    if df.is_empty():
+        raise SystemExit(f"series: no values for {series_id}")
+    return df

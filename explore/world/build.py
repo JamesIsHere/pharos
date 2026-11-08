@@ -4,11 +4,8 @@ small charts per measure, with the latest values in a table on top.
 Quick lane (two lanes, CLAUDE.md): the series are fetched from FRED when the page is built, today's values only,
 and nothing is stored; the nightly lands them with every vintage once W step 3 is committed. The US reference
 lines (real GDP, CPI) come from Pharos (today's vintage). Writes world.html next to this file."""
-import json
 import os
 import sys
-import urllib.parse
-import urllib.request
 from datetime import date, datetime
 from pathlib import Path
 
@@ -23,7 +20,6 @@ sys.path.insert(0, str(HERE.parent / "lib"))
 import base  # noqa: E402
 import nav  # noqa: E402
 
-KEY = os.environ["FRED_API_KEY"]
 START = "2000-01-01"
 NAMES = {"US": "United States", "CA": "Canada", "GB": "United Kingdom", "DE": "Germany", "FR": "France", "IT": "Italy", "JP": "Japan",
          "BR": "Brazil", "MX": "Mexico", "KR": "South Korea", "AU": "Australia", "IN": "India", "CN": "China",
@@ -48,15 +44,7 @@ if n_series != 56:   # W's list; the US series are extra (OECD US rows, the broa
 
 
 def fred(series_id: str, **extra) -> pl.DataFrame:
-    params = {"series_id": series_id, "api_key": KEY, "file_type": "json", "observation_start": START, **extra}
-    obs = json.load(urllib.request.urlopen("https://api.stlouisfed.org/fred/series/observations?"
-                                           + urllib.parse.urlencode(params), timeout=60))["observations"]
-    df = pl.DataFrame({"date": [date.fromisoformat(o["date"]) for o in obs],
-                       "v": [float(o["value"]) if o["value"] != "." else None for o in obs]},
-                      schema={"date": pl.Date, "v": pl.Float64}).drop_nulls("v")
-    if df.is_empty():
-        raise SystemExit(f"world: FRED returned no values for {series_id}")
-    return df
+    return base.series(series_id, START, **extra)
 
 
 def index_2019(df: pl.DataFrame) -> pl.DataFrame:

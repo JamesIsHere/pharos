@@ -1,16 +1,12 @@
 """People and Work: the top of the stack. Population, the working-age population, labor force and employment,
 tied down to real GDP per person and per worker, and pay as a share of GDP.
 
-A quick patch (James, 2026-11-07): the five new series (D141) are fetched from FRED at build time, today's values
-only, and nothing is stored; the nightly refresh lands them in Pharos with every vintage. GDP and real GDP come
-from Pharos (today's vintage). FRED's own UNRATE is fetched only to cross-check the derived unemployment rate.
+Every series comes through base.series(): from Pharos (latest vintage) when stored, as the five D141 series and GDP
+are, else from FRED live. UNRATE is not stored; it only cross-checks the derived unemployment rate.
 Writes people.html next to this file."""
-import json
 import math
 import os
 import sys
-import urllib.parse
-import urllib.request
 from datetime import datetime
 from pathlib import Path
 
@@ -25,15 +21,11 @@ sys.path.insert(0, str(HERE.parent / "lib"))
 import base  # noqa: E402
 import nav  # noqa: E402
 
-KEY = os.environ["FRED_API_KEY"]
 START = "1959-01-01"
 
 
 def fred(series_id: str) -> pl.DataFrame:
-    obs = json.load(urllib.request.urlopen("https://api.stlouisfed.org/fred/series/observations?" + urllib.parse.urlencode(
-        {"series_id": series_id, "api_key": KEY, "file_type": "json", "observation_start": START})))["observations"]
-    return pl.DataFrame({"date": [datetime.strptime(o["date"], "%Y-%m-%d").date() for o in obs],
-                         series_id: [float(o["value"]) if o["value"] != "." else None for o in obs]})
+    return base.series(series_id, START).rename({"v": series_id})
 
 
 monthly = fred("POPTHM")
@@ -58,12 +50,15 @@ gdp_q = con.sql("""
 coe = fred("COE")
 quarterly = gdp_q.join(coe, on="date", how="inner").with_columns((pl.col("COE") / pl.col("GDP")).alias("labor_share"))
 
-# annual: full years only
+# annual: a year counts once its last period is in (December, Q4), averaged over the periods reported. A month the
+# source never published stays out of the average: October 2025, no household survey in the shutdown (D141)
 mon_y = (monthly.with_columns(pl.col("date").dt.year().alias("yr")).group_by("yr")
-         .agg(pl.len().alias("m"), pl.col("POPTHM").mean(), pl.col("CNP16OV").mean(), pl.col("CE16OV").mean())
-         .filter(pl.col("m") == 12))
+         .agg(pl.len().alias("m"), pl.col("date").max().dt.month().alias("last"), pl.col("POPTHM").mean(),
+              pl.col("CNP16OV").mean(), pl.col("CE16OV").mean())
+         .filter(pl.col("last") == 12))
 gdp_y = (gdp_q.with_columns(pl.col("date").dt.year().alias("yr")).group_by("yr")
-         .agg(pl.len().alias("q"), pl.col("GDPC1").mean()).filter(pl.col("q") == 4))
+         .agg(pl.col("date").max().dt.month().alias("last"), pl.col("GDPC1").mean()).filter(pl.col("last") == 10))
+short = mon_y.filter(pl.col("m") < 12).sort("yr")["yr"].to_list()
 yr = mon_y.join(gdp_y, on="yr").sort("yr").with_columns(
     (pl.col("POPTHM") / pl.col("POPTHM").shift(1) - 1).alias("pop_g"),
     (pl.col("CNP16OV") / pl.col("POPTHM")).alias("adult_share"),
@@ -175,9 +170,11 @@ were in the labor force and {lm['unemployment'][0]:.1%} of the labor force was u
 {lq['labor_share'][0]:.0%} of GDP in {lq['date'][0].year} Q{(lq['date'][0].month - 1) // 3 + 1}.</div>
 <p class="muted">Population (POPTHM), adults 16+ (CNP16OV: civilian, outside institutions), labor force (CLF16OV) and
 employed (CE16OV) are monthly, from the household survey; pay is compensation of employees (COE), quarterly. These
-five are fetched from FRED when the page is built, today's values only; GDP and real GDP come from Pharos. Participation
+five, GDP and real GDP come from Pharos, latest vintage. Participation
 is labor force over adults; unemployment is (labor force minus employed) over labor force, which matches FRED's
-UNRATE to its rounding. Annual figures are averages of full years. Page built {built}.</p>
+UNRATE to its rounding. Annual figures average each finished year's reported months{
+" (" + ", ".join(map(str, short)) + " lacks October: no household survey during the shutdown)" if short == [2025] else
+(" (" + ", ".join(map(str, short)) + " has fewer than 12)" if short else "")}. Page built {built}.</p>
 
 <h2>1. People</h2>
 <p>Bars: population growth each year. Line: the share of the population aged 16 and over, the pool that can work.</p>

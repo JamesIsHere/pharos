@@ -4,11 +4,8 @@ against GDP, the monthly trade balance, and public companies' foreign share of p
 Quick lane (CLAUDE.md, two lanes): the six FRED series are fetched at build time, today's values only, nothing
 stored. GDP comes from Pharos (today's vintage); the four spending parts must add up to it, or the build stops.
 Company figures come from Company Facts in Pharos. Writes trade.html next to this file."""
-import json
 import os
 import sys
-import urllib.parse
-import urllib.request
 from datetime import datetime
 from pathlib import Path
 
@@ -22,16 +19,12 @@ sys.path.insert(0, str(HERE.parent / "lib"))
 import base  # noqa: E402
 import nav  # noqa: E402
 
-KEY = os.environ["FRED_API_KEY"]
 PARTS = (("PCEC", "Consumers", "#2563eb"), ("GPDI", "Business and housing investment", "#f97316"),
          ("GCE", "Government", "#15803d"), ("NETEXP", "Exports minus imports", "#b91c1c"))
 
 
 def fred(series_id: str, start: str = "1947-01-01") -> pl.DataFrame:
-    obs = json.load(urllib.request.urlopen("https://api.stlouisfed.org/fred/series/observations?" + urllib.parse.urlencode(
-        {"series_id": series_id, "api_key": KEY, "file_type": "json", "observation_start": start})))["observations"]
-    return pl.DataFrame({"date": [datetime.strptime(o["date"], "%Y-%m-%d").date() for o in obs],
-                         series_id: [float(o["value"]) if o["value"] != "." else None for o in obs]})
+    return base.series(series_id, start).rename({"v": series_id})
 
 
 q = fred("PCEC")
