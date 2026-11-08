@@ -6,6 +6,7 @@ GROUPS = (
     ("Economy", (("World", "../world/world.html"),
                  ("People and Work", "../people/people.html"),
                  ("Where GDP Goes", "../trade/trade.html"),
+                 ("Trade Flows", "../flows/flows.html"),
                  ("Companies vs Economy", "../economy/economy.html"))),
     ("Companies", (("Industry Code Breakdown", "../codes/industry-codes.html"),
                    ("Amazon", "../amazon/amazon.html"),
