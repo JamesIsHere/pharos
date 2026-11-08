@@ -226,13 +226,18 @@ def frame(yr: int) -> tuple[go.Sankey, list]:
     # Plotly drops a node with no links and then applies x and y by position to the nodes left, which shifts every
     # later node (1950: the US and Canada as importers landed in the exporter column). So send only nodes with flows.
     ys = positions([out[r] for r in ORDER]) + positions([inn[r] for r in ORDER])
+    # Exporter labels carry the net balance within the 13: exports to the other 12 minus their exports to it.
+    def net(r):
+        v = (out[r] - inn[r]) / 1e9
+        return f"{v:+,.1f}bn" if abs(v) < 10 else f"{v:+,.0f}bn"
+    names = [f"{ECON[r]}  {net(r).replace('+', '+$').replace('-', '-$')} net" for r in ORDER] + labels
     sizes = [out[r] for r in ORDER] + [inn[r] for r in ORDER]
     keep = [i for i, s in enumerate(sizes) if s > 0]
     new = {old: k for k, old in enumerate(keep)}
     src, dst = [new[i] for i in src], [new[i] for i in dst]
     tr = go.Sankey(
         arrangement="fixed",
-        node=dict(label=[(labels + labels)[i] for i in keep], color=[node_col[i] for i in keep], pad=8,
+        node=dict(label=[names[i] for i in keep], color=[node_col[i] for i in keep], pad=8,
                   thickness=14, line=dict(width=0),
                   x=[0.001 if i < len(ORDER) else 0.999 for i in keep], y=[ys[i] for i in keep],
                   hovertemplate="%{label}: $%{value:,.1f}bn<extra></extra>"),
@@ -473,7 +478,9 @@ how much of each exporter's goods go to each destination; the rest of each row's
 
 <h2>The same flows, as streams, {YEARS[0]} to {YEAR}</h2>
 <p>Every flow among the 13, exporters on the left and importers on the right, one year at a time: press Play, or drag
-the slider below the chart to a year. The US's exports are blue and China's orange; hover a stream for its value. Each year fills the
+the slider below the chart to a year. The US's exports are blue and China's orange; hover a stream for its value. The
+figure beside each exporter is its net balance with the other 12 that year: plus for a net exporter, minus for a net
+importer. Each year fills the
 same height, so the picture shows shares of that year's flows; the dollar total above it shows the growth (not
 adjusted for inflation). A flow the exporter did not report is simply absent: the IMF has China's exports by partner
 only for 1961 and from 1978, the US embargoed China until 1971, and South Korea and China had no relations until 1992. The IMF
