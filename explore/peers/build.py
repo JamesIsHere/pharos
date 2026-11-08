@@ -55,12 +55,17 @@ con.sql(f"create temp table cmap as select * from read_csv('{CONCEPTS}', header=
 measures = [r[0] for r in con.sql("select distinct measure from cmap order by 1").fetchall()]
 stocks = [r[0] for r in con.sql("select distinct measure from cmap where period = 'instant' order by 1").fetchall()]
 
-# Each company's latest original 10-K filed in the 12 months before the as-of date; its own period end is the
-# latest us-gaap end date in it that is not after the filing date.
+# Each company's latest original 10-K filed in the 12 months before the as-of date. Its own period end is the end
+# of the latest full-year flow in it (a later instant, such as a subsequent event, is not the year end), else the
+# latest us-gaap end date when it has no full-year flow; never after the filing date.
 con.sql(f"""
 create temp table k as
 with acc as (
-    select cik, accession, max(end_date) as period_end, min(filed) as filed
+    select cik, accession,
+           coalesce(max(end_date) filter (where start_date is not null
+                                            and date_diff('day', start_date, end_date) between 350 and 380),
+                    max(end_date)) as period_end,
+           min(filed) as filed
     from serving_company_facts
     where taxonomy = 'us-gaap' and form = '10-K' and end_date <= filed and filed <= date '{AS_OF}'
     group by all
