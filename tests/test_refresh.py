@@ -59,6 +59,23 @@ def test_published_run(loaders):
     assert rows[0]["started_at"] <= rows[0]["finished_at"] == rows[0]["published_at"]
 
 
+def test_catalog_follows_the_publish_before_the_manifest(loaders):
+    # 20261108T073006Z aborted between publish and manifest; the catalog was then
+    # rebuilt only after refresh returned, so it kept serving the previous version
+    # (D146). The rebuild now happens before anything after the publish can fail.
+    seen = {}
+
+    def died_after_publish(*args, **kwargs):
+        con = duckdb.connect((data_root() / "catalog.duckdb").as_posix(), read_only=True)
+        seen["sql"] = con.sql("SELECT sql FROM duckdb_views() WHERE view_name = 'serving_observations'").fetchone()[0]
+        con.close()
+        raise SystemExit("killed before the manifest")
+    loaders.setattr(refresh_mod, "write_manifest", died_after_publish)
+    with pytest.raises(SystemExit):
+        refresh_mod.refresh()
+    assert current_version().name in seen["sql"].replace("\\", "/")
+
+
 def test_blocked_run(loaders, staged_run):
     loaders.setattr(refresh_mod.yahoo, "load_prices", lambda run: copy_raw(
         staged_run, "yf", "prices", run, "SELECT * EXCLUDE (run_id, loaded_at) REPLACE (0.0 AS close) FROM r"))

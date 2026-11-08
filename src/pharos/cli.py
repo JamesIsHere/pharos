@@ -74,8 +74,6 @@ def cmd_publish(args: argparse.Namespace) -> int:
 
 
 def _report_run(run_id: str, pub, label: str = "") -> int:
-    from pharos import catalog
-
     e = pub.evaluation
     print(f"run {run_id}{label}: checks {e.verdict}  ({e.path})")
     for r in e.results:
@@ -84,8 +82,7 @@ def _report_run(run_id: str, pub, label: str = "") -> int:
     if pub.version is None:
         print("not published: serving/ is unchanged")
         return 1
-    print(f"published {pub.version}")
-    print(f"catalog {catalog.rebuild()}")
+    print(f"published {pub.version}; catalog rebuilt by the run (D146)")
     return 0
 
 
