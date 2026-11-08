@@ -108,6 +108,37 @@ YEAR = con.sql(f"""select max(yr) from (select yr from a where par = 'G001' grou
                    having count(distinct rep || ind) = {2 * len(ORDER)})""").fetchone()[0]
 if YEAR is None or YEAR < 2024:
     raise SystemExit(f"flows: the latest year all 13 economies report is {YEAR}")
+
+
+# GDP in current US dollars (World Bank WDI, NY.GDP.MKTP.CD, no key), the same unit as the IMF trade values, for the
+# importer-side labels: each country's goods exports and imports to the world as % of its GDP. 1960 on; every
+# economy and year must be there, or the build stops. Germany before 1991: WDI carries the unified 1991 level back at
+# West Germany's growth rates (its own note), while the IMF trade figures are West Germany's, so the ratio would be
+# understated; it is left out for those years.
+def wb_gdp() -> pl.DataFrame:
+    url = ("https://api.worldbank.org/v2/country/" + ";".join(ORDER) + "/indicator/NY.GDP.MKTP.CD?"
+           + urllib.parse.urlencode({"format": "json", "per_page": 5000, "date": f"1960:{YEAR}"}))
+    with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=120) as r:
+        meta, rows = json.load(r)
+    if meta["pages"] != 1:
+        raise SystemExit(f"flows: World Bank GDP came back in {meta['pages']} pages, expected 1")
+    df = pl.DataFrame([(x["countryiso3code"], int(x["date"]), x["value"]) for x in rows if x["value"] is not None],
+                      schema=["rep", "yr", "gdp"], orient="row")
+    want = len(ORDER) * (YEAR - 1960 + 1)
+    if df.height != want:
+        raise SystemExit(f"flows: World Bank GDP has {df.height} country-years, expected {want} (1960-{YEAR})")
+    return df
+
+
+con.register("gdp", wb_gdp())
+OPEN = {(r, y): (x, m) for r, y, x, m in con.sql("""
+    select g.rep, g.yr, x.v / g.gdp * 100, m.v / g.gdp * 100 from gdp g
+    join a x on x.rep = g.rep and x.yr = g.yr and x.par = 'G001' and x.ind = 'XG_FOB_USD'
+    join a m on m.rep = g.rep and m.yr = g.yr and m.par = 'G001' and m.ind = 'MG_CIF_USD'
+    where not (g.rep = 'DEU' and g.yr < 1991)""").fetchall()}
+us_open = OPEN[("USA", YEAR)]
+if not (4 < us_open[0] < 12 and 7 < us_open[1] < 16):
+    raise SystemExit(f"flows: US goods exports and imports {us_open} % of GDP in {YEAR}, expected about 7 and 11")
 # Unit check: US imports of goods from China, 2024. Census reports about $439bn (customs basis; unverified, from
 # prior); CIF runs a little higher. A unit or scale error would miss by a factor of 1,000 or more.
 us_cn = con.sql("select v from a where rep = 'USA' and ind = 'MG_CIF_USD' and par = 'CHN' and yr = 2024").fetchone()
@@ -230,7 +261,12 @@ def frame(yr: int) -> tuple[go.Sankey, list]:
     def net(r):
         v = (out[r] - inn[r]) / 1e9
         return f"{v:+,.1f}bn" if abs(v) < 10 else f"{v:+,.0f}bn"
-    names = [f"{ECON[r]}  {net(r).replace('+', '+$').replace('-', '-$')} net" for r in ORDER] + labels
+    def opened(r):
+        if (r, yr) not in OPEN:
+            return ECON[r]
+        x, m = OPEN[(r, yr)]
+        return f"{ECON[r]}  exports {x:.0f}%, imports {m:.0f}% of GDP"
+    names = [f"{ECON[r]}  {net(r).replace('+', '+$').replace('-', '-$')} net" for r in ORDER] + [opened(r) for r in ORDER]
     sizes = [out[r] for r in ORDER] + [inn[r] for r in ORDER]
     keep = [i for i, s in enumerate(sizes) if s > 0]
     new = {old: k for k, old in enumerate(keep)}
@@ -480,7 +516,12 @@ how much of each exporter's goods go to each destination; the rest of each row's
 <p>Every flow among the 13, exporters on the left and importers on the right, one year at a time: press Play, or drag
 the slider below the chart to a year. The US's exports are blue and China's orange; hover a stream for its value. The
 figure beside each exporter is its net balance with the other 12 that year: plus for a net exporter, minus for a net
-importer. Each year fills the
+importer. The figures beside each importer are its goods exports and imports to the whole world as a percentage of
+its GDP, from 1960 (World Bank GDP in dollars). They show how much each economy depends on goods trade, not what share
+of its output is sold abroad: exports count the full value of goods, including parts made elsewhere, while GDP counts
+only what is produced at home, and GDP includes services, which these figures leave out. Germany has no percentage
+before 1991, because the World Bank's German GDP for those years is the unified country's while these trade figures
+are West Germany's. Each year fills the
 same height, so the picture shows shares of that year's flows; the dollar total above it shows the growth (not
 adjusted for inflation). A flow the exporter did not report is simply absent: the IMF has China's exports by partner
 only for 1961 and from 1978, the US embargoed China until 1971, and South Korea and China had no relations until 1992. The IMF
