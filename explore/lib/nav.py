@@ -10,6 +10,7 @@ GROUPS = (
                  ("Government", "../government/government.html"),
                  ("Companies vs Economy", "../economy/economy.html"))),
     ("Companies", (("Industry Code Breakdown", "../codes/industry-codes.html"),
+                   ("Peers", "../peers/peers.html"),
                    ("Amazon", "../amazon/amazon.html"),
                    ("Reporting Consistency", "../consistency/consistency.html"))),
     ("Pipeline", (("Data", "../data/data.html"),
