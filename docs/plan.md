@@ -2,10 +2,10 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M3 (Company financials, D148-D150) current since 2026-11-08; W paused at step 1 (D148). M2 (SEC landed) DONE 2026-11-05: acceptance #1-#4 passed; #4 is run time only (D136). M1.5 dropped (D137). M1 DONE (7 green nightlies, 20261008T053003Z-20261014T053008Z). H (Hosting) on hold (D106). Nightly task 07:30 UTC (D63)
+- **Milestone:** M3 (Company financials, D148-D151) current since 2026-11-08; W paused at step 1 (D148). M2 (SEC landed) DONE 2026-11-05: acceptance #1-#4 passed; #4 is run time only (D136). M1.5 dropped (D137). M1 DONE (7 green nightlies, 20261008T053003Z-20261014T053008Z). H (Hosting) on hold (D106). Nightly task 07:30 UTC (D63)
 - **Health:** red at 2026-11-08 16:19 Eastern on C01 and C42 only, as expected: serving/CURRENT is 20261108T073006Z, which passed every gate and published, then its Python aborted in native code (0xC0000409, ucrtbase.dll) before writing a manifest. Both clear when the next nightly records a manifest. Nightly 20261106T073007Z also ended with no manifest; cause unverified.
 - **Last session:** 2026-11-08 (fourth): README review turned into planning M3. The README's goal is a showcase of working with financial statements, and the repo had nothing that showed it, so M3 is current and reshaped: annual statements and ratios for every domestic 10-K filer, no stock price (D148); peers at every SIC rung plus Pharos sector (D149); fiscal years as reported, peers as of a date (D150). How M3 runs: scratch/m3-flow.html. README rewrite waits until M3 has something to show.
-- **Next action:** M3 step 1, the concept map: draft `config/concepts.csv` from measured coverage for James's sign-off. If tonight's nightly aborts again, chase the native crash first. Open: the full suite takes about 9 minutes with the machine idle; a read-only Defender check needs James's permission; overtesting review parked as #116.
+- **Next action:** M3 step 1, the concept map: draft `config/concepts.csv` from measured coverage for James's sign-off; then the Peers page in the quick lane (D151). If tonight's nightly aborts again, chase the native crash first. Open: the full suite takes about 9 minutes with the machine idle; a read-only Defender check needs James's permission; overtesting review parked as #116.
 - **Blockers / open questions:** none. #17 and #25 are built together when C14 first fires on a price. Full list in Open issues below and Parked issues in `docs/later.md`; cite only IDs that appear there.
 
 ## Open issues
@@ -33,26 +33,25 @@
 - Every version kept: a restated year from a later 10-K is a new row with that filing's accession and dates, never an overwrite.
 - Per-day ratios (days sales outstanding, inventory and payables days) use the period's actual days and the average of opening and closing balances, both from the same 10-K.
 - Peers: every rung of the SIC ladder (division, 2-, 3-, 4-digit) and Pharos sector, each shown with its peer count; no minimum group size (D149). Financials are excluded from peer comparisons; negative equity is flagged, never ranked.
-- All transformation in DuckDB SQL under `src/pharos/transform/`. `SECTOR_SQL` and the revenue fallback chain move there from `explore/lib/base.py`, and the explore pages read the served tables.
+- All transformation in DuckDB SQL. It starts beside the Peers page (quick lane, reading the served facts read-only) and moves to `src/pharos/transform/` only at step 5, with `SECTOR_SQL` and the revenue fallback chain from `explore/lib/base.py` (D151).
 
-### Build order
-- [ ] 1. Concept map: `config/concepts.csv`, one row per (measure, priority, concept, unit), with the coverage of each concept by year measured 2009-2026. Measures: revenue, cost of revenue, operating income, net income, depreciation and amortization, capex, receivables, inventory, payables, net PP&E, current assets, current liabilities, total assets, total liabilities, parent equity, goodwill, intangibles. Claude drafts it from the measured counts; James signs off the definitions.
-- [ ] 2. Transform SQL: annual statements, one row per (cik, measure, period end, accession), picked by the concept map's priority; industry table, one row per cik with every rung and sector.
-- [ ] 3. Ratio SQL over step 2. Each ratio named with its formula in a comment.
-- [ ] 4. Checks (warn): balance identity (assets vs liabilities plus equity), a 1,000x scale error against the filer's own history, flows with a non-annual period.
-- [ ] 5. Tie-out by hand: WMT (January year-end, inventory), AAPL (September, 52/53-week), XOM (capital intensive), MCD (negative equity), CAT (manufacturing, financing receivables). Every measure in each latest 10-K matches the filed statements.
-- [ ] 6. Wire steps 2-4 into the SEC group (Company Facts is nightly there, D139): its stager builds the tables from the staged facts, they join its table list, and they publish with it or not at all. During the session the SQL runs read-only against the served facts; no hand refresh. The nightly after the commit is the first real run.
+### Build order (page first, pipeline last: D151)
+- [ ] 1. Concept map: `config/concepts.csv`, one row per (measure, priority, concept, unit), with each concept's coverage by year measured 2009-2026. Only the measures the four asks need: revenue, cost of revenue, operating income, net income, depreciation and amortization, capex, receivables, inventory, payables, net PP&E, current assets, current liabilities, total assets, parent equity. Claude drafts it from the measured counts; James signs off the definitions.
+- [ ] 2. Peers page (`explore/peers/`, menu: Companies, after Industry Code Breakdown). Its SQL builds the annual statements by the concept map, the industry rungs and the ratios from the served Company Facts, read-only. A company's ratios against every rung and sector, with peer counts. Each ratio named with its formula.
+- [ ] 3. Tie-out by hand on that page: WMT (January year-end, inventory), AAPL (September, 52/53-week), XOM (capital intensive), MCD (negative equity), CAT (manufacturing, financing receivables). Every measure in each latest 10-K matches the filed statements.
+- [ ] 4. James looks at the page: which measures and ratios earn a place in the pipeline. Anything dropped leaves the concept map.
+- [ ] 5. Promote what survived: the SQL moves to `src/pharos/transform/` and is built in the SEC group's stager from the staged facts (Company Facts is nightly there, D139); a warn check on the balance identity (assets vs liabilities plus equity); targeted tests, the full suite once in the background, commit. The page then reads the served tables. Before wiring, a timed run on a throwaway data root measures what it adds to the nightly. No hand refresh: the nightly after the commit is the first real run. Further checks (scale errors, non-annual periods) only for what the page showed going wrong.
 
 ### Acceptance criteria
-1. The curated statement, industry and ratio tables are in `serving/` and the catalog.
-2. Step 5's five companies tie to their filed 10-Ks on every measure.
-3. Coverage per measure is recorded in D148's follow-up row.
-4. Health is green after the publish.
+1. The five companies of step 3 tie to their filed 10-Ks on every measure.
+2. The curated tables that survived step 4 are in `serving/` and the catalog, and the Peers page reads them.
+3. Each measure's coverage is recorded in the concept map.
+4. Health is green after the nightly that first publishes them.
 
 **Done** when 1-4 pass.
 
 ### Out of scope for M3
-Quarterly figures (the panel, later); stock price and P/B; the Financial Statement Data Sets; templates for banks and insurers; any page (exploration, D137: the Peers page goes in the explore menu's Companies group).
+Quarterly figures (the panel, later); stock price and P/B; the Financial Statement Data Sets; templates for banks and insurers; goodwill, intangibles and total liabilities until a ratio needs them.
 
 ---
 
