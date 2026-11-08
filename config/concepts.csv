@@ -12,6 +12,7 @@ cost_of_revenue,4,CostOfServices,USD,annual,188,0,1304,2009,2018,Pre-2018 taxono
 cost_of_revenue,5,CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization,USD,annual,0,180,1107,2018,2026,FLAG: excludes D&A; gross margin and inventory days read higher than peers on 1-4
 operating_income,1,OperatingIncomeLoss,USD,annual,4366,3737,62098,2009,2026,Single concept; 545 FY2024 non-financial filers tag none
 net_income,1,NetIncomeLoss,USD,annual,4727,3971,65440,2009,2026,"Attributable to the parent. Not used: ProfitLoss (179 FY2024 filers tag it without 1; 75 of them also tag a noncontrolling share, so it is not the parent figure)"
+net_income,2,NetIncomeLossAvailableToCommonStockholdersBasic,USD,annual,287,123,3173,2009,2026,"FLAG: net of preferred dividends; differs from 1 only for preferred issuers (D154; CAT tags its Profit this way)"
 d_and_a,1,DepreciationDepletionAndAmortization,USD,annual,2554,2160,35944,2009,2026,"D153: for D&A the largest tagged value of the four wins, not the priority (a filer can tag a piece with one concept and the total with another: MCD). Counts here are by priority"
 d_and_a,2,DepreciationAndAmortization,USD,annual,936,712,12444,2009,2026,
 d_and_a,3,DepreciationAmortizationAndAccretionNet,USD,annual,68,63,1034,2009,2026,Includes accretion (asset retirement obligations)
@@ -33,4 +34,5 @@ net_ppe,2,PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulate
 current_assets,1,AssetsCurrent,USD,instant,4882,3934,67262,2009,2026,
 current_liabilities,1,LiabilitiesCurrent,USD,instant,4873,3921,67180,2009,2026,
 total_assets,1,Assets,USD,instant,5097,4188,70084,2009,2026,
-equity,1,StockholdersEquity,USD,instant,4771,3922,65637,2009,2026,"Parent equity. Not used: StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest (195 FY2024 filers tag it without 1), MembersEquity (26, LLCs)"
+equity,1,StockholdersEquity,USD,instant,4771,3922,65637,2009,2026,"Parent equity. Not used: MembersEquity (26 FY2024 filers, LLCs)"
+equity,2,StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest,USD,instant,208,199,3188,2009,2026,"FLAG: includes noncontrolling interests; overstates parent equity where minority stakes are large (D154; CAT tags its equity this way)"
