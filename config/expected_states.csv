@@ -1,3 +1,6 @@
 check_id,key,note
 C15,yf:close:ATVI,"Activision Blizzard, ended 2023-10-12; Yahoo returns no history for it. The survivorship finding, kept visible as source-missing (acceptance #3, D22)"
 C16,fred:CPIAUCSL | 2025-10-01,"FRED's only vintage of this date (2025-12-18) is '.': the source says the value will not exist (D25)"
+C16,fred:CE16OV | 2025-10-01,"FRED's latest vintage of this date (2025-12-16) is '.': BLS collected no October 2025 household survey (shutdown). Same gap as CPIAUCSL (D25, D141)"
+C16,fred:CLF16OV | 2025-10-01,"FRED's latest vintage of this date (2025-12-16) is '.': BLS collected no October 2025 household survey (shutdown). Same gap as CPIAUCSL (D25, D141)"
+C16,fred:CNP16OV | 2025-10-01,"FRED's latest vintage of this date (2025-12-16) is '.': BLS collected no October 2025 household survey (shutdown). Same gap as CPIAUCSL (D25, D141)"

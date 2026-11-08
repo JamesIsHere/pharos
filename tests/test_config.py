@@ -121,7 +121,9 @@ def test_expected_states_fail_loudly(tmp_path, monkeypatch):
 def test_live_expected_states_name_warn_checks():
     from pharos import health
     assert [(s["check_id"], s["key"]) for s in health.acknowledgments()] == [
-        ("C15", ("yf:close:ATVI",)), ("C16", ("fred:CPIAUCSL", "2025-10-01"))]
+        ("C15", ("yf:close:ATVI",)), ("C16", ("fred:CPIAUCSL", "2025-10-01")),
+        ("C16", ("fred:CE16OV", "2025-10-01")), ("C16", ("fred:CLF16OV", "2025-10-01")),
+        ("C16", ("fred:CNP16OV", "2025-10-01"))]
 
 
 # --- SEC form lists (M2 step 1e, D124) ----------------------------------------
