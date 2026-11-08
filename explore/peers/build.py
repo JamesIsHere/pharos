@@ -89,7 +89,7 @@ select count(*) from (select cik, concept, start_date, end_date from x group by 
 """).fetchone()[0]
 print("facts disagreeing within one 10-K (same concept and period, two values):", conflicts)
 
-# One value per measure: the first concept in priority order tagged for the own period; a balance's opening value
+# One value per measure: the first concept in priority order tagged for the own period (D&A: the largest); a balance's opening value
 # comes from the same concept, at the latest earlier date in the same 10-K.
 con.sql("""
 create temp table line as
@@ -101,7 +101,10 @@ with v as (
     from x group by all
 )
 select * from v where close is not null
-qualify row_number() over (partition by cik, measure order by priority) = 1
+-- D&A takes the largest tagged value instead (D153): its concepts name a kind of amount, not a statement line, so
+-- a filer can tag a piece (MCD's SG&A depreciation) with priority 1 and the cash-flow total with priority 2.
+qualify row_number() over (partition by cik, measure
+                           order by case when measure = 'd_and_a' then -close end, priority) = 1
 """)
 cols = ",\n    ".join(
     [f"max(close) filter (where measure = '{m}') as {m}" for m in measures]

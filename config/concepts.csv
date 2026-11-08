@@ -12,7 +12,7 @@ cost_of_revenue,4,CostOfServices,USD,annual,188,0,1304,2009,2018,Pre-2018 taxono
 cost_of_revenue,5,CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization,USD,annual,0,180,1107,2018,2026,FLAG: excludes D&A; gross margin and inventory days read higher than peers on 1-4
 operating_income,1,OperatingIncomeLoss,USD,annual,4366,3737,62098,2009,2026,Single concept; 545 FY2024 non-financial filers tag none
 net_income,1,NetIncomeLoss,USD,annual,4727,3971,65440,2009,2026,"Attributable to the parent. Not used: ProfitLoss (179 FY2024 filers tag it without 1; 75 of them also tag a noncontrolling share, so it is not the parent figure)"
-d_and_a,1,DepreciationDepletionAndAmortization,USD,annual,2554,2160,35944,2009,2026,Cash-flow add-back
+d_and_a,1,DepreciationDepletionAndAmortization,USD,annual,2554,2160,35944,2009,2026,"D153: for D&A the largest tagged value of the four wins, not the priority (a filer can tag a piece with one concept and the total with another: MCD). Counts here are by priority"
 d_and_a,2,DepreciationAndAmortization,USD,annual,936,712,12444,2009,2026,
 d_and_a,3,DepreciationAmortizationAndAccretionNet,USD,annual,68,63,1034,2009,2026,Includes accretion (asset retirement obligations)
 d_and_a,4,Depreciation,USD,annual,845,686,11551,2009,2026,FLAG: depreciation only; amortization of intangibles left out
