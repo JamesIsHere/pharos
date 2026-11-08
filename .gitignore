@@ -8,3 +8,5 @@ __pycache__/
 /scratch/
 .streamlit/secrets.toml
 /explore/**/*.html
+/explore/**/*.pdf
+/explore/**/*.mmd
