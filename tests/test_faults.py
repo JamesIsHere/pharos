@@ -1083,3 +1083,156 @@ def test_c36_still_errors_when_an_on_demand_group_fails_its_own_runs_twice(toy):
     toy["run"]("20261009T160000Z")                               # a refresh between: not counted
     toy["on_demand"](RUNS[2])
     assert _status("C36") == "error"
+
+
+# --- C41: one FRED series fails to load; the others and the prices publish (D144) ---
+
+def fred_two_series(monkeypatch, broken):
+    """Configure GDP and a second series, FRGDP, through the real FRED loader with
+    fake responses; the series in `broken` raise drift as the real normalize would."""
+    from pharos import config
+    from pharos.loaders import fred
+    cfg = config.sources()
+    monkeypatch.setattr(config, "sources", lambda: {
+        **cfg, "fred": {"series": ["GDP", "FRGDP"], "expected_lag_days": {"GDP": 35, "FRGDP": 35}}})
+
+    def observations(fid):
+        if fid in broken:
+            raise fred.SchemaDriftError(f"{fid}: series keys ['id'], expected [...]")
+        return {"count": 1, "observations": [{"realtime_start": "2026-07-30", "realtime_end": "9999-12-31",
+                                              "date": "2026-04-01", "value": "100.5" if fid == "GDP" else "597203.9"}]}
+
+    def series(fid):
+        return {"seriess": [{"id": fid, "realtime_start": "1991-12-04", "realtime_end": "9999-12-31",
+                             "title": fid, "observation_start": "2026-04-01", "observation_end": "2026-04-01",
+                             "frequency": "Quarterly", "frequency_short": "Q", "units": "Billions of Dollars",
+                             "units_short": "Bil. of $", "seasonal_adjustment": "Seasonally Adjusted",
+                             "seasonal_adjustment_short": "SA", "last_updated": "2026-07-30 07:53:55-05",
+                             "popularity": 1, "notes": ""}]}
+    monkeypatch.setattr(fred, "fetch_observations", observations)
+    monkeypatch.setattr(fred, "fetch_series", series)
+
+
+def refresh_run2(monkeypatch, staged_run):
+    """A real refresh as RUN2: prices and Tiingo re-landed from the fixture run, FRED through the loader."""
+    from pharos import refresh as refresh_mod
+
+    def copy(source, dataset):
+        def load(run):
+            rel = duckdb.sql(f"SELECT * EXCLUDE (run_id, loaded_at) FROM "
+                             f"read_parquet('{raw_file(staged_run, source, dataset).as_posix()}')")
+            frame = rel.df()
+            for column, kind in zip(rel.columns, rel.types):
+                if str(kind) == "DATE":
+                    frame[column] = frame[column].dt.date
+            write_raw(frame, source, dataset, run)
+        return load
+    monkeypatch.setattr(refresh_mod, "new_run_id", lambda: RUN2)
+    monkeypatch.setattr(refresh_mod.yahoo, "load_prices", copy("yf", "prices"))
+    monkeypatch.setattr(refresh_mod.tiingo, "load_prices", copy("tiingo", "prices"))
+    return refresh_mod.refresh()
+
+
+def served(version, series_id):
+    return duckdb.sql(f"SELECT obs_date, vintage, value, run_id FROM read_parquet('{(version / 'observations.parquet').as_posix()}') "
+                      f"WHERE series_id = '{series_id}' ORDER BY ALL").fetchall()
+
+
+def test_c41_passes_when_every_series_loads(staged_run, monkeypatch):
+    fred_two_series(monkeypatch, broken=set())
+    _, pub = refresh_run2(monkeypatch, staged_run)
+    assert result(pub.evaluation, "C41")["status"] == "pass"
+
+
+def test_c41_new_series_that_never_loaded_is_red_and_the_rest_publish(staged_run, monkeypatch):
+    from pharos import health
+    fred_two_series(monkeypatch, broken={"FRGDP"})
+    _, pub = refresh_run2(monkeypatch, staged_run)
+    assert pub.version is not None and pub.groups["prices_macro"]["outcome"] == "published"
+    r = result(pub.evaluation, "C41")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1)
+    assert "fred:FRGDP" in r["sample"] and "SchemaDriftError" in r["sample"]
+    assert result(pub.evaluation, "C03")["status"] == "pass"   # C41 reports it; the gate doesn't freeze the group
+    assert served(pub.version, "fred:FRGDP") == []
+    prices = served(pub.version, "yf:close:NVDA")
+    assert {d for d, *_ in prices} == {date(2026, 10, 5), date(2026, 10, 6)} and RUN2 in {r for *_, r in prices}
+    # view time: the published version still shows it red
+    h = health.evaluate()
+    view = next(x for x in h.results if x["check_id"] == "C41")
+    assert (h.status, view["status"], view["failing_row_count"]) == ("red", "error", 1)
+    assert any(reason.startswith("C41 error") for reason in h.reasons)
+
+
+def test_c41_existing_series_that_breaks_keeps_its_earlier_rows(staged_run, monkeypatch):
+    fred_two_series(monkeypatch, broken={"GDP"})
+    before = duckdb.sql(f"SELECT obs_date, vintage, value, run_id FROM read_parquet("
+                        f"'{staged_file(staged_run, 'observations').as_posix()}') WHERE series_id = 'fred:GDP' "
+                        "ORDER BY ALL").fetchall()
+    _, pub = refresh_run2(monkeypatch, staged_run)
+    assert pub.groups["prices_macro"]["outcome"] == "published"
+    assert served(pub.version, "fred:GDP") == before and before   # served from the earlier run's raw
+    assert len(served(pub.version, "fred:FRGDP")) == 1
+    r = result(pub.evaluation, "C41")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1) and "fred:GDP" in r["sample"]
+    assert result(pub.evaluation, "C03")["status"] == "pass"
+
+
+def test_c03_still_blocks_a_dropped_series_that_loaded(staged_run, monkeypatch):
+    """The exemption covers only series the loader named: staging dropping one still blocks."""
+    fred_two_series(monkeypatch, broken={"FRGDP"})
+    from pharos.loaders import fred
+    fred.load_macro(RUN2)
+    reland_prices = duckdb.sql(f"SELECT * EXCLUDE (run_id, loaded_at) FROM "
+                               f"read_parquet('{raw_file(staged_run).as_posix()}')")
+    frame = reland_prices.df()
+    for column, kind in zip(reland_prices.columns, reland_prices.types):
+        if str(kind) == "DATE":
+            frame[column] = frame[column].dt.date
+    write_raw(frame, "yf", "prices", RUN2)
+    stage(RUN2)
+    tamper(RUN2, "series_catalog", "SELECT * FROM t WHERE series_id <> 'fred:GDP'")
+    e = run_checks(RUN2)
+    r = result(e, "C03")
+    assert (r["status"], r["failing_row_count"]) == ("error", 1) and "fred:GDP" in r["sample"]
+    assert e.verdict == "blocked"
+
+
+# --- C42: a run that loaded but never wrote its manifest (D145) ---
+
+def _c42(now):
+    from pharos import health
+    h = health.evaluate(now=now, record=False)
+    r = next(x for x in h.results if x["check_id"] == "C42")
+    return r["status"], [row["run_id"] for row in json.loads(r["sample"] or "[]")]
+
+
+def _loaded_only(run):
+    """A run that got as far as one load record, then stopped hard: no manifest."""
+    import pandas as pd
+    write_raw(pd.DataFrame({"x": [1]}), "probe", "rows", run)
+
+
+def test_c42_names_a_run_that_stopped_hard_and_clears_after_the_next_good_run(staged_run, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    fred_two_series(monkeypatch, broken=set())
+    refresh_run2(monkeypatch, staged_run)                  # RUN2 recorded; the fixture's RUN (no manifest) is older
+    at = lambda run, hours: datetime.strptime(run, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc) + timedelta(hours=hours)
+    assert _c42(at(RUN2, 1)) == ("pass", [])               # unrecorded runs before the newest recorded one don't count
+
+    crashed = "20261009T000000Z"
+    _loaded_only(crashed)
+    assert _c42(at(crashed, 1)) == ("pass", [])            # may still be running
+    assert _c42(at(crashed, 6)) == ("error", [crashed])    # past the 5-hour task limit: it stopped
+
+    later = "20261009T030000Z"
+    _loaded_only(later)
+    assert _c42(at(later, 1)) == ("error", [crashed])      # superseded: named at once; the newer one may be running
+
+    from pharos import refresh as refresh_mod
+    monkeypatch.setattr(refresh_mod, "new_run_id", lambda: "20261009T120000Z")
+    refresh_mod.refresh()                                  # the next run that finishes records its manifest
+    assert _c42(at("20261009T120000Z", 1)) == ("pass", [])
+
+
+def test_c42_does_not_fire_at_run_time_for_the_run_being_checked(staged_run):
+    assert result(run_checks(staged_run), "C42")["status"] == "pass"

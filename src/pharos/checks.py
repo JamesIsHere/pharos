@@ -200,8 +200,9 @@ def groups_in(folder: Path) -> list[Group]:
 
 
 def bind_run(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = None) -> None:
-    """The run-level names every check may query: this_run, clock and every
-    run's manifest (D31). `group: run` checks get only these."""
+    """The run-level names every check may query: this_run, clock, every
+    run's manifest (D31) and every run's first load (run_loads, C42). `group:
+    run` checks get only these."""
     run_at = datetime.strptime(run_id, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
     con.execute("CREATE TABLE this_run AS SELECT ? AS run_id, ?::TIMESTAMPTZ AS run_at",
                 [run_id, run_at])
@@ -219,6 +220,14 @@ def bind_run(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None =
     else:
         con.execute("CREATE TABLE run_manifest (run_id VARCHAR, status VARCHAR, published_at TIMESTAMPTZ, "
                     + ", ".join(f'"{c}" VARCHAR' for c in GROUP_COLUMNS) + ")")
+    # every run that loaded anything, from its load records: a run that crashed
+    # past its first load has these but no manifest (C42)
+    loads = data_root() / "health" / "loads"
+    if any(loads.glob("*.parquet")):
+        con.execute(f"CREATE VIEW run_loads AS SELECT run_id, min(loaded_at) AS first_loaded_at FROM "
+                    f"read_parquet('{loads.as_posix()}/*.parquet', union_by_name = true) GROUP BY run_id")
+    else:
+        con.execute("CREATE TABLE run_loads (run_id VARCHAR, first_loaded_at TIMESTAMPTZ)")
 
 
 def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = None,
@@ -268,6 +277,12 @@ def bind(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None = Non
     extra = "".join(f", NULL::{kind} AS {c}" for c, kind in LOAD_COLUMNS_ADDED.items() if c not in have)
     con.execute(f"CREATE VIEW loads AS SELECT *{extra} FROM {source} "
                 f"WHERE source || '/' || dataset IN ({names})")
+    # the FRED series a run left out, from its observations load record's note
+    # (D144); read from the load records, so run time and view time see the same
+    con.execute("""CREATE VIEW fred_load_errors AS
+                   SELECT run_id, e.fred_id, e.error
+                   FROM (SELECT run_id, unnest(from_json(note, '[{"fred_id": "VARCHAR", "error": "VARCHAR"}]')) AS e
+                         FROM loads WHERE source = 'fred' AND dataset = 'observations' AND note IS NOT NULL)""")
 
     # Views shared by a check and another reader, one SQL file each:
     # Yahoo vs Tiingo on every common date (the audit, D41) and C12's draw from

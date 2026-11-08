@@ -12,8 +12,14 @@ Rules applied here:
 - The full history is pulled every run (D18: raw is a snapshot log; dedup happens
   in staging).
 - Response shapes must match what the API returned when verified on 2026-10-07.
-  Any drift, or a response cut short of its own count, stops the whole load
-  before anything is written.
+  A metadata record may omit notes, which is then stored as NULL (D143).
+- Each series succeeds or fails on its own (D144). A series whose fetch fails, or
+  whose observations or metadata drift or come back cut short, is left out of
+  this run's raw files whole, and the series and its error go in the
+  observations load record's note as JSON: [{"fred_id": ..., "error": ...}].
+  The other series land. Staging reads every earlier run's raw too, so a series
+  left out keeps its earlier vintages; C41 turns health red naming it. Only when
+  every series fails (FRED down, a dead key) does the load fail, writing nothing.
 - value is stored exactly as sent, as text. FRED sends "." for a missing value;
   deciding what that means is staging's job, and C14 compares raw values verbatim.
 - The API key comes from FRED_API_KEY and never appears in an error message.
@@ -39,10 +45,15 @@ SERIES_KEYS = {"id", "realtime_start", "realtime_end", "title", "observation_sta
                "observation_end", "frequency", "frequency_short", "units", "units_short",
                "seasonal_adjustment", "seasonal_adjustment_short", "last_updated",
                "popularity", "notes"}
+OPTIONAL_SERIES_KEYS = {"notes"}   # may be absent; stored as NULL. Read nowhere past raw (D143)
 
 
 class SchemaDriftError(RuntimeError):
     pass
+
+
+class SeriesLoadError(RuntimeError):
+    """Every configured series failed: nothing is written."""
 
 
 def _api_key() -> str:
@@ -99,9 +110,12 @@ def normalize_series(resp: dict, fred_id: str) -> pd.DataFrame:
     if not rows:
         raise SchemaDriftError(f"{fred_id}: no metadata rows in response")
     for r in rows:
-        if set(r) != SERIES_KEYS:
+        missing = SERIES_KEYS - set(r)
+        if set(r) - SERIES_KEYS or missing - OPTIONAL_SERIES_KEYS:
             raise SchemaDriftError(f"{fred_id}: series keys {sorted(r)}, "
                                    f"expected {sorted(SERIES_KEYS)}")
+        for k in missing:
+            r[k] = None   # D143: FRED omits notes when a series has none (the IMF GDP series)
         if r["id"] != fred_id:
             raise SchemaDriftError(f"{fred_id}: metadata is for {r['id']}")
 
@@ -113,14 +127,30 @@ def normalize_series(resp: dict, fred_id: str) -> pd.DataFrame:
 
 def load_macro(run_id: str):
     """Download every configured series and write the two raw files for the run.
-    Everything is fetched and checked first, so drift anywhere writes nothing."""
-    observations, series = [], []
+    Every series is fetched and checked before anything is written; a series that
+    fails is left out whole and named in the observations load record's note (D144)."""
+    observations, series, failed = [], [], []
     for fred_id in config.sources()["fred"]["series"]:
-        observations.append(normalize_observations(fetch_observations(fred_id), fred_id))
-        series.append(normalize_series(fetch_series(fred_id), fred_id))
+        try:   # both responses checked before either is kept: a series lands whole or not at all
+            obs = normalize_observations(fetch_observations(fred_id), fred_id)
+            meta = normalize_series(fetch_series(fred_id), fred_id)
+        except Exception as e:
+            failed.append({"fred_id": fred_id, "error": _redact(f"{type(e).__name__}: {e}")})
+            continue
+        observations.append(obs)
+        series.append(meta)
+    if not series:
+        raise SeriesLoadError(f"every configured FRED series failed: {failed}")
 
+    note = json.dumps(failed) if failed else None
     obs = [f for f in observations if not f.empty]
     obs_path = write_raw(pd.concat(obs, ignore_index=True) if obs else pd.DataFrame(),
-                         "fred", "observations", run_id)
+                         "fred", "observations", run_id, note=note)
     series_path = write_raw(pd.concat(series, ignore_index=True), "fred", "series", run_id)
     return obs_path, series_path
+
+
+def _redact(message: str) -> str:
+    """The API key never appears in a recorded error, whatever the exception printed."""
+    key = os.environ.get("FRED_API_KEY")
+    return message.replace(key, "<FRED_API_KEY>") if key else message

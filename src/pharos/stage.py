@@ -158,6 +158,13 @@ def _stage_prices_macro(included: list[str], target: Path) -> None:
     yf = _transform(con, "yf_observations", "raw_yf_prices")
     _require_none(con, yf, "vintage IS NULL", "price rows with no full-history pull at or before their run (D20)")
     con.execute(f"CREATE TABLE series_catalog AS {_sql('series_catalog')}")
+    # a configured FRED series the loader left out this run (D144) that has no
+    # metadata from any run has never loaded: it has no catalog row yet, and C41
+    # names it red. Every other series with no metadata still stops the group
+    left_out = fred_left_out(included[-1])
+    if left_out:
+        con.execute("DELETE FROM series_catalog WHERE source = 'fred' AND frequency IS NULL "
+                    "AND active_from IS NULL AND source_key IN (SELECT unnest(?))", [left_out])
     # a NULL frequency or start date makes C04 / C16 skip the series silently (#64)
     missing = [r[0] for r in con.execute(
         "SELECT series_id FROM series_catalog WHERE frequency IS NULL OR active_from IS NULL "
@@ -184,6 +191,23 @@ def _stage_prices_macro(included: list[str], target: Path) -> None:
     for table in PRICES_MACRO.tables:
         con.execute(f"COPY {table} TO '{(target / f'{table}.parquet').as_posix()}' (FORMAT parquet)")
     con.close()
+
+
+def fred_left_out(run_id: str) -> list[str]:
+    """The FRED series the run's loader left out, from its observations load
+    record's note (D144). Empty when the record has no note."""
+    record = data_root() / "health" / "loads" / f"{run_id}__fred__observations.parquet"
+    if not record.exists():
+        return []
+    con = duckdb.connect()
+    have = {c[0] for c in con.execute(f"DESCRIBE SELECT * FROM read_parquet('{record.as_posix()}')").fetchall()}
+    if "note" not in have:   # records from before D91 carry no note
+        return []
+    rows = con.execute(f"""SELECT e.fred_id FROM (
+            SELECT unnest(from_json(note, '[{{"fred_id": "VARCHAR", "error": "VARCHAR"}}]')) AS e
+            FROM read_parquet('{record.as_posix()}') WHERE note IS NOT NULL) ORDER BY 1""").fetchall()
+    con.close()
+    return [r[0] for r in rows]
 
 
 def _stage_sec(included: list[str], target: Path) -> None:

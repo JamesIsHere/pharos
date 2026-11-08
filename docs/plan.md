@@ -2,10 +2,10 @@
 
 ## Status
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
-- **Milestone:** M2 (SEC landed) DONE 2026-11-05: acceptance #1-#4 passed; #4 is run time only (D136). Next milestone: M3, when James calls it; M1.5 dropped (D137). M1 DONE (7 green nightlies, 20261008T053003Z-20261014T053008Z). H (Hosting) on hold (D106). Nightly task 07:30 UTC (D63)
-- **Health:** run 20261106T090019Z published prices_macro and the unified six-table SEC group; serving/CURRENT points to it. The run completed in 27m44s with 126,265,124 Company Facts rows and 4,837,491 concepts. C15/C16 are acknowledged; C35 was a pre-pointer-swap timing artifact from the prior carried-forward version.
-- **Last session:** 2026-11-07: exploration, top-down (people, work, output, companies). New explore pages: Appendix, Reporting Consistency, Companies vs Economy, People and Work, Where GDP Goes; run-flow diagrams in scratch/run-flow.html. D141 adds five FRED series (population, labor, pay). A hand refresh to land them was stopped as too slow for a source tweak (run 20261107T065523Z died; serving unchanged); session protocol now has two lanes (quick lane during a session, new stored data rides the nightly) and #115 parks per-group refresh. Times are given in Eastern.
-- **Next action:** The next nightly lands the D141 series and performs the one-time D140 conversion; check its run time and health, then M3 when James calls it.
+- **Milestone:** W (World macro, D142) current since 2026-11-07. M3 deferred: James, 2026-11-07, "M3 can't justify itself right now; I want more data". M2 (SEC landed) DONE 2026-11-05: acceptance #1-#4 passed; #4 is run time only (D136). M1.5 dropped (D137). M1 DONE (7 green nightlies, 20261008T053003Z-20261014T053008Z). H (Hosting) on hold (D106). Nightly task 07:30 UTC (D63)
+- **Health:** green at 2026-11-08 03:29 Eastern; serving/CURRENT is 20261108T073006Z. That nightly passed every gate and published at 02:44:35 Eastern, then its Python aborted in native code at 02:44:39 (0xC0000409, ucrtbase.dll): no manifest, no health rewrite, no catalog rebuild (rebuilt by hand 2026-11-08). C01 and the new C42 turn red at about 04:50 and 07:31 Eastern until the next nightly records a manifest. Nightly 20261106T073007Z also ended with no manifest; cause unverified.
+- **Last session:** 2026-11-08: France GDP spike on a throwaway root found two breaks. D143: FRED `notes` may be absent (12 IMF GDP series). D144: each FRED series loads or fails on its own; C41 names a failed one red and the rest publish. D145: C42 names a run that loaded but never wrote its manifest. Explore: Data page (ER diagram + PDF), World page (W's 56 series plus the US, quick lane), menu grouped Economy / Companies / Pipeline. A review of the Economy and Pipeline pages against the served data found the catalog had served the previous version after the crash; observations were identical, so no page number was wrong.
+- **Next action:** explore page coupling, one at a time: (1) a shared function in explore/lib/base.py that stops a page build when catalog.duckdb's serving views don't point at serving/CURRENT and stamps the page with the data version; (2) People and Work reads its five series from Pharos (stored since D141) and stops dropping 2025 over the October 2025 gap; (3) rebuild Code Tests; (4) the Log page shows runs with no manifest; (5) Data Tests gets a build stamp. Then W step 1. If tonight's nightly aborts again, chase the native crash first. Whether 20261107T073004Z performed the D140 conversion is still unchecked.
 - **Blockers / open questions:** none. #17 and #25 are built together when C14 first fires on a price. Full list in Open issues below and Parked issues in `docs/later.md`; cite only IDs that appear there.
 
 ## Open issues
@@ -16,7 +16,41 @@
 | 17  | Under dedup rule A a real source correction blocks publish forever (old raw file stays)        | One Yahoo correction freezes serving/; needs a deliberate accept path  | when C14 first fires on a price (build D23 with #25) |
 | 24  | Accept path for a FRED same-key conflict (C14 on every FRED key)                               | A changed ALFRED vintage blocks publish forever                        | only if C14 fires  |
 | 25  | Price vintage is a DATE: two full pulls of one ticker on one day share a vintage               | Same-day accept re-pull leaves the conflict in place                   | with #17 (D23 build) |
-| 34  | A series added after the audit has no baseline row; C13 never compares it. Any re-baseline path built for this must also decide a size cap on isolated print disagreements: D41's shape rule passes one of any size, and C10 only catches moves over 40% (folded in from #37) | A watchlist addition can lose history with C13 green; a re-run audit could pass a large isolated bad print | before any further watchlist change; the five D141 series run without it |
+| 34  | A series added after the audit has no baseline row; C13 never compares it. Any re-baseline path built for this must also decide a size cap on isolated print disagreements: D41's shape rule passes one of any size, and C10 only catches moves over 40% (folded in from #37) | A watchlist addition can lose history with C13 green; a re-run audit could pass a large isolated bad print | before any further watchlist change; the five D141 series and W's 56 (D142) run without it |
+
+---
+
+## W: World macro (D142, 2026-11-07)
+
+**Goal.** 56 FRED series for 12 economies and the euro area land in the macro group every night, with every vintage, like the eight US series, and health stays green. No analysis on them; a page on them is exploration (D137).
+
+### The 56 series (each checked current on FRED's API, 2026-11-07)
+| Measure            | n  | Series                                                                                                                                                                                  |
+|--------------------|----|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Real GDP           | 13 | NGDPRSAXDCCAQ, NGDPRSAXDCGBQ, NGDPRSAXDCDEQ, NGDPRSAXDCFRQ, NGDPRSAXDCITQ, NGDPRSAXDCJPQ, NGDPRSAXDCBRQ, NGDPRSAXDCMXQ, NGDPRSAXDCKRQ, NGDPRSAXDCAUQ, NGDPRNSAXDCINQ, NGDPRXDCCNA, CLVMEURSCAB1GQEA19 |
+| CPI (HICP)         | 4  | CP0000DEM086NEST, CP0000FRM086NEST, CP0000ITM086NEST, CP0000EZ19M086NEST                                                                                                                 |
+| Unemployment       | 9  | LRHUTTTTCAM156S, LRHUTTTTGBM156S, LRHUTTTTDEM156S, LRHUTTTTFRM156S, LRHUTTTTITM156S, LRHUTTTTJPM156S, LRHUTTTTMXM156S, LRHUTTTTKRM156S, LRHUTTTTAUM156S                                  |
+| Short rate         | 10 | IRSTCI01CAM156N, IRSTCI01GBM156N, IRSTCI01JPM156N, IRSTCI01INM156N, IRSTCI01BRM156N, IRSTCI01MXM156N, IRSTCI01KRM156N, IRSTCI01AUM156N, IR3TIB01CNM156N, ECBDFR                          |
+| 10-year yield      | 10 | IRLTLT01CAM156N, IRLTLT01GBM156N, IRLTLT01DEM156N, IRLTLT01FRM156N, IRLTLT01ITM156N, IRLTLT01JPM156N, IRLTLT01MXM156N, IRLTLT01KRM156N, IRLTLT01AUM156N, INDIRLTLT01STM                  |
+| FX vs USD, monthly | 10 | EXCAUS, EXUSUK, EXUSEU, EXJPUS, EXCHUS, EXINUS, EXBZUS, EXMXUS, EXKOUS, EXUSAL                                                                                                         |
+
+Gaps, not pulled: monthly CPI outside the euro area (FRED's OECD feed stopped in 2025), unemployment for China, India, Brazil and the euro area, 10-year yields for China, Brazil and the euro area. Filling them means IMF or World Bank directly, a new source.
+
+### Build order
+- [ ] 1. Release lags. For each series, the median first-release lag 2023-2026 from its ALFRED vintages plus slack (D33's method, as D141), into `expected_lag_days` in `config/sources.yaml`. ECBDFR is daily: its lag is measured the same way, or it is dropped if its vintages make that meaningless; either way D142 says which.
+- [ ] 2. Throwaway-root run. With the 56 added, run the prices_macro group alone on a throwaway PHAROS_DATA_ROOT (no SEC; `refresh._run` takes a group list, to confirm before use). Record rows across all vintages, run time, and every check result. Watch C04 (expected dates for OECD and IMF series), C16 (withdrawn values), C02/C17 (the measured lags) and C14. Why it matters: since D144 a failing series no longer carries prices forward, but it is red under C41 every night until fixed, so every series must load cleanly here first. A series that cannot pass is dropped and named in D142, never acknowledged in bulk.
+- [ ] 3. Commit `config/sources.yaml` with D142. The nightly lands them (two lanes: no hand refresh).
+- [ ] 4. The morning after: health and run time of that nightly, against 20261107T073004Z (about 22 minutes).
+
+### Acceptance criteria
+1. Every series kept after step 2 is in `serving_series_catalog` and has observations after one nightly.
+2. That nightly publishes prices_macro (not carried forward), and health is green; any acknowledgment it needs is one row in `config/expected_states.csv` with its reason.
+3. That nightly's run time is recorded.
+
+**Done** when 1-3 pass.
+
+### Out of scope for W
+The gaps above; #34's re-baseline path; any page (exploration, D137); the US (already served).
 
 ---
 
