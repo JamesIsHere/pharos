@@ -63,7 +63,7 @@ import exchange_calendars as xc
 from pharos.groups import HELD
 from pharos.parquet import parquet_files, scan
 from pharos.paths import data_root
-from pharos.progress import step
+from pharos.progress import say, step
 from pharos.runs import raw_select
 from pharos.stage import StageError, _require_none, _sql
 
@@ -547,26 +547,30 @@ def stage_partitioned_table(ds: Dataset, included: list[str], base: Base | None,
     later = [r for r in included if base is None or r > base.run]
 
     if base_path is not None:
-        if base_path.is_dir():
-            _clone_partitions(base_path, out)
-        else:
-            con = connect()
-            _partition_write(con, f"SELECT * FROM {scan(base_path)}", out)
-            con.close()
+        with step(f"{ds.table}: link the base"):
+            if base_path.is_dir():
+                _clone_partitions(base_path, out)
+            else:
+                con = connect()
+                _partition_write(con, f"SELECT * FROM {scan(base_path)}", out)
+                con.close()
 
     for run_id in later:
         touched, full = _changes(run_id, ds)
         if full:
             touched |= _partition_ciks(out)
+        say(f"{ds.table}: run {run_id}, {len(touched):,} companies to replace")
         if not touched:
             continue
+        timed = lambda part: step(f"{ds.table} {run_id[:8]}: {part}")
 
         con = connect()
         if ds is FACTS:
             bind_sessions(con)
         new = _rows(con, ds, [run_id])
         if new is not None:
-            _check_new_rows(con, ds, new)
+            with timed("read the run's rows and duplicate check"):
+                _check_new_rows(con, ds, new)
             cik_list = ", ".join(str(cik) for cik in sorted(touched))
             con.execute(f"CREATE VIEW {ds.table}_new AS SELECT * FROM {new} WHERE cik IN ({cik_list})")
             columns = [c[0] for c in con.execute(f"DESCRIBE {ds.table}_new").fetchall()]
@@ -580,7 +584,8 @@ def stage_partitioned_table(ds: Dataset, included: list[str], base: Base | None,
             else:
                 con.execute(f"CREATE VIEW {ds.table}_old AS SELECT {', '.join(columns)} "
                             f"FROM {ds.table}_new WHERE false")
-            con.execute(f"""
+            with timed("read old rows and merge"):
+                con.execute(f"""
                 CREATE TABLE {ds.table}_replacement AS
                 SELECT b.* FROM {ds.table}_old AS b
                 SEMI JOIN {ds.table}_new AS n ON {on_key}{same}
@@ -588,25 +593,28 @@ def stage_partitioned_table(ds: Dataset, included: list[str], base: Base | None,
                 SELECT n.* FROM {ds.table}_new AS n
                 ANTI JOIN {ds.table}_old AS b ON {on_key}{same}""")
             con.execute(f"CREATE VIEW {ds.table} AS SELECT * FROM {ds.table}_replacement")
-            _require_unique(con, ds)
+            with timed("uniqueness check"):
+                _require_unique(con, ds)
 
         delta = target / f".{ds.table}-{run_id}.delta"
         if delta.exists():
             shutil.rmtree(delta)
-        if new is not None and con.execute(f"SELECT count(*) FROM {ds.table}_replacement").fetchone()[0]:
-            _partition_write(con, f"SELECT * FROM {ds.table}_replacement", delta)
+        with timed("write the replacement folders"):
+            if new is not None and con.execute(f"SELECT count(*) FROM {ds.table}_replacement").fetchone()[0]:
+                _partition_write(con, f"SELECT * FROM {ds.table}_replacement", delta)
         con.close()
 
         # Delta was fully built and checked before the snapshot is changed.
-        for cik in touched:
-            partition = out / f"cik={cik}"
-            if partition.exists():
-                shutil.rmtree(partition)
-        if delta.exists():
-            out.mkdir(parents=True, exist_ok=True)
-            for partition in delta.iterdir():
-                shutil.move(str(partition), str(out / partition.name))
-            delta.rmdir()
+        with timed("swap folders"):
+            for cik in touched:
+                partition = out / f"cik={cik}"
+                if partition.exists():
+                    shutil.rmtree(partition)
+            if delta.exists():
+                out.mkdir(parents=True, exist_ok=True)
+                for partition in delta.iterdir():
+                    shutil.move(str(partition), str(out / partition.name))
+                delta.rmdir()
 
     if not parquet_files(out):
         raise StageError(f"no rows available for sec/{ds.raw}")
