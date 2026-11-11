@@ -51,6 +51,7 @@ MEMORY_LIMIT and spills to <data root>/tmp/duckdb, not the working folder.
 """
 
 import os
+import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -262,6 +263,16 @@ def stage_table(con, ds: Dataset, included: list[str], base: Base | None,
         _write(con, ds, target)
         return Merged(base.run, ())
 
+    _merge(con, ds, new, scan(base_file) if base is not None else None)
+    _write(con, ds, target)
+    return Merged(base.run if base is not None else None, tuple(later))
+
+
+def _merge(con, ds: Dataset, new: str, base_rel: str | None) -> None:
+    """CREATE TABLE ds.table: the rows of base_rel (an SQL relation, None for no
+    base) with the new landings merged in, newest value per key (D132), the key
+    checked unique. stage_table passes the whole base; stage_quarter_table only
+    the base's touched quarters (D155)."""
     columns = [c[0] for c in con.execute(f"DESCRIBE {new}").fetchall()]
     values = [c for c in columns if c not in ds.lineage]
     key = ", ".join(ds.key)
@@ -276,8 +287,8 @@ def stage_table(con, ds: Dataset, included: list[str], base: Base | None,
         raise StageError(f"{ds.table}: a key listed with different values inside one landing "
                          f"(first {len(twice)}: {twice}); staging never picks between them")
 
-    if base is not None:
-        con.execute(f"CREATE VIEW {ds.table}_base AS SELECT * FROM {scan(base_file)}")
+    if base_rel is not None:
+        con.execute(f"CREATE VIEW {ds.table}_base AS SELECT * FROM {base_rel}")
     else:
         con.execute(f"CREATE VIEW {ds.table}_base AS SELECT {', '.join(columns)} FROM {new} WHERE false")
     con.execute(f"CREATE TABLE {ds.table}_touched AS SELECT DISTINCT {key} FROM {new}")
@@ -296,8 +307,82 @@ def stage_table(con, ds: Dataset, included: list[str], base: Base | None,
         UNION ALL BY NAME
         SELECT b.* FROM {ds.table}_base AS b ANTI JOIN {ds.table}_touched AS t ON {on}""")
     _require_unique(con, ds)
-    _write(con, ds, target)
-    return Merged(base.run if base is not None else None, tuple(later))
+
+
+QUARTER = "quarter"   # the filings table's partition column (D155)
+
+
+def stage_quarter_table(ds: Dataset, included: list[str], base: Base | None,
+                        target: Path) -> Merged:
+    """Stage ds.table one folder per quarter (D155).
+
+    EDGAR's full index re-lands only its current quarters each night (2026Q3
+    and 2026Q4, 415,235 of 27,390,800 rows on 2026-11-11), so only the quarters
+    in the new landings are merged, with stage_table's rule over the base's rows
+    of those quarters; every other quarter is hard-linked from the base. The
+    result equals a full rebuild because a key never spans quarters (0 keys on
+    2026-11-11). A new row whose key the base holds in an untouched quarter
+    stops the group: the merge would no longer see both copies. A one-file base
+    (published before D155) is split into quarters once."""
+    out = target / f"{ds.table}.parquet"
+    base_path = base.folder / f"{ds.table}.parquet" if base is not None else None
+    if base_path is not None and not base_path.exists():
+        base, base_path = None, None
+    if base is not None and base.run not in included:
+        raise StageError(f"base run {base.run} is not among the runs staged "
+                         f"({included[0]}..{included[-1]})")
+    later = [r for r in included if base is None or r > base.run]
+
+    con = connect()
+    try:
+        bind_sessions(con)
+        new = _rows(con, ds, later) if later else None
+        if new is None and base is None:
+            raise StageError(f"no raw files for sec/{ds.raw}")
+        touched = [] if new is None else \
+            sorted(q for (q,) in con.execute(f"SELECT DISTINCT {QUARTER} FROM {new}").fetchall())
+        bad = [q for q in touched if q is None or not re.fullmatch(r"[0-9]{4}Q[1-4]", q)]
+        if bad:
+            raise StageError(f"{ds.table}: new rows whose quarter is not YYYYQn: {bad[:5]}")
+        quarters = ", ".join(f"'{q}'" for q in touched)
+
+        if base_path is not None and base_path.is_dir():
+            for part in sorted(p for p in base_path.iterdir() if p.is_dir()):
+                if part.name.removeprefix(f"{QUARTER}=") not in touched:
+                    _clone_partitions(part, out / part.name)
+        elif base_path is not None:   # a one-file base from before D155: split it once
+            where = f"WHERE {QUARTER} NOT IN ({quarters})" if touched else ""
+            _partition_write(con, f"SELECT * FROM {scan(base_path)} {where}", out, by=QUARTER)
+
+        if new is not None:
+            base_rel = None
+            if base_path is not None:
+                base_rel = f"(SELECT * FROM {scan(base_path)} WHERE {QUARTER} IN ({quarters}))"
+                key = ", ".join(f"n.{k}" for k in ds.key)
+                on = " AND ".join(f"n.{k} IS NOT DISTINCT FROM b.{k}" for k in ds.key)
+                moved = con.execute(f"""
+                    SELECT {key}, n.{QUARTER} FROM {new} AS n SEMI JOIN (
+                        SELECT {', '.join(ds.key)} FROM {scan(base_path)}
+                        WHERE {QUARTER} NOT IN ({quarters})) AS b ON {on}
+                    ORDER BY ALL LIMIT 5""").fetchall()
+                if moved:
+                    raise StageError(f"{ds.table}: new rows whose key the base holds in another "
+                                     f"quarter (first {len(moved)}: {moved}); D155 merges by quarter")
+            _merge(con, ds, new, base_rel)
+            delta = target / f".{ds.table}-{later[-1]}.delta"
+            if delta.exists():
+                shutil.rmtree(delta)
+            _partition_write(con, f"SELECT * FROM {ds.table}", delta, by=QUARTER)
+            out.mkdir(parents=True, exist_ok=True)
+            for part in delta.iterdir():
+                shutil.move(str(part), str(out / part.name))
+            delta.rmdir()
+    finally:
+        con.close()
+
+    if not parquet_files(out):
+        raise StageError(f"no rows available for sec/{ds.raw}")
+    return Merged(base.run if base is not None else None, tuple(later) if new is not None else ())
 
 
 def _write(con, ds: Dataset, target: Path | None) -> None:
@@ -354,11 +439,12 @@ def _clone_partitions(source: Path, target: Path) -> None:
         _link_or_copy(str(file), str(out))
 
 
-def _partition_write(con, select: str, target: Path) -> None:
-    """Write a fresh Hive partition directory, one directory per CIK."""
+def _partition_write(con, select: str, target: Path, by: str = "cik") -> None:
+    """Write a fresh Hive partition directory, one directory per value of `by`
+    (a CIK for Company Facts, a quarter for filings, D155)."""
     target.parent.mkdir(parents=True, exist_ok=True)
     con.execute(f"COPY ({select}) TO '{target.as_posix()}' "
-                "(FORMAT parquet, PARTITION_BY (cik), WRITE_PARTITION_COLUMNS true, "
+                f"(FORMAT parquet, PARTITION_BY ({by}), WRITE_PARTITION_COLUMNS true, "
                 "FILENAME_PATTERN 'part_{i}')")
 
 
@@ -552,6 +638,9 @@ def _stage(datasets, included: list[str], target: Path, base: Base | None) -> di
     for ds in datasets:
         if ds in FACT_DATASETS:
             merged[ds.table] = stage_partitioned_table(ds, included, base, target)
+            continue
+        if ds is INDEX:
+            merged[ds.table] = stage_quarter_table(ds, included, base, target)
             continue
         con = connect()
         if ds.sql in ("sec_filings", "sec_submission_filings", "sec_companyfacts"):
