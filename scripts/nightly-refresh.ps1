@@ -50,6 +50,12 @@ if (Test-MirrorInTheWay) {
     }
 }
 
+# Native abort hunt (2026-11-11): the fault handler prints every thread's
+# Python stack when native code calls abort(), and unbuffered output streams
+# progress lines here as they happen instead of only at a clean exit.
+$env:PYTHONFAULTHANDLER = '1'
+$env:PYTHONUNBUFFERED = '1'
+
 Write-Log 'uv run pharos refresh'
 Push-Location $root
 try {
