@@ -36,7 +36,7 @@ serving/   <run_id>/: series_catalog + observations (from U also universe_filer,
            read, D76); CURRENT names the served version. Most logical tables are
            one .parquet file; Company Facts uses a same-named directory of
            per-CIK Parquet partitions behind the same catalog views (D140),
-           and filings one per quarter (D155)
+           and filings and submission_filings one per quarter (D155, D156)
 health/    run_manifest, loads, check_results, baseline, audit, latest.md
    |
    v
@@ -108,7 +108,7 @@ Entity tables beside the series model. Each row carries the four columns every o
 | SEC Company Facts | M2 (D128, D139, D140) | XBRL facts, all filers: bulk baseline, then per-CIK documents for companies with changed submission filings. `company_facts` (one row per fact, keyed cik, taxonomy, concept, unit, accession, start_date, end_date), `company_concepts` | Keeps accession + filed date per fact = point-in-time is reconstructible. Served as self-contained per-CIK partition snapshots: unchanged files are reused, changed CIKs replaced, then the SEC group publishes atomically; freshness C40 | Yes (SEC data is public; unverified, from prior) |
 | SEC Financial Statement Data Sets | M3 | dimensional facts (multi-class shares), `pre` table | companyfacts drops dimensional facts | Yes (as above) |
 | SEC EDGAR full-index (`master.gz` per quarter) | M2 | every filing: CIK, name, form, date filed: `filings` | Annual reports, events and gap years (D54, D65); current and previous quarter re-landed each run. Served one folder per quarter: only re-landed quarters are rebuilt, the rest hard-linked (D155). Landed level; freshness C25 | Yes (as above) |
-| SEC submissions.zip | M2 | company details (name, SIC, state, tickers, exchanges) and filing history: `submission_details`, `submission_filings` | Nightly bulk; details snapshot every run, history past the watermark (D58). Landed level; freshness C31 | Yes (as above) |
+| SEC submissions.zip | M2 | company details (name, SIC, state, tickers, exchanges) and filing history: `submission_details`, `submission_filings` | Nightly bulk; details snapshot every run, history past the watermark (D58). `submission_filings` served one folder per filing-date quarter, with a `quarter` column; only touched quarters rebuilt (D156). Landed level; freshness C31 | Yes (as above) |
 | SEC company_tickers_exchange.json | M2 | current ticker to CIK and exchange: `tickers` | Current only: dead or renamed tickers need manual mapping. Landed level; freshness C34 | Yes (as above) |
 | BEA NIPA | M6 | GDP expenditure detail | The GDP tracker, folded in | Yes, with BEA's notice: its API terms allow building a service to 'display' its data |
 

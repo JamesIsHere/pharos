@@ -96,6 +96,8 @@ class Dataset:
     lineage: tuple[str, ...]  # not values: where and when a row was landed
     asserts: tuple[tuple[str, str], ...] = ()   # (condition that must match no row, what it means)
     per_landing: Callable[[object, str], str] | None = None   # rows -> rows, inside each landing
+    quarter_from: str | None = None   # staged by quarter (D155, D156): the date a base without
+                                      # a quarter column derives it from; None: SEC sends the column
 
 
 def connect() -> duckdb.DuckDBPyConnection:
@@ -163,6 +165,7 @@ SUBMISSIONS = Dataset(
               "filing-history rows whose accession is not 0000000000-00-000000"),
              ("available_date IS NULL", "filings dated after the last XNYS session in the calendar (D99)")),
     per_landing=acceptance_conflicts,
+    quarter_from="filing_date",    # D156: quarter derived in sec_submission_filings.sql
 )
 
 DETAILS = Dataset(
@@ -314,16 +317,19 @@ QUARTER = "quarter"   # the filings table's partition column (D155)
 
 def stage_quarter_table(ds: Dataset, included: list[str], base: Base | None,
                         target: Path) -> Merged:
-    """Stage ds.table one folder per quarter (D155).
+    """Stage ds.table one folder per quarter: filings (D155) and
+    submission_filings (D156).
 
     EDGAR's full index re-lands only its current quarters each night (2026Q3
-    and 2026Q4, 415,235 of 27,390,800 rows on 2026-11-11), so only the quarters
+    and 2026Q4, 415,235 of 27,390,800 rows on 2026-11-11), and submissions only
+    its last 10 days of filings (2026Q4, 112,689 of 27,389,291), so only the quarters
     in the new landings are merged, with stage_table's rule over the base's rows
     of those quarters; every other quarter is hard-linked from the base. The
     result equals a full rebuild because a key never spans quarters (0 keys on
     2026-11-11). A new row whose key the base holds in an untouched quarter
     stops the group: the merge would no longer see both copies. A one-file base
-    (published before D155) is split into quarters once."""
+    (published before D155 / D156) is split into quarters once; one without a
+    quarter column gets it from ds.quarter_from, as the dataset's SQL does."""
     out = target / f"{ds.table}.parquet"
     base_path = base.folder / f"{ds.table}.parquet" if base is not None else None
     if base_path is not None and not base_path.exists():
@@ -345,6 +351,7 @@ def stage_quarter_table(ds: Dataset, included: list[str], base: Base | None,
         if bad:
             raise StageError(f"{ds.table}: new rows whose quarter is not YYYYQn: {bad[:5]}")
         quarters = ", ".join(f"'{q}'" for q in touched)
+        base_sql = _quarter_base(con, ds, base_path) if base_path is not None else None
 
         if base_path is not None and base_path.is_dir():
             for part in sorted(p for p in base_path.iterdir() if p.is_dir()):
@@ -352,17 +359,17 @@ def stage_quarter_table(ds: Dataset, included: list[str], base: Base | None,
                     _clone_partitions(part, out / part.name)
         elif base_path is not None:   # a one-file base from before D155: split it once
             where = f"WHERE {QUARTER} NOT IN ({quarters})" if touched else ""
-            _partition_write(con, f"SELECT * FROM {scan(base_path)} {where}", out, by=QUARTER)
+            _partition_write(con, f"SELECT * FROM {base_sql} {where}", out, by=QUARTER)
 
         if new is not None:
             base_rel = None
             if base_path is not None:
-                base_rel = f"(SELECT * FROM {scan(base_path)} WHERE {QUARTER} IN ({quarters}))"
+                base_rel = f"(SELECT * FROM {base_sql} WHERE {QUARTER} IN ({quarters}))"
                 key = ", ".join(f"n.{k}" for k in ds.key)
                 on = " AND ".join(f"n.{k} IS NOT DISTINCT FROM b.{k}" for k in ds.key)
                 moved = con.execute(f"""
                     SELECT {key}, n.{QUARTER} FROM {new} AS n SEMI JOIN (
-                        SELECT {', '.join(ds.key)} FROM {scan(base_path)}
+                        SELECT {', '.join(ds.key)} FROM {base_sql}
                         WHERE {QUARTER} NOT IN ({quarters})) AS b ON {on}
                     ORDER BY ALL LIMIT 5""").fetchall()
                 if moved:
@@ -383,6 +390,23 @@ def stage_quarter_table(ds: Dataset, included: list[str], base: Base | None,
     if not parquet_files(out):
         raise StageError(f"no rows available for sec/{ds.raw}")
     return Merged(base.run if base is not None else None, tuple(later) if new is not None else ())
+
+
+def quarter_of(column: str) -> str:
+    """SQL for a date column's quarter as 'YYYYQn', the full index's own form (D156)."""
+    return f"CAST(year({column}) AS VARCHAR) || 'Q' || CAST(quarter({column}) AS VARCHAR)"
+
+
+def _quarter_base(con, ds: Dataset, base_path: Path) -> str:
+    """The base as a relation with a quarter column: a base published before
+    D156 has none, so it is derived from ds.quarter_from."""
+    rel = scan(base_path)
+    columns = [c[0] for c in con.execute(f"DESCRIBE SELECT * FROM {rel}").fetchall()]
+    if QUARTER in columns:
+        return rel
+    if ds.quarter_from is None:
+        raise StageError(f"{ds.table}: the base {base_path} has no {QUARTER} column")
+    return f"(SELECT *, {quarter_of(ds.quarter_from)} AS {QUARTER} FROM {rel})"
 
 
 def _write(con, ds: Dataset, target: Path | None) -> None:
@@ -639,7 +663,7 @@ def _stage(datasets, included: list[str], target: Path, base: Base | None) -> di
         if ds in FACT_DATASETS:
             merged[ds.table] = stage_partitioned_table(ds, included, base, target)
             continue
-        if ds is INDEX:
+        if ds in (INDEX, SUBMISSIONS):      # by quarter (D155, D156)
             merged[ds.table] = stage_quarter_table(ds, included, base, target)
             continue
         con = connect()

@@ -125,3 +125,63 @@ def test_later_run_without_a_file_keeps_the_base(root):
 def test_no_raw_stops(root):
     with pytest.raises(StageError, match="no raw files for sec/full_index"):
         quartered(root, [R1])
+
+
+# --- submission_filings by quarter (D156) ------------------------------------------
+
+import test_stage_sec_submissions as sub                       # noqa: E402
+from pharos.stage_sec import SUBMISSIONS                       # noqa: E402
+
+SUB_Q3 = dict(filed="2026-08-03", report="2026-06-30", accepted="2026-08-03T20:15:00.000Z")
+
+
+def sub_quartered(root, runs, base=None, run=None):
+    target = root / "staging" / (run or runs[-1])
+    target.mkdir(parents=True, exist_ok=True)
+    result = stage_quarter_table(SUBMISSIONS, runs, base, target)
+    cols, rows = by_name(duckdb.connect(), scan(target / "submission_filings.parquet"))
+    return result, target / "submission_filings.parquet", rows, cols
+
+
+def sub_base(root, run_id, kind):
+    """A serving version of submission_filings: 'old file' as published before D156
+    (one file, no quarter column), or 'quarters' (one folder per quarter)."""
+    folder = root / "serving" / run_id
+    if kind == "quarters":
+        _, out, _, _ = sub_quartered(root, [r for r in sub.RUNS if r <= run_id], run=f"base-{run_id}")
+        folder.mkdir(parents=True)
+        os.rename(out, folder / "submission_filings.parquet")
+    else:
+        con = sub.staged([r for r in sub.RUNS if r <= run_id])
+        folder.mkdir(parents=True)
+        con.execute(f"COPY (SELECT * EXCLUDE (quarter) FROM submission_filings) "
+                    f"TO '{(folder / 'submission_filings.parquet').as_posix()}' (FORMAT parquet)")
+    return Base(run_id, folder)
+
+
+@pytest.mark.parametrize("scenario", sub.SCENARIOS)
+@pytest.mark.parametrize("base_run", [sub.R1, sub.R2])
+@pytest.mark.parametrize("kind", ["old file", "quarters"])
+def test_submissions_by_quarter_equal_the_full_rebuild(root, scenario, base_run, kind):
+    for run, landing in zip(sub.RUNS, sub.SCENARIOS[scenario]):
+        sub.land(run, [*landing, sub.filing(cik=3, accession=sub.A2, **SUB_Q3)])
+    base = sub_base(root, base_run, kind)
+    result, _, rows, cols = sub_quartered(root, sub.RUNS, base)
+    assert result.base_run == base_run
+    assert (cols, rows) == by_name(sub.staged(sub.RUNS), "submission_filings")
+
+
+def test_submissions_quarter_is_the_filing_date_quarter(root):
+    sub.land(sub.R1, [sub.filing(), sub.filing(cik=3, accession=sub.A2, **SUB_Q3)])
+    _, out, rows, cols = sub_quartered(root, [sub.R1])
+    assert sorted(p.name for p in out.iterdir()) == ["quarter=2026Q3", "quarter=2026Q4"]
+    assert sorted(r[cols.index("quarter")] for r in rows) == ["2026Q3", "2026Q4"]
+
+
+def test_old_base_without_quarter_column_is_split_once(root):
+    sub.land(sub.R1, [sub.filing(), sub.filing(cik=3, accession=sub.A2, **SUB_Q3)])
+    base = sub_base(root, sub.R1, "old file")
+    sub.land(sub.R2, [sub.filing()])                       # only 2026Q4 re-lands
+    _, out, rows, cols = sub_quartered(root, [sub.R1, sub.R2], base)
+    assert sorted(p.name for p in out.iterdir()) == ["quarter=2026Q3", "quarter=2026Q4"]
+    assert len(rows) == 2 and "quarter" in cols
