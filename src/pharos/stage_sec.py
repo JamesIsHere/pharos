@@ -63,6 +63,7 @@ import exchange_calendars as xc
 from pharos.groups import HELD
 from pharos.parquet import parquet_files, scan
 from pharos.paths import data_root
+from pharos.progress import step
 from pharos.runs import raw_select
 from pharos.stage import StageError, _require_none, _sql
 
@@ -660,15 +661,19 @@ def stage_companyfacts(included: list[str], target: Path, base: Base | None = No
 def _stage(datasets, included: list[str], target: Path, base: Base | None) -> dict[str, Merged]:
     merged = {}
     for ds in datasets:
-        if ds in FACT_DATASETS:
-            merged[ds.table] = stage_partitioned_table(ds, included, base, target)
-            continue
-        if ds in (INDEX, SUBMISSIONS):      # by quarter (D155, D156)
-            merged[ds.table] = stage_quarter_table(ds, included, base, target)
-            continue
-        con = connect()
-        if ds.sql in ("sec_filings", "sec_submission_filings", "sec_companyfacts"):
-            bind_sessions(con)
-        merged[ds.table] = stage_table(con, ds, included, base, target)
-        con.close()
+        with step(f"sec stage {ds.table}"):
+            merged[ds.table] = _stage_one(ds, included, target, base)
+    return merged
+
+
+def _stage_one(ds, included: list[str], target: Path, base: Base | None) -> Merged:
+    if ds in FACT_DATASETS:
+        return stage_partitioned_table(ds, included, base, target)
+    if ds in (INDEX, SUBMISSIONS):      # by quarter (D155, D156)
+        return stage_quarter_table(ds, included, base, target)
+    con = connect()
+    if ds.sql in ("sec_filings", "sec_submission_filings", "sec_companyfacts"):
+        bind_sessions(con)
+    merged = stage_table(con, ds, included, base, target)
+    con.close()
     return merged

@@ -40,6 +40,7 @@ from pharos import config
 from pharos.db import query
 from pharos.groups import GROUPS, PRICES_MACRO, Group, nightly
 from pharos.paths import data_root
+from pharos.progress import step
 from pharos.runs import raw_select
 
 TRANSFORM_DIR = Path(__file__).parent / "transform"
@@ -112,7 +113,8 @@ def stage(run_id: str | None = None) -> Staging:
                                   f"{[f'{s}/{d}' for s, d in group.required if (s, d) not in have]}")
             continue
         try:
-            STAGERS[group.name]([r for r in runs_g if r <= run_id], target)
+            with step(f"{group.name} stage"):
+                STAGERS[group.name]([r for r in runs_g if r <= run_id], target)
             staged.append(group.name)
         except Exception as e:
             for table in group.tables:           # never leave a group half-written

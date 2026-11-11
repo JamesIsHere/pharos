@@ -40,6 +40,7 @@ from datetime import datetime, timezone
 import duckdb
 
 from pharos import catalog, health, notify
+from pharos.progress import say, step
 from pharos.groups import FAILED, GROUPS, NOT_RUN, PRICES_MACRO, nightly
 from pharos.loaders import fred, sec_companyfacts, sec_index, sec_submissions, sec_tickers, tiingo, yahoo
 from pharos.paths import data_root
@@ -99,6 +100,7 @@ def refresh_companyfacts_full() -> tuple[str, Publication | None]:
 def _run(names: list[str], reference_loaders: dict, loader_overrides: dict | None = None
          ) -> tuple[str, Publication | None]:
     run_id = new_run_id()
+    say(f"run {run_id}: {', '.join(names)}")
     started_at = datetime.now(timezone.utc)
     publication, error, reference_errors, code = None, None, {}, (None, None)
     group_errors: dict[str, str] = {}
@@ -109,7 +111,8 @@ def _run(names: list[str], reference_loaders: dict, loader_overrides: dict | Non
         active = {name: (loader_overrides or {}).get(name, LOADERS[name]) for name in names}
         for name, load in active.items():
             try:
-                load(run_id)
+                with step(f"{name} load"):
+                    load(run_id)
             except Exception as e:
                 # this group can't stage this run; the others go on (D81)
                 group_errors[name] = "load failed: " + traceback.format_exc(limit=5)
@@ -118,26 +121,30 @@ def _run(names: list[str], reference_loaders: dict, loader_overrides: dict | Non
             raise first
         for key, load in reference_loaders.items():
             try:
-                load(run_id)
+                with step(f"reference {key[0]}/{key[1]} load"):
+                    load(run_id)
             except Exception:
                 # reference only: the run goes on, the manifest keeps the error and
                 # C18 turns health red until Tiingo is back (D37)
                 reference_errors[key] = traceback.format_exc(limit=5)
-        staging = stage(run_id)
+        staging = stage(run_id)   # one step line per group, in stage.py
         for name, why in staging.failed.items():
             group_errors.setdefault(name, "stage failed: " + why)
-        publication = publish(run_id, group_errors)
+        with step("checks and publish"):
+            publication = publish(run_id, group_errors)
         if publication.version is not None:
             # at once, before the manifest: anything that kills the process after
             # this point no longer leaves DBeaver and the explore pages reading the
             # previous version (D146). A locked catalog fails the run loudly.
-            catalog.rebuild()
+            with step("catalog rebuild"):
+                catalog.rebuild()
     except Exception:
         error = traceback.format_exc(limit=5)
         raise
     finally:
-        write_manifest(run_id, started_at, publication, error, reference_errors, code, group_errors, names)
-        status = health.evaluate()   # rewrites health/latest.md after every run, crashed ones too
+        with step("manifest and health"):
+            write_manifest(run_id, started_at, publication, error, reference_errors, code, group_errors, names)
+            status = health.evaluate()   # rewrites health/latest.md after every run, crashed ones too
         notify.send_status(run_id, status)   # never raises (#96)
     return run_id, publication
 
