@@ -10,7 +10,7 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - Pace: one small step at a time, built with James on screen. Each change is a line in Decisions here, in the same step. No batches of edits, no extra sections unasked.
 - Page rules: data before process; lists and tables, not paragraphs; one font and size (16px body, 13px headers, no monospace); no pills, a state is bold colored text; stamps top right in bold green; open questions first on a sheet.
 - Cadence: heavy things run only when needed. SEC is on demand (D159, uv run pharos sec). Full test suite only on schedule or when James says "run the full test suite".
-- Next: make the SEC group trusted (Company Facts with its filing index, submissions and tickers): start with the Company Facts open questions. Proposed 2026-11-11, not yet confirmed by James. Also open: drop the insiders trial? Explore's Appendix still links the archived folder map. Queued: FRED section 5 one-year-later column (asked, not answered). Then: the sheets' open questions, or back to M3 step 4 / #117.
+- Next: SEC group trusted (James confirmed 2026-11-11). Open decision: the lighter trusted bar in docs/plan.md Next action (loader guards + three SEC gate checks + one red-pen pass on drafted answers to the 12 questions; no required fault-injection tests). Then the Company Facts Catalog line (proposal in plan.md). Also open: drop the insiders trial? Explore's Appendix still links the archived folder map. Queued: FRED section 5 one-year-later column (asked, not answered). Then: the other sheets' open questions, or back to M3 step 4 / #117.
 
 ## Decisions
 
@@ -51,6 +51,7 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - 2026-11-11: Session protocol step 3 (update scratch/folder-map.html after each commit) removed from CLAUDE.md: skipped on 5 of the last 7 commits, and docs/plan.md's status block covers it. Page archived to scratch/archive/folder-map-2026-11-11.html.
 - 2026-11-11: Data Sources list: As of shows the date and time only; the words (loaded, fetched, downloaded, oldest of 5 pages, page build) are gone. The rule behind each date is unchanged: stored = newest raw file's run; quick lane = oldest page build; trial = newest download.
 - 2026-11-11: Everything on demand (D160): the scheduled nightly is disabled; Catalog cadence for Yahoo, Tiingo and FRED reads "on demand (pharos refresh)".
+- 2026-11-11: SEC group goes to trusted (James). He finds the trusted bar too heavy: no fault-injection test needed; counts, checks and a complete run are enough. Bar itself not yet decided.
 
 ## Findings
 
