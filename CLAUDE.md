@@ -9,7 +9,7 @@ Pharos (named for the lighthouse of Alexandria) is a local-first data platform: 
 - `docs/decisions.md`: the decision log (D-numbers). Not read by default; open it when a change touches a past decision.
 
 ## How to resume
-Run Session protocol step 1 (health) and read the status block in `docs/plan.md`. Then give one screen, in this order: the last commit (hash, time ET, message); health only if something needs fixing (a gate check failing, or red not from age alone, step 1), else nothing (D168); state (direction, open issues, next action, anything stale). No last-session recap: git log has that.
+Run Session protocol step 1 (health) and read the status block in `docs/plan.md`. Then give one screen, in this order: the last commit (hash, time ET, message); state (direction, open issues, next action, anything stale); last line "What do you want to pick up?". Health appears only when something needs fixing (a gate check failing, or red not from age alone, step 1); otherwise it is not mentioned at all, not even as "nothing to fix" (D168). No last-session recap: git log has that.
 
 ## Session protocol
 1. Start: run `uv run pharos health`. Red from age alone (C01 last publish over 26h, C17 a series 2+ periods behind) means no refresh has run (D160) and does not block; the dashboard status bar shows when data was last published. Any other red: fix the data first. Never build features on it.
