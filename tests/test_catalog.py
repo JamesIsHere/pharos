@@ -62,19 +62,19 @@ def test_sec_views_appear_where_its_files_are(monkeypatch, tmp_path):
     from pharos.runs import write_raw
     monkeypatch.setenv("PHAROS_TEST_MODE", "1")
     monkeypatch.setenv("PHAROS_DATA_ROOT", str(tmp_path))
-    assert not any(n.startswith(("raw_sec", "serving_tickers")) for n in catalog.views())
-    write_raw(pd.DataFrame([{"cik": 1, "name": "A", "ticker": "AAA", "exchange": "NYSE"}]),
-              "sec", "tickers", "20261105T073000Z")
+    assert not any(n.startswith(("raw_sec", "serving_submission_details")) for n in catalog.views())
+    write_raw(pd.DataFrame([{"cik": 1, "name": "A"}]),
+              "sec", "submission_details", "20261105T073000Z")
     version = tmp_path / "serving" / "20261105T073000Z"
     version.mkdir(parents=True)
     import duckdb
-    duckdb.execute(f"COPY (SELECT 1 AS cik) TO '{(version / 'tickers.parquet').as_posix()}' (FORMAT parquet)")
+    duckdb.execute(f"COPY (SELECT 1 AS cik) TO '{(version / 'submission_details.parquet').as_posix()}' (FORMAT parquet)")
     duckdb.execute(f"COPY (SELECT 1 AS cik, 'Assets' AS concept) "
                    f"TO '{(version / 'company_facts.parquet').as_posix()}' "
                    "(FORMAT parquet, PARTITION_BY (cik), WRITE_PARTITION_COLUMNS true)")
     (tmp_path / "serving" / "CURRENT").write_text(version.name, encoding="utf-8")
     names = catalog.views()
-    assert "raw_sec_tickers" in names and "serving_tickers" in names
+    assert "raw_sec_submission_details" in names and "serving_submission_details" in names
     assert "serving_company_facts" in names
     assert duckdb.sql(names["serving_company_facts"]).fetchall() == [(1, "Assets")]
     assert "serving_filings" not in names                     # no file, no view

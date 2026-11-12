@@ -4,7 +4,7 @@ Tiingo prices,trusted,Second price source that checks Yahoo's closes; never serv
 FRED / ALFRED,trusted,"Macro series with every vintage (GDP, CPI, population, labor)",fred/observations fred/series,observations:fred,C02 C17,on demand (pharos refresh),,fred.html,
 SEC filing index,landed,"Every EDGAR filing: company, form, date",sec/full_index,filings,C25,on demand (pharos sec),,company-facts.html,
 SEC submissions,landed,"Company details (SIC, tickers, fiscal year end) and each company's filing list",sec/submission_details sec/submission_filings,submission_details submission_filings,C31,on demand (pharos sec),,company-facts.html,
-SEC tickers,landed,Ticker to company (CIK) map,sec/tickers,tickers,C34,on demand (pharos sec),,company-facts.html,
+SEC tickers,retired,Ticker to company (CIK) map; SEC submissions carries the same tickers (D165),,,,,,,
 SEC Company Facts,landed,Every XBRL financial fact every company reported,sec/companyfacts sec/companyfacts_concepts sec/companyfacts_changes,company_facts company_concepts,C40,on demand (pharos sec),,company-facts.html,
 IMF World Economic Outlook,quick lane,"GDP (US$) and unemployment rate for every country, 1980 on, with IMF forecasts",,,,on page build,Scaffold page: World Economic Outlook (scaffold/weo.py),weo.html,scaffold/weo.html
 FRED (page builds),retired,Series an Appendix page fetched when it built; never stored,,,,,"Appendix pages: World, People and Work, Where GDP Goes, Data Tests",,

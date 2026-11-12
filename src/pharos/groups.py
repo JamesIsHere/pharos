@@ -48,16 +48,16 @@ PRICES_MACRO = Group(
 )
 
 # SEC data at the landed level (D127, D128). Company Facts is incrementally
-# refreshed from CIKs changed in submissions; all six tables are one atomic
+# refreshed from CIKs changed in submissions; all five tables are one atomic
 # load/stage/check/publish unit. On demand (D159): `pharos sec` runs it; the
 # nightly refresh runs prices_macro only.
 SEC = Group(
     name="sec",
     required=(("sec", "full_index"), ("sec", "submission_details"), ("sec", "submission_filings"),
-              ("sec", "tickers"), ("sec", "companyfacts"), ("sec", "companyfacts_concepts"),
+              ("sec", "companyfacts"), ("sec", "companyfacts_concepts"),
               ("sec", "companyfacts_changes")),
     reference=(),
-    tables=("filings", "submission_filings", "submission_details", "tickers",
+    tables=("filings", "submission_filings", "submission_details",
             "company_facts", "company_concepts"),
     inputs=(),
     on_demand=True,

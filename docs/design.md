@@ -109,7 +109,7 @@ Entity tables beside the series model. Each row carries the four columns every o
 | SEC Financial Statement Data Sets | M3 | dimensional facts (multi-class shares), `pre` table | companyfacts drops dimensional facts | Yes (as above) |
 | SEC EDGAR full-index (`master.gz` per quarter) | M2 | every filing: CIK, name, form, date filed: `filings` | Annual reports, events and gap years (D54, D65); current and previous quarter re-landed each run. Served one folder per quarter: only re-landed quarters are rebuilt, the rest hard-linked (D155). Landed level; freshness C25 | Yes (as above) |
 | SEC submissions.zip | M2 | company details (name, SIC, state, tickers, exchanges) and filing history: `submission_details`, `submission_filings` | Nightly bulk; details snapshot every run, history past the watermark (D58). `submission_filings` served one folder per filing-date quarter, with a `quarter` column; only touched quarters rebuilt (D156). Landed level; freshness C31 | Yes (as above) |
-| SEC company_tickers_exchange.json | M2 | current ticker to CIK and exchange: `tickers` | Current only: dead or renamed tickers need manual mapping. Landed level; freshness C34 | Yes (as above) |
+| SEC company_tickers_exchange.json | retired 2026-11-12 (D165) | was `tickers`, current ticker to CIK and exchange | Not loaded; `submission_details` carries each company's tickers and exchanges. Code and check C34 in archive/tickers-2026-11-12/ | Yes (as above) |
 | BEA NIPA | M6 | GDP expenditure detail | The GDP tracker, folded in | Yes, with BEA's notice: its API terms allow building a service to 'display' its data |
 
 ## 6. Refresh pipeline rules
@@ -152,7 +152,6 @@ Completeness requires a declared expectation. `config/watchlist.csv` plus each s
 | C43 | completeness | error | yes | a quarter missing from `filings` between 1993Q1 and the latest quarter it holds (`group: sec`, D163 step 1); recency is C25's |
 | C44 | uniqueness | error | yes | `(cik, accession, form, name)` repeated in `filings`: D61's key, kept 2026-11-12 (`group: sec`, D163 step 1) |
 | C31 | freshness | warn | no | latest submissions.zip Last-Modified older than 36 hours at the clock (`group: sec`, D60) |
-| C34 | freshness | warn | no | latest ticker file Last-Modified older than 14 days at the clock; provisional (`group: sec`, D60) |
 | C40 | freshness | warn | no | latest Company Facts landing older than 36 hours at the clock (`group: sec`, D139) |
 | C41 | completeness | error | no | configured FRED series the run's loader left out (fetch failed or response drifted), named with its error from the observations load record's note; its earlier vintages are still served (D144) |
 | C42 | cutoff | error | no | a run newer than the newest recorded run loaded data but wrote no manifest, once it can't still be running: a newer run has loaded, or it started more than 5 hours ago (the nightly task's limit). A hard stop (native crash, kill, power loss) skips refresh's finally block; such a run may have published (`group: run`, D145) |

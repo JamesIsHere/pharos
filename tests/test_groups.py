@@ -276,22 +276,20 @@ def test_sec_loader_refreshes_companyfacts_after_submissions(monkeypatch):
     calls = []
     monkeypatch.setattr(refresh_mod.sec_index, "load_index", lambda run: calls.append("index"))
     monkeypatch.setattr(refresh_mod.sec_submissions, "load_submissions", lambda run: calls.append("submissions"))
-    monkeypatch.setattr(refresh_mod.sec_tickers, "load_tickers", lambda run: calls.append("tickers"))
     monkeypatch.setattr(refresh_mod.sec_companyfacts, "load_incremental_companyfacts",
                         lambda run: calls.append("companyfacts_incremental"))
     refresh_mod._load_sec("20261106T073000Z")
-    assert calls == ["index", "submissions", "tickers", "companyfacts_incremental"]
+    assert calls == ["index", "submissions", "companyfacts_incremental"]
 
 
 def test_forced_companyfacts_loader_refreshes_the_whole_sec_unit(monkeypatch):
     calls = []
     monkeypatch.setattr(refresh_mod.sec_index, "load_index", lambda run: calls.append("index"))
     monkeypatch.setattr(refresh_mod.sec_submissions, "load_submissions", lambda run: calls.append("submissions"))
-    monkeypatch.setattr(refresh_mod.sec_tickers, "load_tickers", lambda run: calls.append("tickers"))
     monkeypatch.setattr(refresh_mod.sec_companyfacts, "load_companyfacts",
                         lambda run: calls.append("companyfacts_full"))
     refresh_mod._load_sec_full_companyfacts("20261106T073000Z")
-    assert calls == ["index", "submissions", "tickers", "companyfacts_full"]
+    assert calls == ["index", "submissions", "companyfacts_full"]
 
 
 def test_sec_is_not_registered_before_it_is_wired():

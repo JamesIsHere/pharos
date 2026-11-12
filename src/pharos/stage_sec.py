@@ -176,14 +176,7 @@ DETAILS = Dataset(
     asserts=(("cik IS NULL", "company-detail rows with no CIK"),),
 )
 
-TICKERS = Dataset(
-    raw="tickers", sql="sec_tickers", table="tickers",
-    key=("ticker",),                                     # measured unique, 10,409 rows (2026-11-05)
-    lineage=("run_id", "loaded_at") + RUN_DATES,
-    asserts=(("ticker IS NULL OR ticker = ''", "ticker rows with no ticker"),),
-)
-
-FILING_DATASETS = (INDEX, SUBMISSIONS, DETAILS, TICKERS)
+FILING_DATASETS = (INDEX, SUBMISSIONS, DETAILS)   # tickers retired (D165)
 
 # Company Facts (D57, D128, D139): a full baseline followed by per-CIK full
 # documents for companies changed in submissions. The merge replaces touched
@@ -649,7 +642,7 @@ def stage_group(included: list[str], target: Path, base: Base | None = None) -> 
     sec_base = current_base("sec")
     # Migration from versions published before Company Facts joined the SEC
     # group: its tables have a different source run recorded under the legacy
-    # group name. After the first unified publish, sec_base owns all six.
+    # group name. After the first unified publish, sec_base owns all five.
     facts_base = current_base("companyfacts") or sec_base
     merged = _stage(FILING_DATASETS,
                     sorted(set(included) | ({sec_base.run} if sec_base else set())),

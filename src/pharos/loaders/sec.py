@@ -7,7 +7,7 @@ Rules applied here (CLAUDE.md Sources, M2 step 1):
 - One retry on HTTP 503 (SEC's throttle answer), after RETRY_WAIT seconds.
   Every other HTTP or network error fails the load loudly.
 - Each response carries its HTTP Last-Modified, for the freshness checks
-  (C25, C31, C34; D60, D91).
+  (C25, C31; D60, D91).
 
 Small files come back as bytes; a large one (submissions.zip, about 1.5 GB) is
 streamed to a path the caller names with `to=`, never held in memory.

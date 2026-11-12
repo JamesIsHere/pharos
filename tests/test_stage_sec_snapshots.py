@@ -8,7 +8,7 @@ import pytest
 
 from pharos.runs import write_raw
 from pharos.stage import StageError
-from pharos.stage_sec import DETAILS, TICKERS, Base, connect, stage_table
+from pharos.stage_sec import DETAILS, Base, connect, stage_table
 
 R1, R2, R3 = "20261105T073000Z", "20261106T073000Z", "20261107T073000Z"
 STAMP = datetime(2026, 11, 5, 6, 0, tzinfo=timezone.utc)
@@ -19,10 +19,6 @@ def root(monkeypatch, tmp_path):
     monkeypatch.setenv("PHAROS_TEST_MODE", "1")
     monkeypatch.setenv("PHAROS_DATA_ROOT", str(tmp_path))
     return tmp_path
-
-
-def ticker(t="AAA", cik=1, name="A CORP", exchange="NYSE"):
-    return {"cik": cik, "name": name, "ticker": t, "exchange": exchange}
 
 
 def detail(cik=1, name="A CORP", sic="1000", tickers=("AAA",), source=None):
@@ -44,39 +40,32 @@ def rows(con, table, cols):
     return con.execute(f"SELECT {cols} FROM {table} ORDER BY ALL").fetchall()
 
 
-def test_ticker_dates_are_the_run_date(root):
-    land("tickers", R1, [ticker()])
-    con, _ = staged(TICKERS, [R1])
-    assert rows(con, "tickers", "ticker, obs_date, available_date, vintage, run_id") == [
-        ("AAA", date(2026, 11, 5), date(2026, 11, 5), date(2026, 11, 5), R1)]
+def test_detail_dates_are_the_run_date(root):
+    land("submission_details", R1, [detail()])
+    con, _ = staged(DETAILS, [R1])
+    assert rows(con, "submission_details", "cik, obs_date, available_date, vintage, run_id") == [
+        (1, date(2026, 11, 5), date(2026, 11, 5), date(2026, 11, 5), R1)]
 
 
-def test_unchanged_ticker_keeps_its_first_run_and_dates(root):
-    land("tickers", R1, [ticker()])
-    land("tickers", R2, [ticker()])
-    con, _ = staged(TICKERS, [R1, R2])
-    assert rows(con, "tickers", "obs_date, run_id") == [(date(2026, 11, 5), R1)]
+def test_unchanged_detail_keeps_its_first_run_and_dates(root):
+    land("submission_details", R1, [detail()])
+    land("submission_details", R2, [detail()])
+    con, _ = staged(DETAILS, [R1, R2])
+    assert rows(con, "submission_details", "obs_date, run_id") == [(date(2026, 11, 5), R1)]
 
 
-def test_ticker_moving_to_another_cik_takes_the_newest(root):
-    land("tickers", R1, [ticker(cik=1)])
-    land("tickers", R2, [ticker(cik=2)])
-    con, _ = staged(TICKERS, [R1, R2])
-    assert rows(con, "tickers", "cik, obs_date, run_id") == [(2, date(2026, 11, 6), R2)]
-
-
-def test_ticker_dropped_from_the_file_is_kept(root):
+def test_detail_dropped_from_a_later_landing_is_kept(root):
     # newest value per key: a key missing from later landings stays (D84, D132)
-    land("tickers", R1, [ticker("AAA"), ticker("BBB", cik=2)])
-    land("tickers", R2, [ticker("AAA")])
-    con, _ = staged(TICKERS, [R1, R2])
-    assert rows(con, "tickers", "ticker, run_id") == [("AAA", R1), ("BBB", R1)]
+    land("submission_details", R1, [detail(), detail(cik=2)])
+    land("submission_details", R2, [detail()])
+    con, _ = staged(DETAILS, [R1, R2])
+    assert rows(con, "submission_details", "cik, run_id") == [(1, R1), (2, R1)]
 
 
-def test_ticker_twice_in_one_landing_stops(root):
-    land("tickers", R1, [ticker(cik=1), ticker(cik=2)])
+def test_detail_twice_in_one_landing_stops(root):
+    land("submission_details", R1, [detail(sic="1000"), detail(sic="2000", source="other.json")])
     with pytest.raises(StageError, match="different values inside one landing"):
-        staged(TICKERS, [R1])
+        staged(DETAILS, [R1])
 
 
 def test_detail_change_in_a_list_is_a_change(root):
@@ -114,7 +103,6 @@ def land_all(run_id):
         "film_number": "", "items": "", "core_type": "10-K", "size": 1, "is_xbrl": 1, "is_inline_xbrl": 1,
         "is_xbrl_numeric": 1, "primary_document": "a.htm", "primary_doc_description": "", "source_file": "CIK0000000001.json"}])
     land("submission_details", run_id, [detail()])
-    land("tickers", run_id, [ticker()])
     land("companyfacts", run_id, [{
         "cik": 1, "taxonomy": "us-gaap", "concept": "Assets", "unit": "USD", "start": None,
         "end": "2026-09-30", "val": "100", "accn": "0000000001-26-000001", "fy": 2026,
@@ -208,7 +196,7 @@ def test_first_unified_run_uses_the_legacy_companyfacts_base(root):
     second = root / "staging" / R2
     second.mkdir(parents=True)
     merged = stage_group([R2], second)
-    assert {merged[t].base_run for t in ("filings", "submission_filings", "submission_details", "tickers")} \
+    assert {merged[t].base_run for t in ("filings", "submission_filings", "submission_details")} \
         == {R1}
     assert {merged[t].base_run for t in ("company_facts", "company_concepts")} == {"20261104T090000Z"}
     assert all(m.runs_read == (R2,) for m in merged.values())
@@ -224,6 +212,6 @@ def test_sec_check_binder_exposes_its_tables_and_loads(root):
     stage_group([R1], target)
     con = duckdb.connect()
     BINDERS["sec"](con, R1)
-    assert con.execute("SELECT count(*) FROM tickers").fetchone() == (1,)
-    assert con.execute("SELECT count(DISTINCT dataset) FROM loads").fetchone() == (7,)
+    assert con.execute("SELECT count(*) FROM submission_details").fetchone() == (1,)
+    assert con.execute("SELECT count(DISTINCT dataset) FROM loads").fetchone() == (6,)
     assert con.execute("SELECT run_id FROM this_run").fetchone() == (R1,)

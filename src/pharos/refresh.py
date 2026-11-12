@@ -42,7 +42,7 @@ import duckdb
 from pharos import catalog, health, notify
 from pharos.progress import say, step
 from pharos.groups import FAILED, GROUPS, NOT_RUN, PRICES_MACRO, nightly
-from pharos.loaders import fred, sec_companyfacts, sec_index, sec_submissions, sec_tickers, tiingo, yahoo
+from pharos.loaders import fred, sec_companyfacts, sec_index, sec_submissions, tiingo, yahoo
 from pharos.paths import data_root
 from pharos.publish import Publication, publish
 from pharos.runs import new_run_id, provenance
@@ -59,7 +59,6 @@ def _load_prices_macro(run_id: str) -> None:
 def _load_sec(run_id: str) -> None:
     sec_index.load_index(run_id)
     sec_submissions.load_submissions(run_id)
-    sec_tickers.load_tickers(run_id)
     sec_companyfacts.load_incremental_companyfacts(run_id)
 
 
@@ -67,7 +66,6 @@ def _load_sec_full_companyfacts(run_id: str) -> None:
     """Refresh the SEC group while forcing a new full Company Facts baseline."""
     sec_index.load_index(run_id)
     sec_submissions.load_submissions(run_id)
-    sec_tickers.load_tickers(run_id)
     sec_companyfacts.load_companyfacts(run_id)
 
 

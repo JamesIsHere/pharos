@@ -218,10 +218,6 @@ NOTES = {
         ("if n_details != mains", "Count control: one details row per company file in the zip."),
         ("write_raw(details", "Save the two raw files: raw/sec/submission_details and raw/sec/submission_filings."),
     ]),
-    "sec_tickers.load_tickers": ("Tickers", "SEC's list of ticker, company and exchange.", [
-        ("got = sec.fetch(URL)", "Download company_tickers_exchange.json."),
-        ("write_raw(frame", "Save it whole, with the row count SEC sent as the control total."),
-    ]),
     "sec_companyfacts.load_incremental_companyfacts": ("Company Facts", "Every XBRL number a company reported; "
                                                                         "only companies that filed since the last run.", [
         ("if not has_baseline()", "First run on a new data root: download the whole companyfacts.zip instead."),
@@ -230,14 +226,14 @@ NOTES = {
         ("if e.status != 404", "A company with no XBRL data answers 404. That is normal; any other error stops the load."),
         ("result = _land(", "Save three raw files: the facts, the concept list, and which companies changed, with a note of how many."),
     ]),
-    "stage_sec.stage_group": ("Stage the six tables", "The SEC group's stager: one table at a time.", [
+    "stage_sec.stage_group": ("Stage the five tables", "The SEC group's stager: one table at a time.", [
         ("One connection per dataset", "One table at a time, each with its own DuckDB connection, so memory never "
                                        "holds two of the 27-million-row tables at once."),
         ("sec_base = current_base(", "The base: the tables served now. New landings merge into them."),
         ("facts_base = current_base(", "Company Facts was once its own group. If the served version still records it "
                                        "that way, its tables come from that run; this ends after the first combined publish."),
-        ("merged = _stage(FILING_DATASETS", "First the four filing tables: filings, submission filings, submission "
-                                            "details, tickers."),
+        ("merged = _stage(FILING_DATASETS", "First the three filing tables: filings, submission filings, submission "
+                                            "details."),
         ("merged.update(_stage(FACT_DATASETS", "Then the two Company Facts tables."),
     ]),
     "stage_sec._merge": ("The merge rule: newest value per key", "Every SEC table is built by this rule (D132).", [
