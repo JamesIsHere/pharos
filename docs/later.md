@@ -160,6 +160,21 @@ Financials of any kind (M3); foreign filers in the analysed set (US GAAP only fo
 
 ---
 
+## Trusted work (parked, D164)
+<!-- Parked 2026-11-12: nothing depends on these sources being trusted since M3 was dropped (D161). Returns to docs/plan.md when an analysis needs a source trusted (D127). Step 1 (filing index) is done: C43, C44. Step 2 measured 2026-11-12: 2 of 991,291 index CIKs have no submission_details row, both Form D-only (2025). Caution: the archived Trusted page's U1 called the 114 (cik, accession, form) repeats exact; they differ in name (D61). Re-measure before relying on it. -->
+<!-- The SEC group and IMF WEO to trusted. Evidence: archive/countries-2026-11-12/trusted.html (the U1, C4 ... IDs below), measured 2026-11-12 on served version 20261111T134544Z. Rebuild it to re-measure. A step's row is deleted when done, and the commit cites it. -->
+
+| Step | Source        | Build                                                                                                                                                                                           | James decides                                                                                               | Evidence       |
+|------|---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|----------------|
+| 2    | submissions   | Gate checks: cik unique; (cik, accession, form) unique; every SEC country code has a row in config/sec_country_codes.csv                                                                        | Whether Form D-only filers belong in the expected set                                                       | U2, C2, K1     |
+| 3    | tickers       | Gate checks: ticker unique; every ticker's company in submissions                                                                                                                               | Whether 44 listed companies without a ticker row and 71 disagreements pass, and the threshold               | C3, R2         |
+| 4    | Company Facts | The count control measures facts (it records 0 = 0); find why 16 XBRL 10-Ks filed in 2024 have no facts; an independent sample for reconciliation; gate checks: fact key unique, 2024 coverage  | The reconciliation source (proposed: SEC Financial Statement Data Sets); drop, flag or keep the junk values | N1, C4, R3, J1 |
+| 5    | IMF WEO       | Land it: loader with one raw file per edition, schema check, freshness check, design.md row, sources.yaml line; then gates: (country, series, year, edition) unique, expected countries present | The expected set of countries                                                                               | C5, R4         |
+| 6    | all           | One complete run with steps 1-5's gates in place                                                                                                                                                | -                                                                                                           | W1             |
+| 7    | all           | Each source's definitions on its Scaffold sheet                                                                                                                                                 | Sign-off (the list at the bottom of the Trusted page)                                                       | -              |
+
+Promotion still needs an analysis that depends on the source (D127), recorded by a decisions row; the SEC group's was James's choice of 2026-11-11.
+
 ## Parked issues (wait for a later milestone)
 <!-- Rows moved here unchanged from Open issues on 2026-11-05 under the narrowed rule: they belong to U, H or M3/M4, whose text cites them by ID (M1.5 was dropped by D137; #41 waits on exploration moving into the app). A row returns to Open issues when its milestone becomes current. -->
 

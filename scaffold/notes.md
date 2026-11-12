@@ -10,7 +10,7 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - Pace: one small step at a time, built with James on screen. Each change is a line in Decisions here, in the same step. No batches of edits, no extra sections unasked.
 - Page rules: data before process; lists and tables, not paragraphs; one font and size (16px body, 13px headers, no monospace); no pills, a state is bold colored text; stamps top right in bold green; open questions first on a sheet.
 - Cadence: heavy things run only when needed. SEC is on demand (D159, uv run pharos sec). Full test suite only on schedule or when James says "run the full test suite".
-- Next: Pipeline page built (scaffold/pipeline.py), structure only; James's red pen next. M3 is dropped (D161). Still open: the lighter trusted bar for the SEC group (James chose trusted 2026-11-11); drop the insiders trial?; FRED section 5 one-year-later column (asked, not answered).
+- Next: Pipeline page built (scaffold/pipeline.py), structure only; James's red pen next. M3 is dropped (D161). The trusted work is parked (D164). Still open: drop the insiders trial?; FRED section 5 one-year-later column (asked, not answered).
 
 ## Decisions
 
@@ -64,6 +64,7 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - 2026-11-12: Country table (D162): config/countries.csv (261 rows, 9 former) and config/sec_country_codes.csv (323 EDGAR codes), written by scripts/build_countries.py. The WEO page now takes its countries, codes and names from it; IMF groups are every code not in the table, and anything else stops the build.
 - 2026-11-12: The lighter trusted bar is written (D163): counts tie, completeness gate, uniqueness gate, one reconciliation, James's sign-off on definitions, one complete run; no fault-injection tests. Measured against the SEC sources and IMF WEO on a temporary Trusted page (scratch).
 - 2026-11-12: The session's temporary Data, Charts and Trusted pages are archived at archive/countries-2026-11-12/ (scripts tracked; pages and the downloaded inputs gitignored), listed on the Archive page. The trusted work is a plan in docs/plan.md (Trusted work, steps 1-7).
+- 2026-11-12: Trusted step 1 done (filing index gates C43, C44, D61's key kept); steps 2-7 parked in docs/later.md (D164): nothing depends on the SEC group being trusted since M3 was dropped.
 
 ## Findings
 
