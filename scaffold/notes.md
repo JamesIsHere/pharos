@@ -10,7 +10,7 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - Pace: one small step at a time, built with James on screen. Each change is a line in Decisions here, in the same step. No batches of edits, no extra sections unasked.
 - Page rules: data before process; lists and tables, not paragraphs; one font and size (16px body, 13px headers, no monospace); no pills, a state is bold colored text; stamps top right in bold green; open questions first on a sheet.
 - Cadence: heavy things run only when needed. SEC is on demand (D159, uv run pharos sec). Full test suite only on schedule or when James says "run the full test suite".
-- Next: Pipeline page built (scaffold/pipeline.py), structure only; James's red pen next. M3 is dropped (D161). The trusted work is parked (D164). Still open: drop the insiders trial?; FRED section 5 one-year-later column (asked, not answered).
+- Next: James wants more data (new sources). Pipeline panels so far: SEC Load, Stage, gate checks; Publish / Keep next. Shared link: scaffold/share.py, then republish (see docs/plan.md). The trusted work is parked (D164). Still open: drop the insiders trial?; FRED section 5 one-year-later column (asked, not answered).
 
 ## Decisions
 
@@ -66,6 +66,7 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - 2026-11-12: The session's temporary Data, Charts and Trusted pages are archived at archive/countries-2026-11-12/ (scripts tracked; pages and the downloaded inputs gitignored), listed on the Archive page. The trusted work is a plan in docs/plan.md (Trusted work, steps 1-7).
 - 2026-11-12: Trusted step 1 done (filing index gates C43, C44, D61's key kept); steps 2-7 parked in docs/later.md (D164): nothing depends on the SEC group being trusted since M3 was dropped.
 - 2026-11-12: Pipeline drill-in: clicking a summary box opens a side panel (Esc closes, the page stays put; pipeline.html#<box> opens one directly). Per function: one plain sentence, function / reads / writes / file table, numbered notes, the real code read from src/ at build time with each note's number on its line. A note is pinned by text on its line, never a line number: the build stops if that text is gone. James: "This is good. Do this." First box: SEC Load. The rest one box at a time, in run order.
+- 2026-11-12: SEC Stage and gate-checks panels added (stage_group and _merge; _evaluate, _verdict, C43, C44). Scaffold shared as a private claude.ai link, Archive included, via scaffold/share.py: file links and this machine's paths removed, dead links made text, scripts verified unchanged.
 
 ## Findings
 
