@@ -2,7 +2,7 @@
 
 - Catalog line says "every XBRL financial fact": overstated (also cover-page, fee and pay tables). Reword?
 - 2026: 424B2 (38,656), DEF 14A (2,014), S-8 (1,194) appear; 6-K falls from 666 to 124. Why?
-- Dates: 92 facts end after 2100; 6,754 end over a year after filing; start dates as early as 0202. Exclude, flag, or leave?
+- Dates: 92 facts end after 2100; 6,754 end over a year after filing; start dates as early as 0202. Leave (James, 2026-11-12): filer typos, faithful to SEC; the Catalog range stays raw (1927 to 6016).
 - Fiscal year (fy) up to 29,953,000. Junk field: ignore fy?
 - 38 facts with negative total assets; val ranges from -305,780,046,000,000 to 1e+22.
 - 6 filings not in the filing index.
