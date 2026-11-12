@@ -33,10 +33,21 @@ fred:
     - CLF16OV    # civilian labor force, monthly, SA
     - CE16OV     # employed, household survey, monthly, SA
     - COE        # compensation of employees paid, quarterly, SAAR
+    # Manufacturing, Census M3 (D169): total manufacturing new orders, shipments,
+    # inventories, unfilled orders; durable goods orders and core capital goods
+    # orders (nondefense ex aircraft), which come from the earlier advance report.
+    - AMTMNO     # new orders, total manufacturing, monthly, SA
+    - AMTMVS     # value of shipments, total manufacturing, monthly, SA
+    - AMTMTI     # total inventories, total manufacturing, monthly, SA
+    - AMTMUO     # unfilled orders, total manufacturing, monthly, SA
+    - DGORDER    # new orders, durable goods, monthly, SA
+    - NEWORDER   # new orders, nondefense capital goods ex aircraft, monthly, SA
   # Days after a period ends by which its first release is expected (checks C02,
   # C17; D33). Measured first-release lags 2023-2026: CPIAUCSL median 12 days,
   # GDP and GDPC1 median 30; a few days of slack on top. Added series (D141),
   # measured the same way: POPTHM median 29, CNP16OV/CLF16OV/CE16OV 5, COE 30.
+  # M3 (D169), 46 releases 2023-2026: the four totals median 34, DGORDER and
+  # NEWORDER 26.
   # Every series above must have one, or staging stops.
   expected_lag_days:
     GDP: 35
@@ -47,6 +58,12 @@ fred:
     CLF16OV: 12
     CE16OV: 12
     COE: 35
+    AMTMNO: 38
+    AMTMVS: 38
+    AMTMTI: 38
+    AMTMUO: 38
+    DGORDER: 30
+    NEWORDER: 30
 
 sec:
   # submissions.zip filing history: after the first run, each run lands only
