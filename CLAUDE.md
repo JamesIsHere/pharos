@@ -9,7 +9,7 @@ Pharos (named for the lighthouse of Alexandria) is a local-first data platform: 
 - `docs/decisions.md`: the decision log (D-numbers). Not read by default; open it when a change touches a past decision.
 
 ## Session protocol
-1. Start: run `uv run pharos health`. If anything is red, fix the data first. Never build features on red.
+1. Start: run `uv run pharos health`. Red from age alone (C01 last publish over 26h, C17 a series 2+ periods behind) means no refresh has run (D160) and does not block; the dashboard status bar shows when data was last published. Any other red: fix the data first. Never build features on it.
 2. During: if a design decision changes, add a row to `docs/decisions.md` in the same commit: only for a choice between real alternatives, never to describe what was built (D129). A concern not fixed in the turn it comes up gets a row in "Open issues" in `docs/plan.md` only if it blocks current work or could lose or corrupt data; anything else is one line in the reply or the commit message. Fixing a row deletes it and the commit cites its ID.
 3. Two lanes (James, 2026-11-07; picture: `scaffold/pipeline.html`). During a session, anything new goes in the quick lane: a page fetches it at build time or queries served data, in seconds. Data worth storing is promoted by one line in `config/sources.yaml`, committed; the next refresh lands it with vintages and checks. Every refresh is on demand (D160): the scheduled nightly is disabled; `pharos refresh` runs prices and FRED, `pharos sec` runs SEC (D159). Never run either mid-session unless James asks.
 4. End: update the status block at the top of `docs/plan.md`, then commit. The commit message says what changed and why.
