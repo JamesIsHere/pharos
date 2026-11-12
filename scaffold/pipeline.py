@@ -8,7 +8,10 @@ loader writes, or a run step that is no longer in the code stops the build (fail
 Run: uv run python scaffold/pipeline.py"""
 import ast
 import inspect
+import io
 import re
+import textwrap
+import tokenize
 from pathlib import Path
 
 from common import MERMAID, esc, now_et, page
@@ -101,6 +104,8 @@ need(len(CHECKS) == sum(len(v["gates"]) + len(v["monitors"]) for v in GROUP.valu
 
 # ---- diagrams ------------------------------------------------------------------------------------------------------
 
+DRILL = ("sec",)   # groups whose Load box opens a drill-in panel (mock-up: SEC only)
+
 STYLE = """
     classDef cmd fill:#F6EFFF,stroke:#000,stroke-width:2px,color:#000
     classDef work fill:#F3F7FF,stroke:#000,stroke-width:2px,color:#000
@@ -126,6 +131,8 @@ def overview():
         L.append(f'    subgraph g_{gname}["{gname}"]')
         L.append("        direction TB")
         L.append(f'        {gname}_load["Load: {srcs}<br/>save {n_raw} raw files, write-once"]:::work')
+        if gname in DRILL:
+            L.append(f'        click {gname}_load call openDrawer("{gname}_load")')
         L.append(f'        {gname}_stage["Stage<br/>clean and combine into<br/>{len(v["g"].tables)} tables"]:::work')
         n = len(v["gates"])
         gate = f"{n} gate checks:<br/>does one with<br/>severity error fail?" if n else "No gate checks:<br/>nothing can<br/>block a publish"
@@ -186,6 +193,124 @@ def runs_by(gname):
     return ", ".join(f"pharos {c}" for c, gs in CMD.items() if gname in gs)
 
 
+# ---- drill-in panels (mock-up, 2026-11-12: the SEC Load box only) ------------------------------------------------
+# A box on the summary opens a side panel: each function's real code, pulled from src/ at build time, with numbered
+# notes pinned to lines. A note is pinned by a piece of text on its line, not a line number: when the code changes and
+# that text is gone, the build stops, so a note can never sit beside the wrong line.
+
+NOTES = {
+    "sec_index.load_index": ("Filing index", "Every filing EDGAR lists, one file per quarter.", [
+        ("for yq in due(today, have)", "Which quarters to fetch: any never landed, plus the current and previous "
+                                       "quarter, which SEC is still adding to."),
+        ("got = sec.fetch(URL", "Download the quarter's master.gz from SEC."),
+        ("got.last_modified < held", "SEC sometimes serves an older copy than one already landed: skip it, and say "
+                                     "so in the load record (D121)."),
+        ("rows = parse(", "Parse the file. Every row must have exactly five fields, or the load stops."),
+        ("if parsed != sum(counts.values())", "Count control: rows read back must equal rows parsed."),
+        ("write_raw(index", "Save one write-once raw file for this run: raw/sec/full_index/<run>.parquet."),
+        ("shutil.rmtree(tmp", "Delete the temporary files, whether the load worked or not."),
+    ]),
+    "sec_submissions.load_submissions": ("Submissions", "Each company's details and its filing history, "
+                                                        "from one nightly zip.", [
+        ("cutoff = watermark_cutoff", "Only filings since the last landing, less a few days of overlap, "
+                                      "are kept from the filing history (the overlap is in config/sources.yaml)."),
+        ("got = sec.fetch(URL, to=", "Download submissions.zip to a temporary folder; it is deleted once parsed."),
+        ("details_file, filing_files, mains = parse(", "Parse every company's file in the zip into two tables: "
+                                                        "details (one row per company) and filings."),
+        ("if n_details != mains", "Count control: one details row per company file in the zip."),
+        ("write_raw(details", "Save the two raw files: raw/sec/submission_details and raw/sec/submission_filings."),
+    ]),
+    "sec_tickers.load_tickers": ("Tickers", "SEC's list of ticker, company and exchange.", [
+        ("got = sec.fetch(URL)", "Download company_tickers_exchange.json."),
+        ("write_raw(frame", "Save it whole, with the row count SEC sent as the control total."),
+    ]),
+    "sec_companyfacts.load_incremental_companyfacts": ("Company Facts", "Every XBRL number a company reported; "
+                                                                        "only companies that filed since the last run.", [
+        ("if not has_baseline()", "First run on a new data root: download the whole companyfacts.zip instead."),
+        ("ciks = changed_ciks(run_id)", "Which companies to fetch: those with new filings in this run's submissions."),
+        ("got = sec.fetch(COMPANY_URL", "One request per company, about 9 a second, under SEC's limit of 10."),
+        ("if e.status != 404", "A company with no XBRL data answers 404. That is normal; any other error stops the load."),
+        ("result = _land(", "Save three raw files: the facts, the concept list, and which companies changed, with a note of how many."),
+    ]),
+}
+
+
+def annotated(m, fname):
+    """One loader's card: name, what it does, where it reads and writes, the code with numbered notes."""
+    mod = m.__name__.rsplit(".", 1)[-1]
+    key = f"{mod}.{fname}"
+    need(key in NOTES, f"no drill-in notes for {key}")
+    name, what, notes = NOTES[key]
+    fn = getattr(m, fname)
+    src, first = inspect.getsourcelines(fn)
+    marks = {}
+    for i, (anchor, _) in enumerate(notes, 1):
+        hits = [n for n, line in enumerate(src) if anchor in line]
+        need(len(hits) == 1, f"{key}: note {i} anchor {anchor!r} matches {len(hits)} lines, not 1")
+        marks[hits[0]] = i
+    # real comments only, by Python's tokenizer: line index -> column where the comment starts
+    dedented = textwrap.dedent("".join(src))
+    comments = {t.start[0] - 1: t.start[1] for t in tokenize.generate_tokens(io.StringIO(dedented).readline)
+                if t.type == tokenize.COMMENT}
+    indent = len(src[0]) - len(src[0].lstrip())
+    lines = []
+    for n, line in enumerate(src):
+        line = line.rstrip("\n")
+        if n in comments:
+            at = comments[n] + indent
+            text = f'{esc(line[:at])}<span class="cm">{esc(line[at:])}</span>'
+        else:
+            text = esc(line)
+        mark = f'<span class="mk">{marks[n]}</span>' if n in marks else '<span class="mk0"></span>'
+        lines.append(f'<div class="ln{" hit" if n in marks else ""}"><span class="no">{first + n}</span>{mark}{text}</div>')
+    url = next((getattr(m, a) for a in ("URL", "COMPANY_URL") if hasattr(m, a)), "")
+    path = Path(inspect.getsourcefile(m))
+    raw = ", ".join(f"raw/{s}/{d}" for s, d in writes(m))
+    note_list = "".join(f"<li>{esc(t)}</li>" for _, t in notes)
+    return f"""<section class="card"><h3>{esc(name)}</h3><p>{esc(what)}</p>
+<table class="facts"><tr><td>Function</td><td>{mod}.{fname}</td></tr>
+<tr><td>Reads</td><td>{esc(url)}</td></tr><tr><td>Writes</td><td>{esc(raw)}</td></tr>
+<tr><td>File</td><td><a href="{path.as_uri()}">{esc(path.name)}</a>, lines {first}-{first + len(src) - 1}</td></tr></table>
+<ol class="notes">{note_list}</ol><div class="code">{"".join(lines)}</div></section>"""
+
+
+def drawer(gname):
+    v = GROUP[gname]
+    order_src, first = inspect.getsourcelines(refresh.LOADERS[gname])
+    order = "".join(f'<div class="ln"><span class="no">{first + n}</span><span class="mk0"></span>{esc(l.rstrip())}</div>'
+                    for n, l in enumerate(order_src))
+    cards = "".join(annotated(m, f) for m, f, _ in v["loads"])
+    return f"""<aside class="drawer" id="drawer_{gname}_load" hidden>
+<div class="dhead"><h2>Load: {gname}</h2><button onclick="closeDrawer()">Close (Esc)</button></div>
+<p class=sub>The four loaders, in the order a run calls them (refresh.py):</p><div class="code">{order}</div>
+{cards}</aside>"""
+
+
+DRAWER_CSS = """<style>
+.drawer { position:fixed; top:0; right:0; bottom:0; width:min(980px, 94vw); background:#fff; border-left:2px solid #1d1d1b;
+          box-shadow:-8px 0 24px rgba(0,0,0,.12); overflow:auto; padding:0 24px 40px; z-index:10; }
+.dhead { position:sticky; top:0; background:#fff; display:flex; justify-content:space-between; align-items:center;
+         border-bottom:1px solid var(--line); }
+.dhead h2 { border:0; margin:14px 0; }
+.dhead button { font:inherit; padding:4px 12px; cursor:pointer; }
+.card { border-top:2px solid #1d1d1b; margin-top:26px; }
+.code { background:var(--box); border:1px solid var(--line); padding:8px 0; overflow-x:auto; font-size:14px; }
+.ln { white-space:pre; padding:0 10px 0 0; }
+.ln.hit { background:#fff6d6; }
+.no { display:inline-block; width:3.2em; color:var(--muted); text-align:right; margin-right:8px; user-select:none; }
+.mk, .mk0 { display:inline-block; width:1.6em; margin-right:6px; text-align:center; }
+.mk { background:#2563eb; color:#fff; border-radius:9px; font-size:12px; font-weight:700; }
+.cm { color:var(--muted); }
+ol.notes { padding-left:1.6em; } ol.notes li { margin:3px 0; }
+</style>"""
+
+DRAWER_JS = """<script>
+function openDrawer(id) { closeDrawer(); const d = document.getElementById("drawer_" + id); d.hidden = false; d.scrollTop = 0; }
+function closeDrawer() { document.querySelectorAll(".drawer").forEach(d => d.hidden = true); }
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+window.addEventListener("load", () => { const h = location.hash.slice(1); if (document.getElementById("drawer_" + h)) openDrawer(h); });
+</script>"""
+
 sections = "".join(
     f"""<h2 id="{g}">{g}</h2>
 <p class=sub>Run by {esc(runs_by(g))}. Raw files: {len(v['g'].datasets)}.
@@ -204,10 +329,11 @@ load or stage fails, the group is not published and its last good tables stay se
 <pre class="mermaid">{esc(overview())}</pre>
 <h3>Checks on the run itself</h3>
 {check_table(RUN_CHECKS)}
-{sections}"""
+{sections}
+{''.join(drawer(g) for g in DRILL)}"""
 
-head = (f'<script src="{MERMAID}"></script><script>document.addEventListener("DOMContentLoaded", () => '
-        f'mermaid.initialize({{startOnLoad:true, theme:"base", flowchart:{{useMaxWidth:true, htmlLabels:true}}, '
+head = DRAWER_CSS + DRAWER_JS + (f'<script src="{MERMAID}"></script><script>document.addEventListener("DOMContentLoaded", () => '
+        f'mermaid.initialize({{startOnLoad:true, securityLevel:"loose", theme:"base", flowchart:{{useMaxWidth:true, htmlLabels:true}}, '
         f'themeVariables:{{fontFamily:"system-ui, Segoe UI, sans-serif", fontSize:"14px"}}}}));</script>')
 (HERE / "pipeline.html").write_text(page("Pipeline", "Pipeline", body, head=head), encoding="utf-8")
 print(f"wrote {HERE / 'pipeline.html'}: {len(GROUP)} groups, {len(CHECKS)} checks, commands {sorted(CMD)}")
