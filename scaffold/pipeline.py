@@ -104,8 +104,6 @@ need(len(CHECKS) == sum(len(v["gates"]) + len(v["monitors"]) for v in GROUP.valu
 
 # ---- diagrams ------------------------------------------------------------------------------------------------------
 
-DRILL = ("sec",)   # groups whose Load box opens a drill-in panel (mock-up: SEC only)
-
 STYLE = """
     classDef cmd fill:#F6EFFF,stroke:#000,stroke-width:2px,color:#000
     classDef work fill:#F3F7FF,stroke:#000,stroke-width:2px,color:#000
@@ -131,8 +129,6 @@ def overview():
         L.append(f'    subgraph g_{gname}["{gname}"]')
         L.append("        direction TB")
         L.append(f'        {gname}_load["Load: {srcs}<br/>save {n_raw} raw files, write-once"]:::work')
-        if gname in DRILL:
-            L.append(f'        click {gname}_load call openDrawer("{gname}_load")')
         L.append(f'        {gname}_stage["Stage<br/>clean and combine into<br/>{len(v["g"].tables)} tables"]:::work')
         n = len(v["gates"])
         gate = f"{n} gate checks:<br/>does one with<br/>severity error fail?" if n else "No gate checks:<br/>nothing can<br/>block a publish"
@@ -154,6 +150,8 @@ def overview():
     L.append(f'    health["Run record and health<br/>{mon + len(RUN_CHECKS)} monitor checks,<br/>evaluated again whenever health is read"]:::work')
     L.append('    pages["Pages and DBeaver<br/>read served data only"]:::good')
     L.append("    served --> health --> pages")
+    for pid in PANELS:   # a box with a drill-in panel opens it on click
+        L.append(f'    click {pid} call openDrawer("{pid}")')
     return "\n".join(L) + STYLE
 
 
@@ -232,16 +230,36 @@ NOTES = {
         ("if e.status != 404", "A company with no XBRL data answers 404. That is normal; any other error stops the load."),
         ("result = _land(", "Save three raw files: the facts, the concept list, and which companies changed, with a note of how many."),
     ]),
+    "stage_sec.stage_group": ("Stage the six tables", "The SEC group's stager: one table at a time.", [
+        ("One connection per dataset", "One table at a time, each with its own DuckDB connection, so memory never "
+                                       "holds two of the 27-million-row tables at once."),
+        ("sec_base = current_base(", "The base: the tables served now. New landings merge into them."),
+        ("facts_base = current_base(", "Company Facts was once its own group. If the served version still records it "
+                                       "that way, its tables come from that run; this ends after the first combined publish."),
+        ("merged = _stage(FILING_DATASETS", "First the four filing tables: filings, submission filings, submission "
+                                            "details, tickers."),
+        ("merged.update(_stage(FACT_DATASETS", "Then the two Company Facts tables."),
+    ]),
+    "stage_sec._merge": ("The merge rule: newest value per key", "Every SEC table is built by this rule (D132).", [
+        ("values = [c for c in columns if c not in ds.lineage]", "A row's values are what SEC says. Its lineage (which "
+                                                                  "run landed it, when) is not a value: an identical "
+                                                                  "re-landing changes nothing."),
+        ("twice = con.execute(", "If one landing gives two different values for the same key, the group stops: staging "
+                                 "never picks between two things SEC said at once."),
+        ("CREATE TABLE {ds.table}_touched", "The keys the new landings carry."),
+        ("QUALIFY changed AND", "For each of those keys, keep the newest value. A value that did not change keeps the "
+                                "run that first landed it."),
+        ("SELECT b.* FROM {ds.table}_base AS b ANTI JOIN", "Every key the new landings don't carry keeps its served "
+                                                           "row: a key SEC stops listing is kept, not dropped (D84)."),
+        ("_require_unique(con, ds)", "The key must be unique in the result, or the group stops."),
+    ]),
 }
 
 
-def annotated(m, fname):
-    """One loader's card: name, what it does, where it reads and writes, the code with numbered notes."""
-    mod = m.__name__.rsplit(".", 1)[-1]
-    key = f"{mod}.{fname}"
+def code_card(fn, key, rows=()):
+    """One function's card: name, what it does, facts rows, the code with numbered notes (NOTES[key])."""
     need(key in NOTES, f"no drill-in notes for {key}")
     name, what, notes = NOTES[key]
-    fn = getattr(m, fname)
     src, first = inspect.getsourcelines(fn)
     marks = {}
     for i, (anchor, _) in enumerate(notes, 1):
@@ -263,27 +281,68 @@ def annotated(m, fname):
             text = esc(line)
         mark = f'<span class="mk">{marks[n]}</span>' if n in marks else '<span class="mk0"></span>'
         lines.append(f'<div class="ln{" hit" if n in marks else ""}"><span class="no">{first + n}</span>{mark}{text}</div>')
-    url = next((getattr(m, a) for a in ("URL", "COMPANY_URL") if hasattr(m, a)), "")
-    path = Path(inspect.getsourcefile(m))
-    raw = ", ".join(f"raw/{s}/{d}" for s, d in writes(m))
+    path = Path(inspect.getsourcefile(fn))
+    facts = "".join(f"<tr><td>{esc(k)}</td><td>{esc(v)}</td></tr>" for k, v in rows)
     note_list = "".join(f"<li>{esc(t)}</li>" for _, t in notes)
     return f"""<section class="card"><h3>{esc(name)}</h3><p>{esc(what)}</p>
-<table class="facts"><tr><td>Function</td><td>{mod}.{fname}</td></tr>
-<tr><td>Reads</td><td>{esc(url)}</td></tr><tr><td>Writes</td><td>{esc(raw)}</td></tr>
+<table class="facts"><tr><td>Function</td><td>{esc(key)}</td></tr>{facts}
 <tr><td>File</td><td><a href="{path.as_uri()}">{esc(path.name)}</a>, lines {first}-{first + len(src) - 1}</td></tr></table>
 <ol class="notes">{note_list}</ol><div class="code">{"".join(lines)}</div></section>"""
 
 
-def drawer(gname):
-    v = GROUP[gname]
-    order_src, first = inspect.getsourcelines(refresh.LOADERS[gname])
-    order = "".join(f'<div class="ln"><span class="no">{first + n}</span><span class="mk0"></span>{esc(l.rstrip())}</div>'
-                    for n, l in enumerate(order_src))
-    cards = "".join(annotated(m, f) for m, f, _ in v["loads"])
-    return f"""<aside class="drawer" id="drawer_{gname}_load" hidden>
-<div class="dhead"><h2>Load: {gname}</h2><button onclick="closeDrawer()">Close (Esc)</button></div>
-<p class=sub>The four loaders, in the order a run calls them (refresh.py):</p><div class="code">{order}</div>
-{cards}</aside>"""
+def plain_code(fn):
+    """A short function shown whole, line-numbered, no notes."""
+    src, first = inspect.getsourcelines(fn)
+    return '<div class="code">' + "".join(
+        f'<div class="ln"><span class="no">{first + n}</span><span class="mk0"></span>{esc(l.rstrip())}</div>'
+        for n, l in enumerate(src)) + "</div>"
+
+
+def load_panel(gname):
+    cards = ""
+    for m, f, _ in GROUP[gname]["loads"]:
+        url = next((getattr(m, a) for a in ("URL", "COMPANY_URL") if hasattr(m, a)), "")
+        raw = ", ".join(f"raw/{s}/{d}" for s, d in writes(m))
+        cards += code_card(getattr(m, f), f"{m.__name__.rsplit('.', 1)[-1]}.{f}", [("Reads", url), ("Writes", raw)])
+    return (f"Load: {gname}", f"""<p class=sub>The four loaders, in the order a run calls them (refresh.py):</p>
+{plain_code(refresh.LOADERS[gname])}{cards}""")
+
+
+def sec_stage_panel():
+    """Stage: the six tables, the route each takes, and the merge rule they share."""
+    from pharos import stage_sec as ss
+    need({d.table for d in ss.DATASETS} == set(GROUP["sec"]["g"].tables),
+         "stage_sec.DATASETS and the sec group's tables differ")
+    route = {}
+    for d in ss.DATASETS:   # mirrors stage_sec._stage_one; a dataset none of these covers stops the build
+        route[d.table] = ("one folder per company; only changed companies re-merged" if d in ss.FACT_DATASETS else
+                          "one folder per quarter; only quarters in the new landing re-merged" if d in (ss.INDEX, ss.SUBMISSIONS)
+                          else "one file, merged whole")
+    one = inspect.getsource(ss._stage_one)
+    need("if ds in FACT_DATASETS:" in one and "if ds in (INDEX, SUBMISSIONS):" in one,
+         "stage_sec._stage_one's routes changed: update the How it is written column")
+    sql_dir = Path(inspect.getsourcefile(ss)).parent / "transform"
+    rows = ""
+    for d in ss.DATASETS:
+        sql = sql_dir / f"{d.sql}.sql"
+        need(sql.exists(), f"{sql} not on disk")
+        rows += (f"<tr><td>{d.table}</td><td>raw/sec/{d.raw}</td><td><a href=\"{sql.as_uri()}\">{sql.name}</a></td>"
+                 f"<td>{esc(', '.join(d.key))}</td><td>{route[d.table]}</td></tr>")
+    table = ("<table><tr><th>Staged table</th><th>From raw</th><th>Cleaned by</th><th>Key</th><th>How it is written</th></tr>"
+             f"{rows}</table>")
+    return ("Stage: sec", f"""<p class=sub>Six tables, in the order a run stages them. Each raw landing is cleaned by its
+SQL file, then merged into the table served now by one rule: newest value per key.</p>{table}
+{code_card(ss.stage_group, "stage_sec.stage_group")}{code_card(ss._merge, "stage_sec._merge")}""")
+
+
+PANELS = {"sec_load": lambda: load_panel("sec"), "sec_stage": sec_stage_panel}
+
+
+def drawer(pid):
+    title, html_ = PANELS[pid]()
+    return f"""<aside class="drawer" id="drawer_{pid}" hidden>
+<div class="dhead"><h2>{esc(title)}</h2><button onclick="closeDrawer()">Close (Esc)</button></div>
+{html_}</aside>"""
 
 
 DRAWER_CSS = """<style>
@@ -330,7 +389,7 @@ load or stage fails, the group is not published and its last good tables stay se
 <h3>Checks on the run itself</h3>
 {check_table(RUN_CHECKS)}
 {sections}
-{''.join(drawer(g) for g in DRILL)}"""
+{''.join(drawer(p) for p in PANELS)}"""
 
 head = DRAWER_CSS + DRAWER_JS + (f'<script src="{MERMAID}"></script><script>document.addEventListener("DOMContentLoaded", () => '
         f'mermaid.initialize({{startOnLoad:true, securityLevel:"loose", theme:"base", flowchart:{{useMaxWidth:true, htmlLabels:true}}, '
