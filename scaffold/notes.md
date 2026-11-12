@@ -59,6 +59,7 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - 2026-11-12: Pipeline page: one summary diagram (Summary: one run; each group's Load box names its sources), then one small left-to-right detail diagram per source: loader, the raw files it writes, the stager (James). Replaces the per-group diagrams; staged tables move into the group's subtitle line. No diagram is scaled down any more.
 - 2026-11-12: explore/ archived whole to archive/explore-2026-11-12/ (James: Scaffold is the one working surface). Its three quick-lane Catalog rows (FRED page builds, IMF, World Bank) are now retired: they existed only through Explore pages. Superseded scratch pages moved to scratch/archive/: run-flow.html (replaced by Pipeline), m3-flow.html and m3-tieout.html (M3 dropped). .gitignore covers archive/**/*.html, since those pages embed fetched data.
 - 2026-11-12: Dropped (James): a Where we are block on the Catalog, and a separate home in Scaffold for new exploration.
+- 2026-11-12: Archive page (scaffold/archive.html, built by scaffold/archive.py), last on the menu. First entry: the archived Explore pages, listed from Explore's own menu (lib/nav.py) with when each was built; a menu page missing on disk stops the build. Next (James): an analysis link, depreciation by company.
 
 ## Findings
 
