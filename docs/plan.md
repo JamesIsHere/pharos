@@ -4,8 +4,8 @@
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
 - **Direction:** Scaffold (scaffold/), James's pages for keeping up with Pharos, is the current work; resume from the top of scaffold/notes.md. The milestone plan (M1-M6, W, H, U) is retired (D161): the old plan is archived whole at docs/archive/plan-2026-11-11.md, and docs/later.md keeps the earlier milestones as history. Every refresh is on demand (D160): `uv run pharos refresh` (prices, FRED, Tiingo; seconds), `uv run pharos sec` (SEC; up to an hour, D159).
 - **Health:** GREEN at 2026-11-11 evening (run 20261111T134544Z). C01 turns red about 11:37 ET 11-12 without a `uv run pharos refresh`: the freshness rule doing its job.
-- **Last session:** 2026-11-11 (5): M3 dropped and the milestone plan retired (D161). Before that, (4): James chose trusted for the SEC group and asked for a lighter trusted bar; that bar is not decided.
-- **Next action:** a Pipeline page in Scaffold, proposed: diagrams of the run generated from the code (groups, loaders, stagers, check headers), linked from the Catalog rows. Not yet chosen.
+- **Last session:** 2026-11-11 (5): M3 dropped and the milestone plan retired (D161); Pipeline page built in Scaffold. Before that, (4): James chose trusted for the SEC group and asked for a lighter trusted bar; that bar is not decided.
+- **Next action:** James reviews the Pipeline page (scaffold/pipeline.html, built by scaffold/pipeline.py: diagrams generated from the code, structure only, linked from the Catalog's Pipeline column).
 - **Blockers / open questions:** #117 (native abort in a run). Full list in Open issues below and Parked issues in `docs/later.md`; cite only IDs that appear there.
 
 ## Open issues

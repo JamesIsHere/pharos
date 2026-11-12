@@ -14,6 +14,7 @@ import duckdb
 from common import ET, esc, now_et, num
 from common import page as render
 
+from pharos.groups import GROUPS
 from pharos.paths import data_root
 
 HERE = Path(__file__).parent
@@ -86,6 +87,21 @@ for r in rows:
     out.append(dict(r, files=files, newest=newest, n=n, lo=lo, hi=hi, series=series, checks=checks))
 
 
+DATASET_GROUP = {f"{s}/{d}": g.name for g in GROUPS.values() for s, d in g.datasets}
+
+
+def group_of(r):
+    """The source group whose run loads this row's raw folders, linked to its diagram on the Pipeline page.
+    A stored row whose folders belong to no group, or to two, stops the build."""
+    if not r["raw"]:
+        return ""
+    gs = {DATASET_GROUP.get(ds) for ds in r["raw"].split()}
+    if None in gs or len(gs) != 1:
+        raise SystemExit(f"catalog.csv: {r['source']} raw {r['raw']!r} maps to groups {gs}")
+    g = gs.pop()
+    return f'<a href="pipeline.html#{g}">{g}</a>'
+
+
 def link(r):
     return f'<a href="{r["sheet"]}">{esc(r["source"])}</a>' if r['sheet'] else esc(r['source'])
 
@@ -118,7 +134,7 @@ def as_of(r):
 
 
 list_rows = "".join(f"<tr><td>{link(r)}</td><td><span class='st {r['state'].replace(' ', '-')}'>{esc(r['state'])}</span></td>"
-                    f"<td>{esc(r['what'])}</td><td class=sub>{esc(as_of(r))}</td></tr>"
+                    f"<td>{esc(r['what'])}</td><td class=sub>{esc(as_of(r))}</td><td>{group_of(r)}</td></tr>"
                     for r in out)
 published = re.search(r"^Serving:.*\(published (.+?) E[SD]T\)", health_md, re.M).group(1) + " ET"
 cat_rows = "".join(
@@ -133,7 +149,7 @@ cat_rows = "".join(
 
 body = f"""<div class="head"><h1>Data Sources</h1>
 <div class="stamps"><span>Page built {now_et()}</span></div></div>
-<table class="list"><tr><th>Source</th><th>State</th><th>What</th><th>As of</th></tr>{list_rows}</table>
+<table class="list"><tr><th>Source</th><th>State</th><th>What</th><th>As of</th><th>Pipeline</th></tr>{list_rows}</table>
 
 <h2>Details</h2>
 <div class="wrap"><table>
