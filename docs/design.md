@@ -149,8 +149,6 @@ Completeness requires a declared expectation. `config/watchlist.csv` plus each s
 | C35 | carry-forward | warn | no | a source group was carried forward in the latest run: served from an earlier run (`group: run`, D81, D82, D116) |
 | C36 | carry-forward | error | no | a source group has not published fresh in 2 or more runs in a row, or has never published (`group: run`, D82, D83, D116). A run that didn't attempt a group (`not_run`) doesn't count (D135) |
 | C25 | freshness | warn | no | latest full-index filing date older than 3 business days (weekdays) at the clock (`group: sec`, D60); warn, not error, while SEC is on demand (D159) |
-| C43 | completeness | error | yes | a quarter missing from `filings` between 1993Q1 and the latest quarter it holds (`group: sec`, D163 step 1); recency is C25's |
-| C44 | uniqueness | error | yes | `(cik, accession, form, name)` repeated in `filings`: D61's key, kept 2026-11-12 (`group: sec`, D163 step 1) |
 | C31 | freshness | warn | no | latest submissions.zip Last-Modified older than 36 hours at the clock (`group: sec`, D60) |
 | C40 | freshness | warn | no | latest Company Facts landing older than 36 hours at the clock (`group: sec`, D139) |
 | C41 | completeness | error | no | configured FRED series the run's loader left out (fetch failed or response drifted), named with its error from the observations load record's note; its earlier vintages are still served (D144) |
