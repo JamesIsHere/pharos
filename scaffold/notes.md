@@ -63,6 +63,7 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - 2026-11-12: IMF World Economic Outlook page (scaffold/weo.html, built by scaffold/weo.py), quick lane: fetched from the IMF API when built, nothing stored; a Catalog row links to it. GDP in US dollars (197 countries) and unemployment rate (118), 1980-2031, one row per country, one column per year (James). Years after each series' latest actual year are shaded as IMF estimates and forecasts. Fiscal-year labels (FY2024/25) map to a calendar column by the rule each series' own notes state; Bhutan states none and is left unshaded.
 - 2026-11-12: Country table (D162): config/countries.csv (261 rows, 9 former) and config/sec_country_codes.csv (323 EDGAR codes), written by scripts/build_countries.py. The WEO page now takes its countries, codes and names from it; IMF groups are every code not in the table, and anything else stops the build.
 - 2026-11-12: The lighter trusted bar is written (D163): counts tie, completeness gate, uniqueness gate, one reconciliation, James's sign-off on definitions, one complete run; no fault-injection tests. Measured against the SEC sources and IMF WEO on a temporary Trusted page (scratch).
+- 2026-11-12: The session's temporary Data, Charts and Trusted pages are archived at archive/countries-2026-11-12/ (scripts tracked; pages and the downloaded inputs gitignored), listed on the Archive page. The trusted work is a plan in docs/plan.md (Trusted work, steps 1-7).
 
 ## Findings
 
