@@ -1,7 +1,7 @@
 """Scaffold: a shareable copy of the built pages, for a private claude.ai link (James, 2026-11-12).
 
 Reads the built scaffold/*.html (run each page's script first) and writes scaffold/share/:
-- every Scaffold page, and every archived page the Archive page links to, at its own path under archive/;
+- every Scaffold page, and every archived page the Appendix links to, at its own path under archive/;
 - links to files on this machine (file:///...) and to pages not in the copy become plain text;
 - index.html: the Catalog, as the landing page, without its document wrapper (the publisher adds one).
 A link that still leaves scaffold/ after this stops the script (fail loud).
@@ -21,11 +21,11 @@ if OUT.exists():
     shutil.rmtree(OUT)
 OUT.mkdir()
 
-# the archived pages the Archive page links to, kept at their paths under archive/ (published as archive/...)
-archived = sorted(set(re.findall(r'href="\.\./(archive/[^"#]+)"', (HERE / "archive.html").read_text(encoding="utf-8"))))
+# the archived pages the Appendix links to, kept at their paths under archive/ (published as archive/...)
+archived = sorted(set(re.findall(r'href="\.\./(archive/[^"#]+)"', (HERE / "appendix.html").read_text(encoding="utf-8"))))
 for a in archived:
     if not (ROOT / a).is_file():
-        raise SystemExit(f"share: the Archive page links to {a}, which is not on disk")
+        raise SystemExit(f"share: the Appendix links to {a}, which is not on disk")
 SHIPPED = {p.name for p in pages} | set(archived)   # every path in the shared copy, relative to its root
 
 
@@ -62,7 +62,7 @@ for p in pages:
 for a in archived:
     s = (ROOT / a).read_text(encoding="utf-8")
     depth = a.count("/")
-    s = s.replace('href="../../scaffold/', f'href="{"../" * depth}')   # back to the shared Scaffold pages
+    s = re.sub(r'href="(?:\.\./)+scaffold/', f'href="{"../" * depth}', s)   # back to the shared Scaffold pages
     out = OUT / a
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(unlink_dead(s, a), encoding="utf-8")
