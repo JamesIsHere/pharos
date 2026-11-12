@@ -253,39 +253,80 @@ NOTES = {
                                                            "row: a key SEC stops listing is kept, not dropped (D84)."),
         ("_require_unique(con, ds)", "The key must be unique in the result, or the group stops."),
     ]),
+    "checks._evaluate": ("How one check runs", "Every check, gate or monitor, runs through this function.", [
+        ("CREATE OR REPLACE TEMP TABLE failing AS {check.sql}", "Run the check's SQL. Whatever rows it returns are "
+                                                               "the failures."),
+        ("except duckdb.Error as e:", "SQL that cannot run leaves the status broken. A check that didn't run proves "
+                                      "nothing, so it never counts as a pass."),
+        ("sample = con.execute(", "Every failing row is kept, not a sample: the Health page lists them."),
+        ('status="pass" if n == 0 else check.severity', "No rows: pass. Any rows: the check's severity, error or warn."),
+    ]),
+    "checks._verdict": ("The decision: publish or keep the last good tables", "One verdict per group, from its "
+                                                                              "checks' results.", [
+        ('r["status"] == "broken"', "A gate check that could not run: failed. The staged data is unproven."),
+        ('r["status"] == "error"', "A gate check with severity error returned rows: blocked."),
+        ('return "passed"', "Otherwise passed, and the group is published. Rows from a gate check with severity warn "
+                            "show on the Health page but never block; a monitor check never blocks."),
+    ]),
+    "C43": ("C43: every quarter present", "Is any quarter missing from the filing index between 1993Q1 and its "
+                                          "latest quarter?", [
+        ("SELECT DISTINCT quarter FROM filings", "The quarters the staged filings table holds."),
+        ("SELECT max(quarter) AS q FROM quarters", "Its latest quarter: where the expected range ends."),
+        ("generate_series(DATE '1993-01-01',", "Every quarter from 1993Q1 to that latest one: the expected set."),
+        ("ANTI JOIN quarters USING (quarter)", "Return each expected quarter the table lacks."),
+        ("'no quarters at all'", "An empty table fails too."),
+    ]),
+    "C44": ("C44: the key is unique", "Is any (cik, accession, form, name) listed twice in the filing index?", [
+        ("GROUP BY cik, accession, form, name", "One group per key. A missing name counts as one value, as staging "
+                                                "treats it."),
+        ("HAVING count(*) > 1", "Return each key listed more than once."),
+    ]),
 }
 
 
 def code_card(fn, key, rows=()):
     """One function's card: name, what it does, facts rows, the code with numbered notes (NOTES[key])."""
     need(key in NOTES, f"no drill-in notes for {key}")
-    name, what, notes = NOTES[key]
     src, first = inspect.getsourcelines(fn)
+    # real comments only, by Python's tokenizer: line index -> column where the comment starts
+    dedented = textwrap.dedent("".join(src))
+    indent = len(src[0]) - len(src[0].lstrip())
+    comments = {t.start[0] - 1: t.start[1] + indent for t in tokenize.generate_tokens(io.StringIO(dedented).readline)
+                if t.type == tokenize.COMMENT}
+    return card(key, src, first, Path(inspect.getsourcefile(fn)), comments, [("Function", key)] + list(rows))
+
+
+def sql_card(check):
+    """A check's whole SQL file, header included; whole-line `--` comments dimmed."""
+    src = check.path.read_text(encoding="utf-8").splitlines(keepends=True)
+    comments = {n: l.index("--") for n, l in enumerate(src) if l.lstrip().startswith("--")}
+    return card(check.id, src, 1, check.path, comments,
+                [("Check", f"{check.id}: {check.severity}, {'gate' if check.gate else 'monitor'}, group {check.group}")])
+
+
+def card(key, src, first, path, comments, rows):
+    """name, what it does, facts rows, the code with numbered notes (NOTES[key]) pinned by text on their lines."""
+    need(key in NOTES, f"no drill-in notes for {key}")
+    name, what, notes = NOTES[key]
     marks = {}
     for i, (anchor, _) in enumerate(notes, 1):
         hits = [n for n, line in enumerate(src) if anchor in line]
         need(len(hits) == 1, f"{key}: note {i} anchor {anchor!r} matches {len(hits)} lines, not 1")
         marks[hits[0]] = i
-    # real comments only, by Python's tokenizer: line index -> column where the comment starts
-    dedented = textwrap.dedent("".join(src))
-    comments = {t.start[0] - 1: t.start[1] for t in tokenize.generate_tokens(io.StringIO(dedented).readline)
-                if t.type == tokenize.COMMENT}
-    indent = len(src[0]) - len(src[0].lstrip())
     lines = []
     for n, line in enumerate(src):
         line = line.rstrip("\n")
         if n in comments:
-            at = comments[n] + indent
+            at = comments[n]
             text = f'{esc(line[:at])}<span class="cm">{esc(line[at:])}</span>'
         else:
             text = esc(line)
         mark = f'<span class="mk">{marks[n]}</span>' if n in marks else '<span class="mk0"></span>'
         lines.append(f'<div class="ln{" hit" if n in marks else ""}"><span class="no">{first + n}</span>{mark}{text}</div>')
-    path = Path(inspect.getsourcefile(fn))
     facts = "".join(f"<tr><td>{esc(k)}</td><td>{esc(v)}</td></tr>" for k, v in rows)
     note_list = "".join(f"<li>{esc(t)}</li>" for _, t in notes)
     return f"""<section class="card"><h3>{esc(name)}</h3><p>{esc(what)}</p>
-<table class="facts"><tr><td>Function</td><td>{esc(key)}</td></tr>{facts}
+<table class="facts">{facts}
 <tr><td>File</td><td><a href="{path.as_uri()}">{esc(path.name)}</a>, lines {first}-{first + len(src) - 1}</td></tr></table>
 <ol class="notes">{note_list}</ol><div class="code">{"".join(lines)}</div></section>"""
 
@@ -335,7 +376,18 @@ SQL file, then merged into the table served now by one rule: newest value per ke
 {code_card(ss.stage_group, "stage_sec.stage_group")}{code_card(ss._merge, "stage_sec._merge")}""")
 
 
-PANELS = {"sec_load": lambda: load_panel("sec"), "sec_stage": sec_stage_panel}
+def gate_panel(gname):
+    """The decision diamond: how one check runs, how a group's verdict is reached, then each gate check's SQL."""
+    gates = GROUP[gname]["gates"]
+    need(gates, f"group {gname} has no gate checks")
+    return (f"Gate checks: {gname}", f"""<p class=sub>A check is a SQL query that returns the rows that fail it. Gate
+checks run on the staged tables before anything is published. If one gate check cannot run, or one with severity error
+returns rows, the group is not published and its last good tables stay served.</p>
+{code_card(checks_mod._evaluate, "checks._evaluate")}{code_card(checks_mod._verdict, "checks._verdict")}
+{"".join(sql_card(c) for c in gates)}""")
+
+
+PANELS = {"sec_load": lambda: load_panel("sec"), "sec_stage": sec_stage_panel, "sec_check": lambda: gate_panel("sec")}
 
 
 def drawer(pid):
