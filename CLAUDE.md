@@ -67,9 +67,9 @@ data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.du
 
 ### Health
 - A check is a SQL file in `checks/` that returns failing rows. Zero rows means pass. Header comment: `id`, `severity` (error|warn), `gate` (yes|no), `group` (a source group from src/pharos/groups.py, or `run` for a non-gating check about the run itself, D114), `description`. A warn check may add `ack_key` (the columns naming one problem); without it its rows can't be acknowledged (D75). Gate checks test the staged data and can block a publish; monitor checks (`gate: no`) test the world (staleness, lateness, drift) and never block (D17).
-- Every source is landed or trusted (D127). Landed, the default: schema validated on every load, one freshness check, a one-row description in design.md section 5; definitions defaulted by Claude and flagged, not sent for sign-off. Trusted adds completeness and uniqueness checks, reconciliation, and James's sign-off on definitions. A source moves up only when an analysis depends on it, by a row in docs/decisions.md. Prices and macro are trusted.
+- Every source is landed or trusted (D127). Landed, the default: schema validated on every load, one freshness check, a one-row description in design.md section 5; definitions defaulted by Claude and flagged, not sent for sign-off. Trusted (D163) adds six things: (1) counts tie, rows landed equal rows in the source; (2) a completeness gate check against an expected set; (3) a uniqueness gate check on the source's key; (4) one reconciliation against an independent source; (5) James's sign-off on definitions, on the source's Scaffold sheet; (6) one complete run with the checks in place. A source moves up only when an analysis depends on it, by a row in docs/decisions.md. Prices and macro are trusted.
 - Freshness is evaluated at view time, not only at run time. A pipeline that silently didn't run must show red.
-- A new or changed check on a trusted source needs a fault-injection test in `tests/test_faults.py` proving it fires. Checks on a landed source need none.
+- Fault-injection tests are not part of the trusted bar (D163). The ones in `tests/test_faults.py` stay and keep running; a new check needs one only when James asks.
 - Never loosen a threshold or delete a check to get green without a decision-log entry explaining why.
 
 ### App
