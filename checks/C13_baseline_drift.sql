@@ -9,7 +9,8 @@
 -- the audit that recorded the baseline. History should only ever grow: a later
 -- first_date or a lower row_count means the source dropped history we once had.
 -- last_date is recorded but not compared; falling behind is C02/C17's.
--- A series added after the audit has no baseline row and is not compared (#34).
+-- A series added after the audit has no baseline row and is not compared
+-- (accepted 2026-11-12, #34 dropped).
 -- A monitor: drift is a question about the world, never a block (D17).
 
 SELECT b.series_id, b.first_date AS baseline_first_date, m.first_date,
