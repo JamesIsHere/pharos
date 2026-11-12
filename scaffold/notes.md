@@ -55,6 +55,7 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - 2026-11-11: M3 dropped and the milestone plan retired (D161): docs/plan.md is status and open issues only; the old plan is archived whole at docs/archive/plan-2026-11-11.md.
 - 2026-11-11: Pipeline page (scaffold/pipeline.html, built by scaffold/pipeline.py), menu between Catalog and Notes. Structure only, no run results (James). Every box is read from the code at build time: commands (cli.py), groups, loaders and the raw files they write, stagers, check headers; a name that doesn't resolve stops the build. One overview diagram, then one per source group (prices_macro, sec; Tiingo is a reference dataset inside prices_macro, not a group), each with its check table.
 - 2026-11-11: Data Sources list gains a Pipeline column: a stored source links to its group's diagram, found from its raw folders; quick lane and trial rows have none.
+- 2026-11-11: Pipeline diagrams scale to the page width (James); the SEC diagram, seven raw files wide, renders at about 80%. Considered: full size with a horizontal scroll.
 
 ## Findings
 
