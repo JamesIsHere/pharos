@@ -11,7 +11,8 @@
 -- Prices: each series' current vintage only. A correction is accepted by a
 -- deliberate full re-pull, which starts a new vintage and leaves the conflict
 -- readable in the superseded one (D23). FRED: every key, because an ALFRED
--- vintage should be immutable (open issue #24).
+-- vintage should be immutable. No accept path is built for either (#17, #24,
+-- #25 dropped 2026-11-12): if this fires, design one then.
 
 WITH scoped AS (
     SELECT *
