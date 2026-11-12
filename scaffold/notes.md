@@ -10,7 +10,7 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - Pace: one small step at a time, built with James on screen. Each change is a line in Decisions here, in the same step. No batches of edits, no extra sections unasked.
 - Page rules: data before process; lists and tables, not paragraphs; one font and size (16px body, 13px headers, no monospace); no pills, a state is bold colored text; stamps top right in bold green; open questions first on a sheet.
 - Cadence: heavy things run only when needed. SEC is on demand (D159, uv run pharos sec). Full test suite only on schedule or when James says "run the full test suite".
-- Next: Pipeline page built (scaffold/pipeline.py), structure only; James's red pen next. M3 is dropped (D161). Still open: the lighter trusted bar for the SEC group (James chose trusted 2026-11-11); drop the insiders trial?; Explore's Appendix still links the archived folder map; FRED section 5 one-year-later column (asked, not answered).
+- Next: Pipeline page built (scaffold/pipeline.py), structure only; James's red pen next. M3 is dropped (D161). Still open: the lighter trusted bar for the SEC group (James chose trusted 2026-11-11); drop the insiders trial?; FRED section 5 one-year-later column (asked, not answered).
 
 ## Decisions
 
@@ -56,6 +56,8 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - 2026-11-11: Pipeline page (scaffold/pipeline.html, built by scaffold/pipeline.py), menu between Catalog and Notes. Structure only, no run results (James). Every box is read from the code at build time: commands (cli.py), groups, loaders and the raw files they write, stagers, check headers; a name that doesn't resolve stops the build. One overview diagram, then one per source group (prices_macro, sec; Tiingo is a reference dataset inside prices_macro, not a group), each with its check table.
 - 2026-11-11: Data Sources list gains a Pipeline column: a stored source links to its group's diagram, found from its raw folders; quick lane and trial rows have none.
 - 2026-11-11: Pipeline diagrams scale to the page width (James); the SEC diagram, seven raw files wide, renders at about 80%. Considered: full size with a horizontal scroll.
+- 2026-11-12: Pipeline page: one summary diagram (Summary: one run; each group's Load box names its sources), then one small left-to-right detail diagram per source: loader, the raw files it writes, the stager (James). Replaces the per-group diagrams; staged tables move into the group's subtitle line. No diagram is scaled down any more.
+- 2026-11-12: explore/ archived whole to archive/explore-2026-11-12/ (James: Scaffold is the one working surface). Its three quick-lane Catalog rows (FRED page builds, IMF, World Bank) are now retired: they existed only through Explore pages. Superseded scratch pages moved to scratch/archive/: run-flow.html (replaced by Pipeline), m3-flow.html and m3-tieout.html (M3 dropped). .gitignore covers archive/**/*.html, since those pages embed fetched data. Queued: a Where we are block from docs/plan.md's status; a home in Scaffold for new exploration.
 
 ## Findings
 

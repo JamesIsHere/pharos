@@ -4,7 +4,7 @@ revenue,2,RevenueFromContractWithCustomerExcludingAssessedTax,USD,annual,0,1872,
 revenue,3,SalesRevenueNet,USD,annual,1431,0,10601,2009,2019,Pre-ASC 606 concept
 revenue,4,SalesRevenueGoodsNet,USD,annual,305,0,2347,2009,2019,Pre-ASC 606; goods only. FLAG: misses service revenue where it is tagged separately
 revenue,5,SalesRevenueServicesNet,USD,annual,142,0,1000,2009,2019,Pre-ASC 606; services only. FLAG: misses goods revenue where it is tagged separately
-revenue,6,RevenueFromContractWithCustomerIncludingAssessedTax,USD,annual,0,254,2352,2017,2026,"Last resort: includes taxes collected for governments (Philip Morris 2021: $82bn gross vs $31bn net), so it never competes with 1-2 (explore/lib/base.py)"
+revenue,6,RevenueFromContractWithCustomerIncludingAssessedTax,USD,annual,0,254,2352,2017,2026,"Last resort: includes taxes collected for governments (Philip Morris 2021: $82bn gross vs $31bn net), so it never competes with 1-2 (archive/explore-2026-11-12/lib/base.py)"
 cost_of_revenue,1,CostOfRevenue,USD,annual,1025,1011,15114,2009,2026,"Of 52 FY2024 filers tagging both 1 and 2, 28 differ by more than 1% and 20 of those have 1 larger"
 cost_of_revenue,2,CostOfGoodsAndServicesSold,USD,annual,710,1416,17452,2009,2026,
 cost_of_revenue,3,CostOfGoodsSold,USD,annual,1110,0,7916,2009,2019,Pre-2018 taxonomy concept

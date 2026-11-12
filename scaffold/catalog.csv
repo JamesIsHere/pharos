@@ -6,7 +6,7 @@ SEC filing index,landed,"Every EDGAR filing: company, form, date",sec/full_index
 SEC submissions,landed,"Company details (SIC, tickers, fiscal year end) and each company's filing list",sec/submission_details sec/submission_filings,submission_details submission_filings,C31,on demand (pharos sec),,company-facts.html,
 SEC tickers,landed,Ticker to company (CIK) map,sec/tickers,tickers,C34,on demand (pharos sec),,company-facts.html,
 SEC Company Facts,landed,Every XBRL financial fact every company reported,sec/companyfacts sec/companyfacts_concepts sec/companyfacts_changes,company_facts company_concepts,C40,on demand (pharos sec),,company-facts.html,
-FRED (page builds),quick lane,Series fetched when a page builds; not stored,,,,when a page builds,"explore pages: World, People and Work, Where GDP Goes, Coverage, Sectors",,explore/world/world.html explore/people/people.html explore/trade/trade.html explore/coverage/coverage.html explore/sectors/sectors.html
-IMF,quick lane,Trade between economies; fetched when a page builds,,,,when a page builds,explore page: Trade Flows,,explore/flows/flows.html
-World Bank,quick lane,"GDP, for trade shares; fetched when a page builds",,,,when a page builds,explore page: Trade Flows,,explore/flows/flows.html
+FRED (page builds),retired,Series an Explore page fetched when it built; never stored,,,,,"Explore pages (archived 2026-11-12): World, People and Work, Where GDP Goes, Coverage, Sectors",,
+IMF,retired,Trade between economies; was fetched by an Explore page,,,,,Explore page (archived 2026-11-12): Trade Flows,,
+World Bank,retired,"GDP, for trade shares; was fetched by an Explore page",,,,,Explore page (archived 2026-11-12): Trade Flows,,
 SEC insider Forms 3/4/5,trial,"Insider holdings and trades, four quarters; not stored",,,,by hand,data/tmp/explore-insiders (explore page: Insiders),,data:tmp/explore-insiders/*/fetch.json

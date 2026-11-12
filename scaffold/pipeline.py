@@ -122,9 +122,10 @@ def overview():
             L.append(f"    c_{cmd} --> g_{gname}")
     for gname, v in GROUP.items():
         n_raw = len(v["g"].datasets)
+        srcs = ", ".join(dict.fromkeys(m.__name__.rsplit(".", 1)[-1] for m, _, _ in v["loads"] + v["refs"]))
         L.append(f'    subgraph g_{gname}["{gname}"]')
         L.append("        direction TB")
-        L.append(f'        {gname}_load["Load<br/>download each source,<br/>save {n_raw} raw files, write-once"]:::work')
+        L.append(f'        {gname}_load["Load: {srcs}<br/>save {n_raw} raw files, write-once"]:::work')
         L.append(f'        {gname}_stage["Stage<br/>clean and combine into<br/>{len(v["g"].tables)} tables"]:::work')
         n = len(v["gates"])
         gate = f"{n} gate checks:<br/>does one with<br/>severity error fail?" if n else "No gate checks:<br/>nothing can<br/>block a publish"
@@ -154,29 +155,25 @@ def rows5(cs):
     return "<br/>".join(" ".join(c.id for c in cs[i:i + 5]) for i in range(0, len(cs), 5))
 
 
-def group_diagram(gname):
+def source_diagram(gname, load, ref):
+    """One source in detail, left to right: its loader, the raw files it writes, the group's stager."""
     v = GROUP[gname]
-    L = ["flowchart TB"]
-    for i, (m, f, w) in enumerate(v["loads"] + v["refs"]):
-        ref = (m, f, w) in v["refs"]
-        mod = m.__name__.rsplit(".", 1)[-1]
-        L.append(f'    l{i}["{mod}.{f}{"<br/><i>reference: never required</i>" if ref else ""}"]:::work')
-        for s, d in w:
-            if (s, d) in v["g"].datasets:
-                node = f"r_{s}_{d}"
-                L.append(f'    {node}["raw/{s}/{d}"]:::data')
-                L.append(f"    l{i} {'-.->' if ref else '-->'} {node}")
-    L.append(f'    st["stage.{v["stager"]}"]:::work')
-    for s, d in v["g"].datasets:
-        L.append(f"    r_{s}_{d} {'-.->' if (s, d) in v['g'].reference else '-->'} st")
-    L.append(f'    tb["Staged tables<br/>{"<br/>".join(v["g"].tables)}"]:::data')
-    gate = f'Gate checks<br/>{rows5(v["gates"])}' if v["gates"] else "Gate checks<br/>none"
-    L.append(f'    gk["{gate}"]:::gate')
-    L.append('    pub["Publish<br/>or keep the<br/>last good tables"]:::good')
-    mon = f'Monitor checks<br/>{rows5(v["monitors"])}' if v["monitors"] else "Monitor checks<br/>none"
-    L.append(f'    mk["{mon}"]:::work')
-    L.append("    st --> tb --> gk --> pub --> mk")
+    m, f, w = load
+    mod = m.__name__.rsplit(".", 1)[-1]
+    arrow = "-.->" if ref else "-->"
+    L = ["flowchart LR", f'    l["{mod}.{f}{"<br/><i>reference: never required</i>" if ref else ""}"]:::work',
+         f'    st["stage.{v["stager"]}"]:::work']
+    for s, d in w:
+        if (s, d) in v["g"].datasets:
+            L.append(f'    r_{s}_{d}["raw/{s}/{d}"]:::data')
+            L.append(f"    l {arrow} r_{s}_{d} {arrow} st")
     return "\n".join(L) + STYLE
+
+
+def group_details(gname):
+    v = GROUP[gname]
+    return "".join(f'<pre class="mermaid">{esc(source_diagram(gname, x, x in v["refs"]))}</pre>'
+                   for x in v["loads"] + v["refs"])
 
 
 def check_table(cs):
@@ -191,9 +188,9 @@ def runs_by(gname):
 
 sections = "".join(
     f"""<h2 id="{g}">{g}</h2>
-<p class=sub>Run by {esc(runs_by(g))}. Raw files: {len(v['g'].datasets)}. Tables: {len(v['g'].tables)}.
-Checks: {len(v['gates'])} gate, {len(v['monitors'])} monitor.</p>
-<pre class="mermaid">{esc(group_diagram(g))}</pre>
+<p class=sub>Run by {esc(runs_by(g))}. Raw files: {len(v['g'].datasets)}.
+Staged tables: {esc(', '.join(v['g'].tables))}. Checks: {len(v['gates'])} gate, {len(v['monitors'])} monitor.</p>
+{group_details(g)}
 {check_table(v['gates'] + v['monitors'])}"""
     for g, v in GROUP.items())
 
@@ -203,7 +200,7 @@ body = f"""<div class="head"><h1>Pipeline</h1>
 check headers. A gate check runs on the staged tables before publish: if one with severity error fails, or the group's
 load or stage fails, the group is not published and its last good tables stay served. A monitor check never blocks.</p>
 
-<h2>One run</h2>
+<h2>Summary: one run</h2>
 <pre class="mermaid">{esc(overview())}</pre>
 <h3>Checks on the run itself</h3>
 {check_table(RUN_CHECKS)}

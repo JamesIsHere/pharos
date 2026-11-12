@@ -11,3 +11,6 @@ __pycache__/
 /explore/**/*.pdf
 /explore/**/*.mmd
 /scaffold/**/*.html
+/archive/**/*.html
+/archive/**/*.pdf
+/archive/**/*.mmd
