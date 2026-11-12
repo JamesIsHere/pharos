@@ -67,10 +67,27 @@ for a in archived:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(unlink_dead(s, a), encoding="utf-8")
 
+# this machine's paths (run logs, cache folders) name the user's home folder: shown as the project folder alone.
+# One pattern covers C:\Users\<name>\...\pharos with single or doubled backslashes or forward slashes.
+LOCAL = re.compile(r"[A-Za-z]:(?:\\\\|\\|/)Users(?:\\\\|\\|/)[^\\/\"'<>\s]+(?:(?:\\\\|\\|/)[^\\/\"'<>\s]+)*?(?:\\\\|\\|/)pharos(?=\\|/|\"|'|<|\s|$)")
+HOME = re.compile(r"Users(?:\\\\|\\|/)+james", re.I)
+def escape_fffd(s: str) -> str:
+    """The publisher refuses a literal U+FFFD. The bundled chart library has one inside a JS regex (/<U+FFFD>/g);
+    in a script it becomes the JS escape \\uFFFD, which matches the same character; elsewhere the HTML entity."""
+    pieces = re.split(r"(<script\b.*?</script>)", s, flags=re.S | re.I)
+    return "".join(p.replace("�", "\\uFFFD") if p[:7].lower() == "<script" else p.replace("�", "&#xFFFD;")
+                   for p in pieces)
+
+
 for f in OUT.rglob("*.html"):
-    bad = sorted(set(re.findall(r'href="(file:[^"]*)"', f.read_text(encoding="utf-8"))))
+    s = escape_fffd(LOCAL.sub("pharos", f.read_text(encoding="utf-8")))
+    f.write_text(s, encoding="utf-8")
+    bad = sorted(set(re.findall(r'href="(file:[^"]*)"', s)))
     if bad:
         raise SystemExit(f"share: {f.relative_to(OUT)} still links to this machine: {bad[:3]}")
+    left = [s[max(0, m.start() - 40):m.end() + 40] for m in HOME.finditer(s)]
+    if left:
+        raise SystemExit(f"share: {f.relative_to(OUT)} still names the home folder: {left[:3]}")
 
 # the landing page: the Catalog's head contents and body, without the document wrapper
 cat = (OUT / "catalog.html").read_text(encoding="utf-8")
