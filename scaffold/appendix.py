@@ -40,7 +40,7 @@ SECTIONS = (
         ("Data Tests 1-7", "tests/data-tests.html", "Filer counts, revenue and equity against GDP, filing lag, how much of the economy public companies cover"),
     )),
     ("Countries", COUNTRIES, (
-        ("Data", "country_key.html", "How the IMF, World Bank and SEC country codes become config/countries.csv and config/sec_country_codes.csv"),
+        ("Country key", "country_key.html", "How the IMF, World Bank and SEC country codes become config/countries.csv and config/sec_country_codes.csv"),
         ("Charts", "charts.html", "13 exploratory charts: GDP, unemployment, and listed companies by country"),
         ("Trusted", "trusted.html", "The trusted bar (D163) measured against the SEC sources and IMF WEO"),
     )),
@@ -82,6 +82,12 @@ for title, base, pages in SECTIONS:
         when = built(f)
         if base == EXPLORE:
             back_link(f)
+        else:   # the countries pages' own menu named the Archive page, renamed Appendix
+            t = f.read_text(encoding="utf-8")
+            if "scaffold/archive.html" in t:
+                st = f.stat()
+                f.write_text(t.replace("scaffold/archive.html", "scaffold/appendix.html"), encoding="utf-8")
+                os.utime(f, (st.st_atime, st.st_mtime))
         rows.append(f'<tr><td><a href="../{f.relative_to(ROOT).as_posix()}">{esc(label)}</a></td>'
                     f'<td>{esc(what)}</td><td class=sub>{when}</td></tr>')
     parts.append(f'<h2>{title}</h2><table class="list"><tr><th>Page</th><th>What</th><th>Built</th></tr>{"".join(rows)}</table>')
