@@ -10,3 +10,4 @@ __pycache__/
 /explore/**/*.html
 /explore/**/*.pdf
 /explore/**/*.mmd
+/scaffold/**/*.html

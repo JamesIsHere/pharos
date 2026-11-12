@@ -1,0 +1,12 @@
+source,state,what,raw,served,freshness,cadence,where,sheet,asof
+Yahoo prices,trusted,"Daily close, splits, dividends for the watchlist tickers",yf/prices,observations:yf,C02 C17,nightly,,prices.html,
+Tiingo prices,reference,Second price source that checks Yahoo's closes; never served,tiingo/prices,,C12 C20,nightly,,prices.html,
+FRED / ALFRED,trusted,"Macro series with every vintage (GDP, CPI, population, labor)",fred/observations fred/series,observations:fred,C02 C17,nightly,,fred.html,
+SEC filing index,landed,"Every EDGAR filing: company, form, date",sec/full_index,filings,C25,on demand (pharos sec),,company-facts.html,
+SEC submissions,landed,"Company details (SIC, tickers, fiscal year end) and each company's filing list",sec/submission_details sec/submission_filings,submission_details submission_filings,C31,on demand (pharos sec),,company-facts.html,
+SEC tickers,landed,Ticker to company (CIK) map,sec/tickers,tickers,C34,on demand (pharos sec),,company-facts.html,
+SEC Company Facts,landed,Every XBRL financial fact every company reported,sec/companyfacts sec/companyfacts_concepts sec/companyfacts_changes,company_facts company_concepts,C40,on demand (pharos sec),,company-facts.html,
+FRED (page builds),quick lane,Series fetched when a page builds; not stored,,,,when a page builds,"explore pages: World, People and Work, Where GDP Goes, Coverage, Sectors",,explore/world/world.html explore/people/people.html explore/trade/trade.html explore/coverage/coverage.html explore/sectors/sectors.html
+IMF,quick lane,Trade between economies; fetched when a page builds,,,,when a page builds,explore page: Trade Flows,,explore/flows/flows.html
+World Bank,quick lane,"GDP, for trade shares; fetched when a page builds",,,,when a page builds,explore page: Trade Flows,,explore/flows/flows.html
+SEC insider Forms 3/4/5,trial,"Insider holdings and trades, four quarters; not stored",,,,by hand,data/tmp/explore-insiders (explore page: Insiders),,data:tmp/explore-insiders/*/fetch.json

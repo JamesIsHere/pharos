@@ -1,5 +1,5 @@
 -- id: C25
--- severity: error
+-- severity: warn
 -- gate: no
 -- group: sec
 -- description: latest full-index filing date older than 3 business days at the clock's date (D60)
@@ -7,7 +7,8 @@
 -- Business days are weekdays after the latest filing date up to the clock's
 -- UTC date; SEC holidays are not excluded, so a holiday can make this fire a
 -- day early (defaulted at the landed level, D127). Reads the served
--- `filings` table at view time. A monitor: never blocks (D17).
+-- `filings` table at view time. A monitor: never blocks (D17). Warn, not
+-- error, while SEC runs on demand (D159): its data ages between runs by design.
 
 WITH latest AS (SELECT max(date_filed) AS latest_filed FROM filings),
 today AS (SELECT CAST(now AS DATE) AS today FROM clock)

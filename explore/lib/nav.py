@@ -12,6 +12,7 @@ GROUPS = (
     ("Companies", (("Industry Code Breakdown", "../codes/industry-codes.html"),
                    ("Peers", "../peers/peers.html"),
                    ("Amazon", "../amazon/amazon.html"),
+                   ("Insiders", "../insiders/insiders.html"),
                    ("Reporting Consistency", "../consistency/consistency.html"))),
     ("Pipeline", (("Data", "../data/data.html"),
                   ("Data Tests", "../tests/data-tests.html"),

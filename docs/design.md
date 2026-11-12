@@ -148,7 +148,7 @@ Completeness requires a declared expectation. `config/watchlist.csv` plus each s
 | C20 | freshness | warn | no | Tiingo's latest close for an active ticker older than the latest due XNYS session (D37) |
 | C35 | carry-forward | warn | no | a source group was carried forward in the latest run: served from an earlier run (`group: run`, D81, D82, D116) |
 | C36 | carry-forward | error | no | a source group has not published fresh in 2 or more runs in a row, or has never published (`group: run`, D82, D83, D116). A run that didn't attempt a group (`not_run`) doesn't count (D135) |
-| C25 | freshness | error | no | latest full-index filing date older than 3 business days (weekdays) at the clock (`group: sec`, D60) |
+| C25 | freshness | warn | no | latest full-index filing date older than 3 business days (weekdays) at the clock (`group: sec`, D60); warn, not error, while SEC is on demand (D159) |
 | C31 | freshness | warn | no | latest submissions.zip Last-Modified older than 36 hours at the clock (`group: sec`, D60) |
 | C34 | freshness | warn | no | latest ticker file Last-Modified older than 14 days at the clock; provisional (`group: sec`, D60) |
 | C40 | freshness | warn | no | latest Company Facts landing older than 36 hours at the clock (`group: sec`, D139) |

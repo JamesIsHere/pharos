@@ -7,7 +7,7 @@ check blocks only its own group, and reads only its own group's tables and raw
 data. Checks about the run itself (the age of the last publish, which groups
 were carried forward) declare `group: run`; they are monitors and never gate.
 
-Two registered groups: prices_macro (M1) and sec (M2). Company Facts belongs
+Two registered groups: prices_macro (M1, nightly) and sec (M2, on demand since D159). Company Facts belongs
 to the SEC group so submissions and facts cross the publish boundary together.
 A group joins GROUPS
 only with its stager, check binder and loaders: registered without them,
@@ -49,7 +49,8 @@ PRICES_MACRO = Group(
 
 # SEC data at the landed level (D127, D128). Company Facts is incrementally
 # refreshed from CIKs changed in submissions; all six tables are one atomic
-# load/stage/check/publish unit.
+# load/stage/check/publish unit. On demand (D159): `pharos sec` runs it; the
+# nightly refresh runs prices_macro only.
 SEC = Group(
     name="sec",
     required=(("sec", "full_index"), ("sec", "submission_details"), ("sec", "submission_filings"),
@@ -59,6 +60,7 @@ SEC = Group(
     tables=("filings", "submission_filings", "submission_details", "tickers",
             "company_facts", "company_concepts"),
     inputs=(),
+    on_demand=True,
 )
 
 # every declared group, registered or not: a check may name any of them, and

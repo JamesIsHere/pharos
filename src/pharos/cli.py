@@ -92,6 +92,12 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     return _report_run(*refresh())
 
 
+def cmd_sec(args: argparse.Namespace) -> int:
+    from pharos.refresh import run_on_demand
+
+    return _report_run(*run_on_demand("sec"), " (SEC, on demand)")
+
+
 def cmd_companyfacts(args: argparse.Namespace) -> int:
     from pharos.refresh import refresh_companyfacts_full
 
@@ -173,6 +179,10 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("refresh", help="load, stage, check and publish a new run; writes the run manifest")
     p.set_defaults(func=cmd_refresh)
+
+    p = sub.add_parser("sec", help="run the SEC group alone (index, submissions, tickers, Company Facts delta) "
+                                   "and publish it; the nightly refresh doesn't run SEC (D159)")
+    p.set_defaults(func=cmd_sec)
 
     p = sub.add_parser("companyfacts", help="force a full Company Facts baseline and publish it atomically "
                                             "with fresh SEC index, submissions and tickers")
