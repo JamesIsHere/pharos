@@ -18,7 +18,7 @@ from pharos.paths import data_root
 
 HERE = Path(__file__).parent
 DATA = data_root()
-STATES = ("trusted", "landed", "reference", "quick lane", "trial", "retired")
+STATES = ("trusted", "landed", "quick lane", "trial", "retired")
 
 rows = list(csv.DictReader((HERE / "catalog.csv").open(encoding="utf-8")))
 bad = [r["source"] for r in rows if r["state"] not in STATES]
@@ -102,7 +102,7 @@ def as_of(r):
     """Stored: the newest raw file's run. Otherwise the files named in the asof column: for pages that fetch at
     build time, the oldest page (the stalest fetch); for downloads, the newest file. A named file missing stops."""
     if r["newest"]:
-        return f"loaded {run_et(r['newest'])}"
+        return run_et(r["newest"])
     if not r["asof"]:
         return ""
     files = []
@@ -113,10 +113,8 @@ def as_of(r):
             raise SystemExit(f"catalog.csv: asof file {base / pat} not on disk")
         files += hits
     times = [datetime.fromtimestamp(f.stat().st_mtime, ET) for f in files]
-    if r["state"] == "quick lane":
-        n = len({f.parent for f in files})
-        return f"fetched {min(times):%Y-%m-%d %H:%M} ET" + (f" (oldest of {n} pages)" if n > 1 else " (page build)")
-    return f"downloaded {max(times):%Y-%m-%d %H:%M} ET"
+    t = min(times) if r["state"] == "quick lane" else max(times)
+    return f"{t:%Y-%m-%d %H:%M} ET"
 
 
 list_rows = "".join(f"<tr><td>{link(r)}</td><td><span class='st {r['state'].replace(' ', '-')}'>{esc(r['state'])}</span></td>"

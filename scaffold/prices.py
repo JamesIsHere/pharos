@@ -1,4 +1,4 @@
-"""Prices sheet: Yahoo (trusted, served) with Tiingo (reference, never served) for the Catalog (James, 2026-11-11).
+"""Prices sheet: Yahoo (trusted, served) with Tiingo (trusted, checks only, never served) for the Catalog (James, 2026-11-11).
 Same order as the other sheets: open questions, population by ticker with a rows-per-year timeline, then Data:
 schema, tables, columns, joins, and 5. Yahoo against Tiingo, using the pipeline's own transform/reconcile_all.sql
 (the comparison check C12 samples from) over the served observations and the Tiingo snapshot the served version
@@ -29,7 +29,7 @@ TABLES = {  # table -> (key, role, star-schema role, diagram color)
                      "fact", "#fef9c3"),
     "series_catalog": (("series_id",), "one series per ticker (joins on series_id)", "dimension: series", "#dbeafe"),
     "tiingo_snapshot": (("ticker", "obs_date"), "Tiingo's full history as of the served run; checks only, never served",
-                        "reference", "#e5e7eb"),
+                        "second source", "#e5e7eb"),
 }
 
 con = duckdb.connect()

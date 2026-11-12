@@ -10,7 +10,7 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - Pace: one small step at a time, built with James on screen. Each change is a line in Decisions here, in the same step. No batches of edits, no extra sections unasked.
 - Page rules: data before process; lists and tables, not paragraphs; one font and size (16px body, 13px headers, no monospace); no pills, a state is bold colored text; stamps top right in bold green; open questions first on a sheet.
 - Cadence: heavy things run only when needed. SEC is on demand (D159, uv run pharos sec). Full test suite only on schedule or when James says "run the full test suite".
-- Next: James looks at the Prices sheet (first cut 2026-11-11). Queued: FRED section 5 one-year-later column (asked, not answered). Then: the sheets' open questions, or back to M3 step 4 / #117.
+- Next: make the SEC group trusted (Company Facts with its filing index, submissions and tickers): start with the Company Facts open questions. Proposed 2026-11-11, not yet confirmed by James. Also open: drop the insiders trial? Explore's Appendix still links the archived folder map. Queued: FRED section 5 one-year-later column (asked, not answered). Then: the sheets' open questions, or back to M3 step 4 / #117.
 
 ## Decisions
 
@@ -18,7 +18,7 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - 2026-11-11: Name: Scaffold. Also considered: Trailhead, Watch Room, Foundation, Gantry, Cornerstone, Headframe.
 - 2026-11-11: Horizontal menu. First item: Catalog. Source sheets open from a Catalog row.
 - 2026-11-11: The Catalog lists every source in any state, not only the ones we like. State is a column (model-inventory style).
-- 2026-11-11: States (proposed, not yet confirmed by James): trusted, landed, reference, quick lane, trial, retired.
+- 2026-11-11: States (proposed, not yet confirmed by James): trusted, landed, quick lane, trial, retired. (reference removed, see below)
 - 2026-11-11: Catalog definitions live in scaffold/catalog.csv (opens in Excel). Every number is measured from disk at build time. A name in the CSV that is not on disk stops the build.
 - 2026-11-11: A source sheet has two halves: Data, then Pipeline. Pipeline is James's word (not plumbing).
 - 2026-11-11: First sheet: SEC Company Facts (biggest, slowest nightly step, M3 depends on it).
@@ -47,6 +47,10 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - 2026-11-11: FRED sheet: a vintages timeline right under the population table, one row per series on a shared year axis, a bar per year = vintages released that year (James: like the Company Facts bar charts).
 - 2026-11-11: Third source sheet: Prices, Yahoo with Tiingo on one page (scaffold/prices.html, built by scaffold/prices.py, questions in scaffold/prices-questions.md); the Yahoo and Tiingo Catalog rows both link to it. Section 5 is Yahoo against Tiingo on every common date, through the pipeline's own transform/reconcile_all.sql (not a copy); 5b splits and 5c dividends, both sources. Rows-per-year timeline under the population, as on FRED.
 - 2026-11-11: The SEC filing index, submissions and tickers Catalog rows link to the Company Facts sheet (James: Company Facts is the one page for all SEC data).
+- 2026-11-11: "reference" is gone as a state (James: a source used as a reference is trusted). Tiingo prices is trusted. On the Prices sheet the Tiingo snapshot's table type is "second source". The pipeline's own groups.py still calls Tiingo a reference group (loaded every run, never required); that is pipeline behavior, unchanged.
+- 2026-11-11: Session protocol step 3 (update scratch/folder-map.html after each commit) removed from CLAUDE.md: skipped on 5 of the last 7 commits, and docs/plan.md's status block covers it. Page archived to scratch/archive/folder-map-2026-11-11.html.
+- 2026-11-11: Data Sources list: As of shows the date and time only; the words (loaded, fetched, downloaded, oldest of 5 pages, page build) are gone. The rule behind each date is unchanged: stored = newest raw file's run; quick lane = oldest page build; trial = newest download.
+- 2026-11-11: Everything on demand (D160): the scheduled nightly is disabled; Catalog cadence for Yahoo, Tiingo and FRED reads "on demand (pharos refresh)".
 
 ## Findings
 
@@ -73,11 +77,9 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 
 ## Open
 
-- Commit: explore/insiders, the explore menu line, and scaffold/ are all uncommitted.
-- Confirm the six states.
+- Confirm the five states (trusted, landed, quick lane, trial, retired).
 - Catalog "where" column (which pages use a stored source) is blank for stored sources: lineage.
-- Company Facts Pipeline section: the timing lines inside each pass arrive with the first `pharos sec` run (no longer tonight's nightly, D159).
+- Company Facts timing lines inside each pass arrive with the first `pharos sec` run James asks for (D159, D160); the sheet's Pipeline section was dropped.
 - Promotion checklist: what James needs to see before saying "comfortable", drawn from the Company Facts sheet.
 - Shared intake code (explore/lib/intake.py or scaffold equivalent) when the second trial source arrives.
 - End-of-effort review: what we learned -> a skill, rules, or decision-log rows.
-- Next step, James to pick ((a) shared style on the Catalog: done 2026-11-11): (b) a second source sheet with the same sections, which shows whether the sheet works as a template; (c) work the Company Facts open questions; (d) back to the plan's milestone (M3 step 4, #117).

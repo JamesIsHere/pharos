@@ -28,7 +28,7 @@ tr.flag td { background:var(--flag); }
 .sub, .muted { color:var(--muted); font-size:16px; }
 .facts td:first-child { color:var(--muted); }
 .st { font-weight:700; white-space:nowrap; }
-.trusted { color:#15803d; } .landed { color:#1d4ed8; } .reference { color:#4b5563; }
+.trusted { color:#15803d; } .landed { color:#1d4ed8; }
 .quick-lane { color:#a16207; } .trial { color:#c2410c; } .retired { color:#9ca3af; }
 .ok { color:#15803d; white-space:nowrap; } .bad { color:#b91c1c; font-weight:600; white-space:nowrap; }
 .wrap { overflow-x:auto; }

@@ -1,7 +1,7 @@
 source,state,what,raw,served,freshness,cadence,where,sheet,asof
-Yahoo prices,trusted,"Daily close, splits, dividends for the watchlist tickers",yf/prices,observations:yf,C02 C17,nightly,,prices.html,
-Tiingo prices,reference,Second price source that checks Yahoo's closes; never served,tiingo/prices,,C12 C20,nightly,,prices.html,
-FRED / ALFRED,trusted,"Macro series with every vintage (GDP, CPI, population, labor)",fred/observations fred/series,observations:fred,C02 C17,nightly,,fred.html,
+Yahoo prices,trusted,"Daily close, splits, dividends for the watchlist tickers",yf/prices,observations:yf,C02 C17,on demand (pharos refresh),,prices.html,
+Tiingo prices,trusted,Second price source that checks Yahoo's closes; never served,tiingo/prices,,C12 C20,on demand (pharos refresh),,prices.html,
+FRED / ALFRED,trusted,"Macro series with every vintage (GDP, CPI, population, labor)",fred/observations fred/series,observations:fred,C02 C17,on demand (pharos refresh),,fred.html,
 SEC filing index,landed,"Every EDGAR filing: company, form, date",sec/full_index,filings,C25,on demand (pharos sec),,company-facts.html,
 SEC submissions,landed,"Company details (SIC, tickers, fiscal year end) and each company's filing list",sec/submission_details sec/submission_filings,submission_details submission_filings,C31,on demand (pharos sec),,company-facts.html,
 SEC tickers,landed,Ticker to company (CIK) map,sec/tickers,tickers,C34,on demand (pharos sec),,company-facts.html,
