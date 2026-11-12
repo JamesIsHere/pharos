@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Core Capex in GDP</title>
+<style>
+:root { --fg:#111827; --muted:#6b7280; --line:#e5e7eb; --bg:#ffffff; --eq:#15803d; --eqbg:#dcfce7; --imp:#b45309; --impbg:#fef3c7; --box:#f3f4f6; }
+body { background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, "Segoe UI", sans-serif; margin:0; }
+main { max-width:1060px; margin:0 auto; padding:24px 16px 60px; }
+h1 { font-size:22px; margin:0 0 4px; } h2 { font-size:17px; margin:34px 0 8px; border-bottom:1px solid var(--fg); padding-bottom:4px; }
+.sub, .muted { color:var(--muted); font-size:13px; }
+.lead { font-size:16px; margin:14px 0 4px; }
+.lead li { margin:4px 0; }
+table { border-collapse:collapse; font-size:14px; margin:6px 0; }
+th, td { padding:5px 12px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
+th { color:var(--muted); font-weight:500; font-size:13px; }
+td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+tr.hl td { background:var(--eqbg); }
+.wrap { overflow-x:auto; }
+svg text { font-family:system-ui, "Segoe UI", sans-serif; }
+</style></head>
+<body><main>
+<p class=sub><a href="m3.html">&larr; Manufacturing (M3)</a></p>
+<h1>Where core capital goods orders sit in the economy</h1>
+<p class=sub>Exploration, 2026-11-12. Figures are from FRED (BEA national accounts, Census M3, BLS producer prices) and Pharos's SEC Company Facts, pulled for this page. Dollar levels are 2026 Q3 at annual rates unless marked.</p>
+
+<ul class=lead>
+<li>Equipment investment is 6% of GDP, but on average it adds about 12% of GDP growth, and it drove about half of the 2008-09 contraction.</li>
+<li>Core capital goods orders are the monthly, early read on the US-made part of that equipment. They move with equipment investment in the same quarter and one quarter ahead; they do not forecast further out.</li>
+<li>Right now the equipment boom is computers, mostly imported, and four companies' spending accounts for about two-thirds of the rise in public-company capital spending. That is why real core orders (+9.3%) understate real equipment investment (+14.1%).</li>
+</ul>
+
+<h2>The map</h2>
+<div class=wrap>
+<svg viewBox="0 0 1020 560" width="1020" height="560" role="img" aria-label="GDP components and the flow from core capital goods orders to equipment investment">
+  <!-- GDP bar: widths proportional to share of GDP (C + I parts + G = 34,228; scale 900px) -->
+  <text x="20" y="22" font-size="14" font-weight="600">GDP, $33.0T (2026 Q3, annual rate)</text>
+  <rect x="20" y="34" width="587" height="44" fill="#e5e7eb" stroke="#111827"/>
+  <text x="313" y="61" font-size="13" text-anchor="middle">Consumer spending $22.3T (68%)</text>
+  <rect x="607" y="34" width="31" height="44" fill="#f3f4f6" stroke="#111827"/>
+  <rect x="638" y="34" width="25" height="44" fill="#f3f4f6" stroke="#111827"/>
+  <rect x="663" y="34" width="54" height="44" fill="#15803d" stroke="#111827"/>
+  <rect x="717" y="34" width="51" height="44" fill="#f3f4f6" stroke="#111827"/>
+  <rect x="768" y="34" width="152" height="44" fill="#e5e7eb" stroke="#111827"/>
+  <text x="844" y="61" font-size="13" text-anchor="middle">Government $5.8T (17%)</text>
+  <!-- labels under the investment slices -->
+  <line x1="622" y1="78" x2="622" y2="100" stroke="#6b7280"/><text x="560" y="114" font-size="11" fill="#6b7280">Housing $1.2T</text>
+  <line x1="650" y1="78" x2="650" y2="128" stroke="#6b7280"/><text x="560" y="142" font-size="11" fill="#6b7280">Structures $1.0T</text>
+  <line x1="690" y1="78" x2="690" y2="128" stroke="#15803d"/><text x="666" y="142" font-size="12" fill="#15803d" font-weight="600">Equipment $2.05T (6.2%)</text>
+  <line x1="742" y1="78" x2="742" y2="100" stroke="#6b7280"/><text x="736" y="114" font-size="11" fill="#6b7280">Software and R&amp;D $1.9T</text>
+  <text x="607" y="28" font-size="11" fill="#6b7280">Private investment $6.1T (19%)</text>
+  <text x="830" y="96" font-size="11" fill="#6b7280">Net exports -$1.2T (-4%), not drawn</text>
+
+  <!-- flow -->
+  <text x="20" y="196" font-size="14" font-weight="600">How an equipment purchase reaches GDP</text>
+  <g font-size="12">
+    <rect x="20" y="214" width="150" height="70" rx="6" fill="#f3f4f6" stroke="#111827"/>
+    <text x="95" y="244" text-anchor="middle">A business decides</text><text x="95" y="260" text-anchor="middle">to buy equipment</text>
+
+    <rect x="210" y="208" width="190" height="82" rx="6" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
+    <text x="305" y="230" text-anchor="middle" font-weight="600">Core capital goods orders</text>
+    <text x="305" y="247" text-anchor="middle">NEWORDER, $88B a month</text>
+    <text x="305" y="263" text-anchor="middle">monthly, out ~26 days</text>
+    <text x="305" y="279" text-anchor="middle">after the month</text>
+
+    <rect x="440" y="214" width="150" height="70" rx="6" fill="#f3f4f6" stroke="#111827"/>
+    <text x="515" y="240" text-anchor="middle">Backlog</text><text x="515" y="256" text-anchor="middle">(unfilled orders)</text><text x="515" y="272" text-anchor="middle" fill="#6b7280">weeks to months</text>
+
+    <rect x="630" y="208" width="170" height="82" rx="6" fill="#dcfce7" stroke="#15803d"/>
+    <text x="715" y="230" text-anchor="middle" font-weight="600">Core shipments</text>
+    <text x="715" y="247" text-anchor="middle">ANXAVS, $1.02T a year</text>
+    <text x="715" y="263" text-anchor="middle">made in US factories</text>
+    <text x="715" y="279" text-anchor="middle">(3.1% of GDP)</text>
+
+    <rect x="840" y="208" width="160" height="82" rx="6" fill="#15803d" stroke="#111827"/>
+    <text x="920" y="232" text-anchor="middle" fill="#fff" font-weight="600">Equipment</text>
+    <text x="920" y="248" text-anchor="middle" fill="#fff" font-weight="600">investment</text>
+    <text x="920" y="266" text-anchor="middle" fill="#fff">$2.05T, in GDP</text>
+    <text x="920" y="282" text-anchor="middle" fill="#fff">quarterly</text>
+
+    <rect x="630" y="352" width="170" height="70" rx="6" fill="#fef3c7" stroke="#b45309"/>
+    <text x="715" y="374" text-anchor="middle" font-weight="600">Imported capital goods</text>
+    <text x="715" y="391" text-anchor="middle">$1.78T a year</text>
+    <text x="715" y="408" text-anchor="middle">(computers $0.75T)</text>
+
+    <rect x="840" y="352" width="160" height="70" rx="6" fill="#f3f4f6" stroke="#111827"/>
+    <text x="920" y="378" text-anchor="middle" font-weight="600">Net exports</text>
+    <text x="920" y="396" text-anchor="middle">imports count minus</text>
+
+    <rect x="440" y="352" width="150" height="70" rx="6" fill="#f3f4f6" stroke="#111827"/>
+    <text x="515" y="378" text-anchor="middle" font-weight="600">Exported</text>
+    <text x="515" y="396" text-anchor="middle">capital goods $0.85T</text>
+  </g>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#111827"/></marker>
+        <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#b45309"/></marker></defs>
+  <g stroke="#111827" stroke-width="1.5" fill="none" marker-end="url(#a)">
+    <path d="M170 249 H206"/><path d="M400 249 H436"/><path d="M590 249 H626"/><path d="M800 249 H836"/>
+    <path d="M680 290 V320 H515 V348"/>
+  </g>
+  <g stroke="#b45309" stroke-width="1.5" fill="none" marker-end="url(#b)">
+    <path d="M760 352 V320 H900 V294"/><path d="M800 400 H836"/>
+  </g>
+  <text x="530" y="314" font-size="11" fill="#6b7280">some ships abroad</text>
+  <text x="906" y="336" font-size="11" fill="#b45309">imports</text>
+
+  <text x="20" y="470" font-size="13" font-weight="600">The point the diagram makes</text>
+  <text x="20" y="490" font-size="13">An imported server raises equipment investment and lowers net exports by the same amount, so its net effect on GDP is zero.</text>
+  <text x="20" y="508" font-size="13">The part of equipment spending that adds to GDP is what US factories make: the green path, which core orders track.</text>
+  <text x="20" y="526" font-size="13" fill="#6b7280">Box sizes are not to scale. Imports include parts that go into other products, so the three flows do not add up to $2.05T.</text>
+</svg>
+</div>
+
+<h2>How much weight: share of GDP versus share of the swings</h2>
+<p>Contribution to real GDP growth, in percentage points at an annual rate, averaged over the quarters in each period. A component's contribution is how much of GDP's growth it accounts for.</p>
+<div class=wrap><table>
+<tr><th>Component</th><th class=num>Share of GDP</th><th class=num>Average 1990-2026</th><th class=num>2001 recession</th><th class=num>2008 Q1-2009 Q2</th><th class=num>2020 H1</th><th class=num>Last 4 quarters</th></tr>
+<tr><td>Real GDP growth</td><td class=num>100%</td><td class=num>2.59</td><td class=num>0.17</td><td class=num>-2.52</td><td class=num>-16.60</td><td class=num>2.08</td></tr>
+<tr><td>Consumer spending</td><td class=num>68%</td><td class=num>1.84</td><td class=num>1.66</td><td class=num>-0.98</td><td class=num>-13.05</td><td class=num>1.70</td></tr>
+<tr class=hl><td>Equipment</td><td class=num>6%</td><td class=num>0.31</td><td class=num>-0.56</td><td class=num>-1.15</td><td class=num>-1.67</td><td class=num>0.77</td></tr>
+<tr><td>Business investment, all</td><td class=num>15%</td><td class=num>0.59</td><td class=num>-0.99</td><td class=num>-1.51</td><td class=num>-2.56</td><td class=num>1.17</td></tr>
+<tr><td>Housing</td><td class=num>4%</td><td class=num>0.03</td><td class=num>0.09</td><td class=num>-0.99</td><td class=num>-0.32</td><td class=num>-0.10</td></tr>
+<tr><td>Inventories</td><td class=num>0%</td><td class=num>0.05</td><td class=num>-1.25</td><td class=num>-1.01</td><td class=num>-2.48</td><td class=num>0.30</td></tr>
+<tr><td>Government</td><td class=num>17%</td><td class=num>0.26</td><td class=num>0.88</td><td class=num>0.71</td><td class=num>1.29</td><td class=num>0.17</td></tr>
+<tr><td>Net exports</td><td class=num>-4%</td><td class=num>-0.18</td><td class=num>-0.21</td><td class=num>1.27</td><td class=num>0.54</td><td class=num>-1.18</td></tr>
+</table></div>
+<ul>
+<li>2001: consumers kept spending; business investment and inventories made the recession. Equipment fell while GDP was flat.</li>
+<li>2008-09: equipment took 1.15 of the 2.52-point average drop, nearly half, from 6% of the economy.</li>
+<li>2020: a consumer shock. Equipment was a small part of it.</li>
+<li>Last four quarters: equipment added 0.77 of 2.08 points, 37% of growth. Net exports took away 1.18, much of it the same imported equipment, which is the wash in the diagram.</li>
+</ul>
+<p class=muted>Quarterly volatility (standard deviation of the contribution, 1990-2026): GDP 4.36, consumer spending 3.11, inventories 1.59, net exports 1.03, business investment 1.00, equipment 0.69. Series: A191RL1Q225SBEA and BEA contribution series (DPCERY2Q224SBEA, Y033RY2Q224SBEA, A008RY2Q224SBEA, A011RY2Q224SBEA, A014RY2Q224SBEA, A822RY2Q224SBEA, A019RY2Q224SBEA).</p>
+
+<h2>What core orders tell you that GDP does not</h2>
+<p>Correlation between real core orders growth in a quarter and real equipment investment growth (Y033RX1Q020SBEA) L quarters later, each measured as growth over the same quarter a year earlier, 2008 Q1 to 2026 Q3. Orders are deflated by the capital equipment producer price index (WPSFD41312).</p>
+<table>
+<tr><th>Quarters ahead</th><th class=num>0</th><th class=num>1</th><th class=num>2</th><th class=num>3</th><th class=num>4</th></tr>
+<tr><td>Correlation</td><td class=num>0.87</td><td class=num>0.75</td><td class=num>0.48</td><td class=num>0.17</td><td class=num>-0.11</td></tr>
+</table>
+<ul>
+<li>Timing, not foresight: orders track equipment investment in the same quarter and the next, then the link fades. Their value is that they arrive monthly, while GDP for a quarter arrives about a month after it ends and is revised for years.</li>
+<li>Intent: an order is a commitment to spend, made before the goods exist. When businesses lose confidence, orders fall first; that is the lead you can see before each recession on the M3 chart.</li>
+<li>What they miss: imports, software and R&amp;D, buildings, and defense and aircraft. Right now imports are the big miss.</li>
+</ul>
+
+<h2>Right now: what is inside the equipment boom</h2>
+<table>
+<tr><th>Equipment investment, 2026 Q3</th><th class=num>$B, annual rate</th><th class=num>Real growth, year over year</th></tr>
+<tr class=hl><td>All equipment</td><td class=num>2,051</td><td class=num>+14.1%</td></tr>
+<tr><td>Information processing equipment</td><td class=num>934</td><td class=num>+29.1%</td></tr>
+<tr><td>of which computers and peripherals</td><td class=num>504</td><td class=num>+46.1%</td></tr>
+<tr><td>Industrial equipment</td><td class=num>406</td><td class=num>+12.6%</td></tr>
+<tr><td>Transportation equipment</td><td class=num>353</td><td class=num>-4.6%</td></tr>
+<tr><td>Imported capital goods (all uses)</td><td class=num>1,783</td><td class=num>+41.8%</td></tr>
+<tr><td>Real core capital goods orders (monthly, 2026-09)</td><td class=num></td><td class=num>+9.3%</td></tr>
+</table>
+<p>Computer investment is growing 46% in real terms and computer imports doubled in dollars (+111%). Most of the boom is machines built abroad, which core orders cannot see. The US-made part, industrial equipment and the machinery behind core orders, is growing too, at 9-13%.</p>
+
+<h2>Decomposed into companies: the buyers</h2>
+<p>Census does not name who orders. The other end of the trade does: public companies report capital spending in their filings, and Pharos has it (SEC Company Facts, concept PaymentsToAcquirePropertyPlantAndEquipment, calendar years). Across the 3,450 companies reporting both years, capital spending rose from $903B in 2024 to $1,097B in 2025 (+21%).</p>
+<div class=wrap><table>
+<tr><th>Company</th><th>SEC industry</th><th class=num>2025 $B</th><th class=num>2024 $B</th><th class=num>Change</th></tr>
+<tr class=hl><td>Alphabet</td><td>Computer programming, data processing</td><td class=num>91.4</td><td class=num>52.5</td><td class=num>+74%</td></tr>
+<tr class=hl><td>Meta Platforms</td><td>Computer programming, data processing</td><td class=num>69.7</td><td class=num>37.3</td><td class=num>+87%</td></tr>
+<tr class=hl><td>Microsoft</td><td>Prepackaged software</td><td class=num>64.6</td><td class=num>44.5</td><td class=num>+45%</td></tr>
+<tr class=hl><td>Oracle</td><td>Prepackaged software</td><td class=num>55.7</td><td class=num>21.2</td><td class=num>+162%</td></tr>
+<tr><td>Exxon Mobil</td><td>Petroleum refining</td><td class=num>28.4</td><td class=num>24.3</td><td class=num>+17%</td></tr>
+<tr><td>Walmart</td><td>Variety stores</td><td class=num>26.6</td><td class=num>23.8</td><td class=num>+12%</td></tr>
+<tr><td>Berkshire Hathaway</td><td>Insurance</td><td class=num>20.9</td><td class=num>19.0</td><td class=num>+10%</td></tr>
+<tr><td>Micron Technology</td><td>Semiconductors</td><td class=num>15.9</td><td class=num>8.4</td><td class=num>+89%</td></tr>
+<tr><td>Intel</td><td>Semiconductors</td><td class=num>14.6</td><td class=num>23.9</td><td class=num>-39%</td></tr>
+<tr><td>Duke Energy</td><td>Electric utility</td><td class=num>14.0</td><td class=num>12.3</td><td class=num>+14%</td></tr>
+</table></div>
+<p>The four highlighted companies went from $155.5B to $281.4B: $125.9B of the $194B rise, about two-thirds. Read with the table above, the boom is a computing build-out by a handful of buyers, filled largely with imported machines.</p>
+<p class=muted>Not comparable dollar for dollar with GDP: company capital spending is worldwide, includes land and buildings, and is cash paid. Amazon does not appear: it reports under a different concept, so this concept misses it. Industry is the SEC's code for the company, not for what it bought.</p>
+
+<h2>What is solid and what is not</h2>
+<ul>
+<li>Every number above was pulled from FRED or Pharos for this page, on 2026-11-12.</li>
+<li>From memory, not checked here: that BEA builds equipment investment from domestic shipments plus imports less exports (the diagram's arrows), and that GDP for a quarter is first published about a month after the quarter ends.</li>
+<li>The read of the boom as a computing build-out is an inference from these tables; no news was consulted.</li>
+</ul>
+</main></body></html>

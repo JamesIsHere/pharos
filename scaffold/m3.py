@@ -2,6 +2,9 @@
 checks run when they landed (2026-11-12). Everything is measured from the served version at build time. Read-only.
 Writes m3.html. Run: uv run python scaffold/m3.py"""
 import json
+import os
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 import duckdb
@@ -21,7 +24,7 @@ SERIES = {
     "AMTMTI": "Inventories, total manufacturing",
     "AMTMUO": "Unfilled orders, total manufacturing",
     "DGORDER": "New orders, durable goods",
-    "NEWORDER": "New orders, nondefense capital goods ex aircraft",
+    "NEWORDER": "Core capital goods orders: new orders, nondefense capital goods excluding aircraft",
 }
 ids = ",".join(f"'fred:{s}'" for s in SERIES)
 
@@ -72,91 +75,41 @@ rev = {r[0]: r[1:] for r in q("""SELECT f.s, count(*), median(abs(l.value / f.va
                                   FROM first_print f JOIN latest l USING (s, obs_date)
                                   WHERE obs_date >= DATE '2015-01-01' GROUP BY f.s""")}
 
-# ---------------------------------------------------------------- chart data ($ billions)
-d, no, vs, ti, uo, dg, core = col("""SELECT obs_date::VARCHAR, AMTMNO / 1e3, AMTMVS / 1e3, AMTMTI / 1e3, AMTMUO / 1e3,
-                                            DGORDER / 1e3, NEWORDER / 1e3 FROM wide WHERE obs_date >= DATE '1992-01-01'""")
-fp_d, fp_v = col("SELECT obs_date::VARCHAR, value / 1e3 FROM first_print WHERE s = 'AMTMNO' ORDER BY obs_date")
-r_d, inv_ratio, backlog = col("""SELECT obs_date::VARCHAR, AMTMTI / AMTMVS, AMTMUO / AMTMVS FROM wide
-                                  WHERE AMTMVS IS NOT NULL AND AMTMTI IS NOT NULL ORDER BY obs_date""")
-g_d, g_v = col("SELECT obs_date::VARCHAR, gap / 1e3 FROM gap WHERE gap IS NOT NULL ORDER BY obs_date")
-
-# Year-over-year growth: each month against the same month a year earlier, matched by date (no row-count lag).
-y_d, y_no, y_vs, y_core = col("""SELECT a.obs_date::VARCHAR, (a.AMTMNO / b.AMTMNO - 1) * 100, (a.AMTMVS / b.AMTMVS - 1) * 100,
-                                        (a.NEWORDER / b.NEWORDER - 1) * 100
-                                 FROM wide a JOIN wide b ON b.obs_date = a.obs_date - INTERVAL 12 MONTH
-                                 WHERE a.obs_date >= DATE '1993-01-01' ORDER BY a.obs_date""")
-b_d, b2b = col("SELECT obs_date::VARCHAR, AMTMNO / AMTMVS FROM wide WHERE AMTMNO IS NOT NULL AND AMTMVS IS NOT NULL "
-               "ORDER BY obs_date")
-
-# Real new orders: deflated by CPI (CPIAUCSL, latest vintage), in dollars of M3's latest month.
-for need in ("fred:CPIAUCSL", "fred:GDPC1"):
-    if not q(f"SELECT 1 FROM '{OBS}' WHERE series_id = '{need}' LIMIT 1"):
-        raise SystemExit(f"served version {version} has no rows for {need}")
-con.execute(f"""CREATE VIEW latest_other AS SELECT series_id, obs_date, value FROM '{OBS}'
-                WHERE series_id IN ('fred:CPIAUCSL', 'fred:GDPC1')
-                QUALIFY row_number() OVER (PARTITION BY series_id, obs_date ORDER BY vintage DESC) = 1""")
-base_month = q("SELECT max(obs_date) FROM wide WHERE AMTMNO IS NOT NULL")[0][0]
-base_cpi = q(f"SELECT value FROM latest_other WHERE series_id = 'fred:CPIAUCSL' AND obs_date = DATE '{base_month}'")
-if not base_cpi or base_cpi[0][0] is None:
-    raise SystemExit(f"no CPI for {base_month}, the base month of real new orders")
-base_cpi = base_cpi[0][0]
-r2_d, real_no, nom_no = col(f"""SELECT w.obs_date::VARCHAR, w.AMTMNO / c.value * {base_cpi} / 1e3, w.AMTMNO / 1e3
-                               FROM wide w JOIN latest_other c ON c.series_id = 'fred:CPIAUCSL' AND c.obs_date = w.obs_date
-                               WHERE w.AMTMNO IS NOT NULL AND c.value IS NOT NULL ORDER BY w.obs_date""")
-cpi_gaps = q("""SELECT count(*) FROM wide w LEFT JOIN latest_other c ON c.series_id = 'fred:CPIAUCSL' AND c.obs_date = w.obs_date
-                WHERE w.AMTMNO IS NOT NULL AND c.value IS NULL""")[0][0]
-
-# Core capital goods orders against real GDP, quarterly, each as growth over the same quarter a year earlier.
-# A quarter counts only with all three months of orders.
-con.execute("""CREATE VIEW core_q AS SELECT date_trunc('quarter', obs_date) AS q, sum(NEWORDER) AS v FROM wide
-               WHERE NEWORDER IS NOT NULL GROUP BY 1 HAVING count(*) = 3""")
-q_d, q_core, q_gdp = col("""SELECT a.q::VARCHAR, (a.v / b.v - 1) * 100, (g.value / g0.value - 1) * 100
-                           FROM core_q a JOIN core_q b ON b.q = a.q - INTERVAL 12 MONTH
-                           JOIN latest_other g ON g.series_id = 'fred:GDPC1' AND g.obs_date = a.q
-                           JOIN latest_other g0 ON g0.series_id = 'fred:GDPC1' AND g0.obs_date = a.q - INTERVAL 12 MONTH
-                           WHERE a.q >= DATE '1993-01-01' ORDER BY a.q""")
-
-BLUE, AMBER, GREEN, GREY = "#2563eb", "#b45309", "#15803d", "#9ca3af"
+# ---------------------------------------------------------------- the chart
+# Core capital goods orders, real growth: each month against the same month a year earlier, after removing the
+# change in capital equipment prices (PPI, final demand, private capital equipment: WPSFD41312, SA). The PPI is
+# fetched from FRED at build time (quick lane; not served).
+def fred_series(sid):
+    a = dict(series_id=sid, api_key=os.environ["FRED_API_KEY"], file_type="json")
+    o = json.load(urllib.request.urlopen("https://api.stlouisfed.org/fred/series/observations?" + urllib.parse.urlencode(a)))
+    return [(r["date"], float(r["value"])) for r in o["observations"] if r["value"] != "."]
 
 
-def line(x, y, name, color, dash="solid"):
-    return {"x": x, "y": y, "name": name, "type": "scatter", "mode": "lines",
-            "line": {"color": color, "width": 1.6, "dash": dash}}
+con.execute("CREATE TABLE ppi_cap (obs_date DATE, value DOUBLE)")
+con.executemany("INSERT INTO ppi_cap VALUES (?, ?)", fred_series("WPSFD41312"))
+c_d, c_real = col("""SELECT a.obs_date::VARCHAR, ((a.NEWORDER / b.NEWORDER) / (pa.value / pb.value) - 1) * 100
+                     FROM wide a JOIN wide b ON b.obs_date = a.obs_date - INTERVAL 12 MONTH
+                     JOIN ppi_cap pa ON pa.obs_date = a.obs_date JOIN ppi_cap pb ON pb.obs_date = b.obs_date
+                     WHERE a.NEWORDER IS NOT NULL AND b.NEWORDER IS NOT NULL ORDER BY a.obs_date""")
+if not c_d:
+    raise SystemExit("real core capital goods orders: no months where orders and the PPI overlap")
+c_last_d, c_last = c_d[-1], c_real[-1]
+c_nom, c_ppi = q(f"""SELECT (a.NEWORDER / b.NEWORDER - 1) * 100, (pa.value / pb.value - 1) * 100
+                     FROM wide a JOIN wide b ON b.obs_date = a.obs_date - INTERVAL 12 MONTH
+                     JOIN ppi_cap pa ON pa.obs_date = a.obs_date JOIN ppi_cap pb ON pb.obs_date = b.obs_date
+                     WHERE a.obs_date = DATE '{c_last_d}'""")[0]
+c_prev = next(((d_, v_) for d_, v_ in zip(reversed(c_d), reversed(c_real)) if d_ < c_last_d[:4] and v_ >= c_last), None)
 
-
-CHARTS = [
-    ("c1", "New orders and shipments, total manufacturing ($ billions, monthly, seasonally adjusted)",
-     [line(d, no, "New orders (latest)", BLUE), line(fp_d, fp_v, "New orders (first print)", GREY, "dot"),
-      line(d, vs, "Shipments (latest)", AMBER)]),
-    ("c2", "Durable goods orders and core capital goods orders ($ billions)",
-     [line(d, dg, "Durable goods new orders", BLUE), line(d, core, "Nondefense capital goods ex aircraft", GREEN)]),
-    ("c3", "Months of shipments: inventories and unfilled orders, each divided by monthly shipments",
-     [line(r_d, inv_ratio, "Inventories / shipments", AMBER), line(r_d, backlog, "Unfilled orders / shipments", BLUE)]),
-    ("c5", "Year-over-year growth: new orders, shipments, core capital goods orders (%)",
-     [line(y_d, y_no, "New orders", BLUE), line(y_d, y_vs, "Shipments", AMBER), line(y_d, y_core, "Core capital goods orders", GREEN)]),
-    ("c6", "New orders divided by shipments, total manufacturing (above 1: orders arriving faster than goods ship)",
-     [line(b_d, b2b, "New orders / shipments", BLUE)]),
-    ("c7", f"New orders, total manufacturing: nominal and deflated by CPI ($ billions of {base_month:%Y-%m})",
-     [line(r2_d, real_no, "Real (CPI-deflated)", BLUE), line(r2_d, nom_no, "Nominal", GREY, "dot")]),
-    ("c8", "Core capital goods orders and real GDP, quarterly, growth over the same quarter a year earlier (%)",
-     [line(q_d, q_core, "Core capital goods orders", GREEN), line(q_d, q_gdp, "Real GDP (GDPC1)", BLUE)]),
-    ("c4", "Backlog identity gap: new orders minus (shipments + change in unfilled orders), $ billions",
-     [line(g_d, g_v, "Gap", BLUE)]),
-]
-
-
-def chart_div(cid, title):
-    return f'<h3>{esc(title)}</h3><div id="{cid}" style="height:360px"></div>'
-
-
-layout = {"margin": {"l": 50, "r": 20, "t": 10, "b": 60}, "hovermode": "x unified",
-          "legend": {"orientation": "h", "y": -0.12}, "font": {"family": "system-ui, Segoe UI, sans-serif", "size": 13},
+layout = {"margin": {"l": 50, "r": 20, "t": 10, "b": 40}, "hovermode": "x unified", "showlegend": False,
+          "font": {"family": "system-ui, Segoe UI, sans-serif", "size": 13},
+          "yaxis": {"ticksuffix": "%", "zeroline": True, "zerolinecolor": "#6b7280"},
           "xaxis": {"rangeselector": {"buttons": [{"count": 5, "label": "5y", "step": "year", "stepmode": "backward"},
                                                   {"count": 10, "label": "10y", "step": "year", "stepmode": "backward"},
                                                   {"step": "all", "label": "all"}]}},
           "plot_bgcolor": "#ffffff", "paper_bgcolor": "#ffffff"}
-script = "".join(f"Plotly.newPlot('{cid}', {json.dumps(tr)}, {json.dumps(layout)}, {{responsive:true}});"
-                 for cid, _t, tr in CHARTS)
+trace = {"x": c_d, "y": c_real, "name": "Real growth", "type": "scatter", "mode": "lines",
+         "line": {"color": "#15803d", "width": 1.6}, "hovertemplate": "%{y:.1f}%<extra></extra>"}
+script = f"Plotly.newPlot('c1', {json.dumps([trace])}, {json.dumps(layout)}, {{responsive:true}});"
 
 
 # ---------------------------------------------------------------- page
@@ -172,11 +125,49 @@ rows_last = "".join(
     f"<tr><td>{s}</td><td class=nw>{last[s][0]}</td><td class=num>{last[s][1] / 1e3:,.1f}</td>"
     f"<td class=num>{last[s][2]:+.2f}%</td><td class=num>{rev[s][1]:.2f}%</td><td class=num>{rev[s][2]:.2f}%</td></tr>"
     for s in SERIES)
+# What's inside total shipments: the M3 industry lines, fetched live from FRED at build time (quick lane; not served).
+# Parts must sum to their half and the halves to the total, or the build stops.
+def fred_last(sid):
+    a = dict(series_id=sid, api_key=os.environ["FRED_API_KEY"], file_type="json", sort_order="desc", limit=1)
+    o = json.load(urllib.request.urlopen("https://api.stlouisfed.org/fred/series/observations?" + urllib.parse.urlencode(a)))
+    return o["observations"][0]["date"], float(o["observations"][0]["value"])
+
+
+HALVES = {
+    "AMDMVS": ("Durable", {"A36SVS": "Transportation equipment", "A33SVS": "Machinery", "A32SVS": "Fabricated metal",
+                           "A34SVS": "Computers and electronic", "A31SVS": "Primary metals",
+                           "A35SVS": "Electrical equipment and appliances", "A39SVS": "Miscellaneous (incl. medical devices)",
+                           "A27SVS": "Nonmetallic mineral (glass, cement)", "A21SVS": "Wood", "A37SVS": "Furniture"}),
+    "AMNMVS": ("Nondurable", {"A11SVS": "Food", "A25SVS": "Chemicals (incl. pharma)", "A24SVS": "Petroleum and coal",
+                              "A26SVS": "Plastics and rubber", "A22SVS": "Paper", "A12SVS": "Beverage and tobacco",
+                              "A23SVS": "Printing", "A13SVS": "Textile mills", "A14SVS": "Textile products",
+                              "A15SVS": "Apparel", "A16SVS": "Leather"}),
+}
+mix_month, mix_total = fred_last("AMTMVS")
+mix_rows, half_sum = [], 0.0
+for hid, (hname, parts) in HALVES.items():
+    hm, hv = fred_last(hid)
+    got = [(sid, nm, *fred_last(sid)) for sid, nm in parts.items()]
+    if {hm, *(g[2] for g in got)} != {mix_month}:
+        raise SystemExit(f"industry mix: months differ from {mix_month} in {hname}")
+    if abs(sum(g[3] for g in got) - hv) > 1:
+        raise SystemExit(f"industry mix: {hname} parts sum to {sum(g[3] for g in got):,.0f}, half is {hv:,.0f}")
+    half_sum += hv
+    mix_rows += [(hname, nm, sid, v) for sid, nm, _d, v in sorted(got, key=lambda g: -g[3])]
+    mix_rows.append((hname, "Total", hid, hv))
+if abs(half_sum - mix_total) > 1:
+    raise SystemExit(f"industry mix: halves sum to {half_sum:,.0f}, total is {mix_total:,.0f}")
+rows_mix = "".join(
+    f"<tr><td>{h}</td><td>{'<b>Total</b>' if nm == 'Total' else esc(nm)}</td><td>{sid}</td>"
+    f"<td class=num>{v / 1e3:,.1f}</td><td class=num>{v / mix_total * 100:.1f}%</td></tr>" for h, nm, sid, v in mix_rows)
+
 ex = q("SELECT s, obs_date, value, units, available_date, vintage, run_id FROM m3 WHERE s = 'AMTMNO' "
        "ORDER BY vintage DESC, obs_date DESC LIMIT 1")[0]
 
 body = f"""<div class=head><div><h1>Manufacturing (Census M3)</h1>
 <p class=sub>Six Census M3 series pulled through FRED with every vintage (D169). Served version {esc(version)}; built {now_et()}.</p></div></div>
+
+<div style="border:1px solid #15803d;background:#f0fdf4;border-radius:6px;padding:10px 14px;margin:14px 0 6px"><b>Extra information:</b> <a href="core-capex-in-gdp.html">Where core capital goods orders sit in the economy</a>: how an equipment purchase reaches GDP, how much weight equipment carries in GDP growth, and the companies doing the buying (an exploration with figures fixed at 2026-11-12).</div>
 
 <h2>Population</h2>
 <div class=wrap><table>
@@ -185,10 +176,10 @@ body = f"""<div class=head><div><h1>Manufacturing (Census M3)</h1>
 <p class=muted>Withdrawn rows: months the latest vintage marks as no longer existing (null). For durable goods and core capital goods orders they are every month through 1992-01, where the total new orders series starts (1992-02). Health counts them under C16 as warnings.</p>
 <p class=muted>Example row: {esc(ex[0])}, {ex[1]}, value {ex[2]:,.0f} ({esc(ex[3])}), available {ex[4]}, vintage {ex[5]}, run {esc(ex[6])}.</p>
 
-<h2>Charts</h2>
-<p class=muted>Values are each month's latest vintage. The dotted grey line in the first chart is each month's first print, so the space between it and the blue line is the later revision.</p>
-<p class=muted>Real new orders use CPI (all urban consumers), a consumer price index, so they are an approximation of volume, not a measure of it; months with no CPI value are left out ({cpi_gaps}). Real GDP is GDPC1; core capital goods orders for a quarter are the sum of its three months.</p>
-{"".join(chart_div(cid, t) for cid, t, _ in CHARTS)}
+<h2>Core capital goods orders (NEWORDER), growth after inflation</h2>
+<p>Core capital goods orders are new orders for business equipment, excluding defense and aircraft: the M3 series most watched as an early read on business investment. The line is growth over the same month a year earlier, after taking out the rise in capital equipment prices. In {c_last_d[:7]} real orders were up {c_last:.1f}% ({c_nom:.1f}% in dollars, less {c_ppi:.1f}% price rise){"" if c_prev is None else f"; before this year it was last this high in {c_prev[0][:7]}"}. My read: this is the one strong signal in M3 right now. Total factory shipments are up about 10% in dollars but close to flat once each industry's own price rise is removed (a one-off calculation on 2026-11-12, not on this page), so the strength is in business equipment, not manufacturing as a whole.</p>
+<div id="c1" style="height:380px"></div>
+<p class=muted>Price index: producer price index, final demand, private capital equipment (WPSFD41312), fetched from FRED when this page was built. Orders are each month's latest vintage.</p>
 
 <h2>Basic checks</h2>
 <h3>Latest month and revision size</h3>
@@ -199,7 +190,15 @@ body = f"""<div class=head><div><h1>Manufacturing (Census M3)</h1>
 <h3>Nesting</h3>
 <p>Core capital goods orders never exceed durable goods orders, and durable goods orders never exceed total orders: {num(nest[1])} and {num(nest[2])} violations in {num(nest[0])} months. Durable goods are {f1(nest[3])}% to {f1(nest[4])}% of total orders.</p>
 <h3>Backlog identity</h3>
-<p>New orders should equal shipments plus the change in unfilled orders. They miss in every one of {num(gap_n)} months: median ${gap_med / 1e3:,.1f}B, largest ${gap_max / 1e3:,.1f}B (last chart above). A spot test on FRED's live data (2026-11-12, the six months to 2026-09) found the same gap, to the million, in durable goods and in computers and electronic products (NAICS 334), and a similar gap in the not seasonally adjusted series: in those months it sits entirely inside NAICS 334. Earlier years were not tested. The likely reason, not yet confirmed against Census documentation: Census excludes semiconductors from new and unfilled orders but includes them in shipments.</p>
+<p>New orders should equal shipments plus the change in unfilled orders. They miss in every one of {num(gap_n)} months: median ${gap_med / 1e3:,.1f}B, largest ${gap_max / 1e3:,.1f}B. A spot test on FRED's live data (2026-11-12, the six months to 2026-09) found the same gap, to the million, in durable goods and in computers and electronic products (NAICS 334), and a similar gap in the not seasonally adjusted series: in those months it sits entirely inside NAICS 334. Earlier years were not tested. The reason, from Census's M3 report notes: figures on new and unfilled orders exclude semiconductor manufacturing, while shipments include it.</p>
+
+<h2>What's in these numbers</h2>
+<p>M3 estimates all US manufacturing, public or private, US- or foreign-owned, and not factories abroad. About 4,700 reporting units (divisions or whole companies, about 3,000 companies in all) answer each month, and Census scales their month-to-month changes to the whole sector. Each unit sits in the industry of what it makes, so one company can appear in several lines below; Census does not publish who reports. In Census's report the nondurable new orders figures are the same as nondurable shipments, so only the durable half says anything separate about orders. Values are nominal dollars per month, so the petroleum line (mostly refineries) moves with the price of crude.</p>
+<h3>Shipments by industry, {mix_month[:7]}: ${mix_total / 1e3:,.1f}B total manufacturing</h3>
+<div class=wrap><table>
+<tr><th>Half</th><th>Industry</th><th>FRED series</th><th>$ billions</th><th>Share of total</th></tr>
+{rows_mix}</table></div>
+<p class=muted>Fetched from FRED when this page was built, not from served data. The industries add up to each half and the two halves add up to the total; the build stops if they don't.</p>
 """
 
 out = HERE / "m3.html"

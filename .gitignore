@@ -8,6 +8,7 @@ __pycache__/
 /scratch/
 .streamlit/secrets.toml
 /scaffold/**/*.html
+!/scaffold/core-capex-in-gdp.html
 /archive/**/*.html
 /archive/**/*.pdf
 /archive/**/*.mmd
