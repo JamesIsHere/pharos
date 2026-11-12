@@ -6,6 +6,7 @@ SEC filing index,landed,"Every EDGAR filing: company, form, date",sec/full_index
 SEC submissions,landed,"Company details (SIC, tickers, fiscal year end) and each company's filing list",sec/submission_details sec/submission_filings,submission_details submission_filings,C31,on demand (pharos sec),,company-facts.html,
 SEC tickers,landed,Ticker to company (CIK) map,sec/tickers,tickers,C34,on demand (pharos sec),,company-facts.html,
 SEC Company Facts,landed,Every XBRL financial fact every company reported,sec/companyfacts sec/companyfacts_concepts sec/companyfacts_changes,company_facts company_concepts,C40,on demand (pharos sec),,company-facts.html,
+IMF World Economic Outlook,quick lane,"GDP (US$) and unemployment rate for every country, 1980 on, with IMF forecasts",,,,on page build,Scaffold page: World Economic Outlook (scaffold/weo.py),weo.html,scaffold/weo.html
 FRED (page builds),retired,Series an Explore page fetched when it built; never stored,,,,,"Explore pages (archived 2026-11-12): World, People and Work, Where GDP Goes, Coverage, Sectors",,
 IMF,retired,Trade between economies; was fetched by an Explore page,,,,,Explore page (archived 2026-11-12): Trade Flows,,
 World Bank,retired,"GDP, for trade shares; was fetched by an Explore page",,,,,Explore page (archived 2026-11-12): Trade Flows,,
