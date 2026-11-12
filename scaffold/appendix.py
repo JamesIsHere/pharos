@@ -5,7 +5,7 @@ Scaffold replaced (Data, Data Tests copies 1-7, Code Tests, Log, Explore's own A
 Explore page is a snapshot from the day it was built. Its old Explore menu is swapped for one link back here on
 every build, so a page can't strand the reader in the old menu (the pages are gitignored build output; rebuilding
 one from its archived script brings the old menu back until this runs again).
-Explore and countries pages missing on disk stop the build. Scratch reference pages are local only.
+Explore and countries pages missing on disk stop the build.
 Run: uv run python scaffold/appendix.py"""
 import os
 import re
@@ -44,13 +44,6 @@ SECTIONS = (
         ("Charts", "charts.html", "13 exploratory charts: GDP, unemployment, and listed companies by country"),
         ("Trusted", "trusted.html", "The trusted bar (D163) measured against the SEC sources and IMF WEO"),
     )),
-)
-SCRATCH = (   # local only: scratch/ is gitignored, so these are not in a shared copy
-    ("How Pharos Runs", "scratch/pharos-operating-manual.html"),
-    ("Plan map", "scratch/plan-map.html"),
-    ("Work heatmap", "scratch/work-heatmap.html"),
-    ("Data map", "scratch/data_map/data-map.html"),
-    ("SEC User-Agent explainer", "scratch/sec-user-agent-explainer.html"),
 )
 
 OLD_NAV = re.compile(r'<nav class="top">.*?</nav>', re.S)
@@ -92,9 +85,6 @@ for title, base, pages in SECTIONS:
                     f'<td>{esc(what)}</td><td class=sub>{when}</td></tr>')
     parts.append(f'<h2>{title}</h2><table class="list"><tr><th>Page</th><th>What</th><th>Built</th></tr>{"".join(rows)}</table>')
 
-s_rows = "".join(f'<tr><td><a href="../{rel}">{esc(label)}</a></td></tr>'
-                 for label, rel in SCRATCH if (ROOT / rel).exists())
-parts.append(f'<h2>Older reference pages</h2><table class="list">{s_rows}</table>')
 
 body = f"""<div class="head"><h1>Appendix</h1>
 <div class="stamps"><span>Page built {now_et()}</span></div></div>
