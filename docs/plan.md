@@ -4,8 +4,8 @@
 <!-- Claude Code updates this block at the end of every session. Keep it to these lines. -->
 - **Direction:** Scaffold (scaffold/), James's pages for keeping up with Pharos: Catalog, Pipeline, Notes, Appendix (earlier analysis pages by topic; old Explore retired into it). Explore mode: clean up slowly, brainstorm before building. Trusted work parked (D164). Milestone plan retired (D161). Every refresh is on demand (D160): `uv run pharos refresh` (prices, FRED, Tiingo; seconds), `uv run pharos sec` (SEC; up to an hour, D159).
 - **Health:** RED at 2026-11-12 15:08 ET: C01, nothing published for over 26 hours (age only: does not block, D167). C34 retired with tickers (D165). Not run: James's call.
-- **Last session:** 2026-11-12 (third): Scaffold Archive became Appendix; the old Explore pages listed there by topic, the pages Scaffold replaced left out, each old page's menu swapped for a link back. All 170 links on the shared copy crawled and every page screenshotted: two fixed (countries menu, Country key label). SEC tickers retired (D165): unread, kept 39 dropped tickers, 99.3% duplicated by submission_details. Shared link (https://claude.ai/artifact/SWwbfFj3BTJwrs3o7t6DeX) at version 5: rerun scaffold/share.py and republish to update.
-- **Next action:** teardown of overbuilt items, one per call: Scaffold builds stop on mismatch (warn instead?).
+- **Last session:** 2026-11-12 (fourth): teardown. Deleted open issues #17, #24, #25, #34, #117, #118 (table now empty); retired gate checks C43, C44 (D166); CLAUDE.md step 1, red from age alone does not block (D167); Appendix lost its Older reference pages; scaffold/notes.md cut to Findings (107 -> 27 lines). Left as is: Company Facts typo dates (Catalog range stays raw), scratch/, Scaffold builds stopping on a mismatch. Shared link (https://claude.ai/artifact/SWwbfFj3BTJwrs3o7t6DeX) at version 5, now behind: rerun scaffold/share.py and republish to update.
+- **Next action:** none queued. James picks.
 - **Blockers / open questions:** Full list in Open issues below and Parked issues in `docs/later.md`; cite only IDs that appear there.
 
 ## Open issues
