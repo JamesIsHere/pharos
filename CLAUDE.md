@@ -3,14 +3,14 @@
 Pharos (named for the lighthouse of Alexandria) is a local-first data platform: US public-company fundamentals (SEC XBRL), daily prices, and macro series (FRED/ALFRED, later BEA) stored as Parquet, queried with DuckDB, viewed in a Streamlit dashboard. Owner is a CPA with a finance-executive and model-validation background. **Data correctness outranks features.**
 
 ## Read first
-- `docs/plan.md`: status block and current milestone. Work only on the current milestone.
-- `docs/later.md`: done, on-hold and parked milestones (M1, H, U) and parked issues. Not read by default.
+- `docs/plan.md`: status block and open issues. The milestone plan is retired (D161); the old plan is archived at `docs/archive/plan-2026-11-11.md`.
+- `docs/later.md`: the earlier milestones (M1, H, U) as history, and parked issues. Not read by default.
 - `docs/design.md`: data model, time semantics, health system. Read it before changing any schema, layer, source, or check.
 - `docs/decisions.md`: the decision log (D-numbers). Not read by default; open it when a change touches a past decision.
 
 ## Session protocol
 1. Start: run `uv run pharos health`. If anything is red, fix the data first. Never build features on red.
-2. During: one milestone at a time. If a design decision changes, add a row to `docs/decisions.md` in the same commit: only for a choice between real alternatives, never to describe what was built (D129). A concern not fixed in the turn it comes up gets a row in "Open issues" in `docs/plan.md` only if it blocks the current milestone or could lose or corrupt data; anything else is one line in the reply or the commit message. Fixing a row deletes it and the commit cites its ID.
+2. During: if a design decision changes, add a row to `docs/decisions.md` in the same commit: only for a choice between real alternatives, never to describe what was built (D129). A concern not fixed in the turn it comes up gets a row in "Open issues" in `docs/plan.md` only if it blocks current work or could lose or corrupt data; anything else is one line in the reply or the commit message. Fixing a row deletes it and the commit cites its ID.
 3. Two lanes (James, 2026-11-07; picture: `scratch/run-flow.html`). During a session, anything new goes in the quick lane: an explore page fetches it at build time (as tests 6-7 and People and Work do) or queries served data, in seconds. Data worth storing is promoted by one line in `config/sources.yaml`, committed; the next refresh lands it with vintages and checks. Every refresh is on demand (D160): the scheduled nightly is disabled; `pharos refresh` runs prices and FRED, `pharos sec` runs SEC (D159). Never run either mid-session unless James asks.
 4. End: update the status block at the top of `docs/plan.md`, then commit. The commit message says what changed and why.
 
@@ -79,4 +79,3 @@ data/              = PHAROS_DATA_ROOT: raw/ staging/ serving/ health/ catalog.du
 
 ## Don't
 - Don't add a dependency without stating why in the commit message.
-- Don't work ahead of the current milestone, however tempting.
