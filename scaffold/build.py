@@ -107,7 +107,7 @@ def link(r):
 
 
 def chk(checks):
-    return " ".join(f'<span class="{"ok" if s in ("pass", "acknowledged") else "bad"}">{c} {esc(s)}</span>'
+    return " ".join(f'<span class="{"ok" if s in ("pass", "acknowledged") else "warn" if s == "warn" else "bad"}">{c} {esc(s)}</span>'
                     for c, s in checks)
 
 

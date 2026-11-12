@@ -1,5 +1,6 @@
 """Shared look and menu for the Scaffold pages. One page per menu item; source sheets hang off the Catalog."""
 import html
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -30,8 +31,9 @@ tr.flag td { background:var(--flag); }
 .st { font-weight:700; white-space:nowrap; }
 .trusted { color:#15803d; } .landed { color:#1d4ed8; }
 .quick-lane { color:#a16207; } .trial { color:#c2410c; } .retired { color:#9ca3af; }
-.ok { color:#15803d; white-space:nowrap; } .bad { color:#b91c1c; font-weight:600; white-space:nowrap; }
+.ok { color:#15803d; white-space:nowrap; } .warn { color:#a16207; white-space:nowrap; } .bad { color:#b91c1c; font-weight:600; white-space:nowrap; }
 .wrap { overflow-x:auto; }
+.nw { white-space:nowrap; }
 .cols { display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start; }
 details { margin:3px 0; } summary { cursor:pointer; }
 ul { margin:4px 0; padding-left:20px; }
@@ -55,7 +57,20 @@ def now_et():
     return datetime.now(ET).strftime("%Y-%m-%d %H:%M ET")
 
 
+_D = r"\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2}(?: ET)?)?"
+DATE = re.compile(f"{_D}(?: to {_D})?")   # a date, or a "date to date" span, kept on one line
+
+
+def keep_dates(body):
+    """A date never breaks across lines ("2026-" / "11-10"): each one in visible text gets a nowrap span.
+    Tags, <pre> (Mermaid source) and <script> are left as they are."""
+    parts = re.split(r"(<pre\b.*?</pre>|<script\b.*?</script>|<[^>]+>)", body, flags=re.S | re.I)
+    return "".join(p if p.startswith("<") else DATE.sub(lambda m: f"<span class=nw>{m.group(0)}</span>", p)
+                   for p in parts)
+
+
 def page(title, active, body, crumb=None, head=""):
+    body = keep_dates(body)
     menu = "".join(f'<a href="{h}"{" class=on" if lb == active else ""}>{lb}</a>' for lb, h in MENU)
     crumb_html = f'<span class="crumb">/ {esc(crumb)}</span>' if crumb else ""
     return f"""<!doctype html>

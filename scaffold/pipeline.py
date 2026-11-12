@@ -150,8 +150,8 @@ def overview():
     L.append(f'    health["Run record and health<br/>{mon + len(RUN_CHECKS)} monitor checks,<br/>evaluated again whenever health is read"]:::work')
     L.append('    pages["Pages and DBeaver<br/>read served data only"]:::good')
     L.append("    served --> health --> pages")
-    for pid in PANELS:   # a box with a drill-in panel opens it on click
-        L.append(f'    click {pid} call openDrawer("{pid}")')
+    for node, pid in CLICKS.items():   # a box with a drill-in panel opens it on click
+        L.append(f'    click {node} call openDrawer("{pid}")')
     return "\n".join(L) + STYLE
 
 
@@ -249,6 +249,37 @@ NOTES = {
                                                            "row: a key SEC stops listing is kept, not dropped (D84)."),
         ("_require_unique(con, ds)", "The key must be unique in the result, or the group stops."),
     ]),
+    "checks._verdict": ("One group's verdict", "Each group's gate checks give it one verdict.", [
+        ('if any(r["gate"] and r["status"] == "broken"', "A gate check whose SQL failed to run: the group fails. A "
+                                                         "control that didn't run proves nothing (D77)."),
+        ('if any(r["gate"] and r["status"] == "error"', "A gate check at error severity returned rows: the group is "
+                                                        "blocked. Warn-severity and monitor checks never block (D17)."),
+        ('return "passed"', "Otherwise the group passed."),
+    ]),
+    "publish.publish": ("What each group serves", "Runs the checks, then decides group by group (D81).", [
+        ("evaluation = run_checks(run_id)", "Every check runs on this run's staged tables; each group gets its "
+                                            "verdict (the card above)."),
+        ('reasons[g] = f"gate checks {verdict}', "A group that didn't pass records which gate checks stopped it."),
+        ("if not passed:", "No group passed: nothing publishes. No new version, CURRENT unchanged."),
+        ("if g not in tried:", "A group this command didn't run (SEC in pharos refresh, prices in pharos sec): "
+                               "served unchanged, and not a failure (D135)."),
+        ("elif g in passed:", "Passed: its tables from this run are published."),
+        ("elif g in held:", "Didn't pass but is served now: carried forward, its last good tables stay."),
+        ('"outcome": NEVER_PUBLISHED', "Didn't pass and was never published: the version goes out without it (D83)."),
+        ("_point(run_id)", "The swap: CURRENT now names the new version. Readers move to it at once."),
+        ("prune_serving(keep=", "Every older version is deleted except the one just replaced (D133)."),
+    ]),
+    "publish._build": ("Building the new version", "Assembled where no reader looks, then renamed into place.", [
+        ('building = serving_dir() / f".building-{run_id}"', "Built under a temporary name that nothing reads."),
+        ('if o["outcome"] == PUBLISHED:', "A published group: tables from this run's staging, plus its inputs "
+                                          "(what view-time health reads instead of raw/ and config/, D76)."),
+        ('elif o["outcome"] in (CARRIED_FORWARD, NOT_RUN)', "Carried forward or not run: tables and inputs copied "
+                                                            "from the version served now."),
+        ('_copy(source / f"{table}.parquet"', "Every copy checks its row count against its source, or the publish "
+                                              "stops."),
+        ("COPY g TO", "groups.parquet records each group's outcome, the run its tables came from, and why."),
+        ("os.rename(building, version)", "Only now is the folder renamed into place."),
+    ]),
 }
 
 
@@ -305,7 +336,7 @@ def load_panel(gname):
         url = next((getattr(m, a) for a in ("URL", "COMPANY_URL") if hasattr(m, a)), "")
         raw = ", ".join(f"raw/{s}/{d}" for s, d in writes(m))
         cards += code_card(getattr(m, f), f"{m.__name__.rsplit('.', 1)[-1]}.{f}", [("Reads", url), ("Writes", raw)])
-    return (f"Load: {gname}", f"""<p class=sub>The four loaders, in the order a run calls them (refresh.py):</p>
+    return (f"Load: {gname}", f"""<p class=sub>The {len(GROUP[gname]["loads"])} loaders, in the order a run calls them (refresh.py):</p>
 {plain_code(refresh.LOADERS[gname])}{cards}""")
 
 
@@ -331,12 +362,24 @@ def sec_stage_panel():
                  f"<td>{esc(', '.join(d.key))}</td><td>{route[d.table]}</td></tr>")
     table = ("<table><tr><th>Staged table</th><th>From raw</th><th>Cleaned by</th><th>Key</th><th>How it is written</th></tr>"
              f"{rows}</table>")
-    return ("Stage: sec", f"""<p class=sub>Six tables, in the order a run stages them. Each raw landing is cleaned by its
+    return ("Stage: sec", f"""<p class=sub>{len(ss.DATASETS)} tables, in the order a run stages them. Each raw landing is cleaned by its
 SQL file, then merged into the table served now by one rule: newest value per key.</p>{table}
 {code_card(ss.stage_group, "stage_sec.stage_group")}{code_card(ss._merge, "stage_sec._merge")}""")
 
 
-PANELS = {"sec_load": lambda: load_panel("sec"), "sec_stage": sec_stage_panel}
+def publish_panel():
+    """Check and publish: the same code for every group."""
+    from pharos import publish as pub
+    return ("Check and publish", f"""<p class=sub>The same for every group: its gate checks give it a verdict,
+then each group's tables are published, carried forward, or left as they are.</p>
+{code_card(checks_mod._verdict, "checks._verdict")}{code_card(pub.publish, "publish.publish")}
+{code_card(pub._build, "publish._build")}""")
+
+
+PANELS = {"sec_load": lambda: load_panel("sec"), "sec_stage": sec_stage_panel, "publish": publish_panel}
+# summary box -> the panel it opens: each group's check, publish and keep boxes all open Check and publish
+CLICKS = {"sec_load": "sec_load", "sec_stage": "sec_stage",
+          **{f"{g}_{box}": "publish" for g in GROUPS for box in ("check", "pub", "keep")}}
 
 
 def drawer(pid):
