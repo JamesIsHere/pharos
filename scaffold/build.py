@@ -1,4 +1,4 @@
-"""Scaffold: James's pages for keeping up with Pharos (2026-11-11). Starts fresh beside explore/, which stays as it is.
+"""Scaffold: James's pages for keeping up with Pharos (2026-11-11).
 
 This build writes catalog.html: every data source Pharos has in any state, one row each. The definitions (what, state,
 cadence, which raw folders and served tables) are typed in catalog.csv, which opens in Excel; every number is measured

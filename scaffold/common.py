@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 ET = ZoneInfo("America/New_York")
 MENU = (("Catalog", "catalog.html"), ("Pipeline", "pipeline.html"), ("Notes", "notes.html"), ("Appendix", "appendix.html"))
-MERMAID = "https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"   # the version explore/data uses
+MERMAID = "https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"
 
 CSS = """
 :root { --bg:#ffffff; --fg:#1d1d1b; --muted:#5f5e58; --line:#e3e1da; --box:#f6f5f1; --flag:#fef3c7; }

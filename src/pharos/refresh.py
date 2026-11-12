@@ -134,7 +134,7 @@ def _run(names: list[str], reference_loaders: dict, loader_overrides: dict | Non
             publication = publish(run_id, group_errors)
         if publication.version is not None:
             # at once, before the manifest: anything that kills the process after
-            # this point no longer leaves DBeaver and the explore pages reading the
+            # this point no longer leaves DBeaver reading the
             # previous version (D146). A locked catalog fails the run loudly.
             with step("catalog rebuild"):
                 catalog.rebuild()

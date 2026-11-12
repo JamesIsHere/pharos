@@ -98,7 +98,7 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - Catalog "where" column (which pages use a stored source) is blank for stored sources: lineage.
 - Company Facts timing lines inside each pass arrive with the first `pharos sec` run James asks for (D159, D160); the sheet's Pipeline section was dropped.
 - Promotion checklist: what James needs to see before saying "comfortable", drawn from the Company Facts sheet.
-- Shared intake code (explore/lib/intake.py or scaffold equivalent) when the second trial source arrives.
+- Shared intake code (scaffold/intake.py) when the second trial source arrives.
 - End-of-effort review: what we learned -> a skill, rules, or decision-log rows.
 - WEO: values arrive in units (US GDP 2024 = 29,381,025,000,000); SCALE=9 is a display hint, not a multiplier. 13 of 210 GDP codes are IMF country groups (G001 ... GX123), not countries.
 - WEO: the fiscal-to-calendar mapping differs by series: FY(t-1/t) = CY(t) for most, FY(t/t+1) = CY(t) for India GDP and unemployment, Iran and Lesotho, SY(t/t+1) = CY(t) for Afghanistan, none stated for Bhutan. Eritrea and Syria carry no update date.
