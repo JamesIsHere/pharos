@@ -61,6 +61,7 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - 2026-11-12: Dropped (James): a Where we are block on the Catalog, and a separate home in Scaffold for new exploration.
 - 2026-11-12: Archive page (scaffold/archive.html, built by scaffold/archive.py), last on the menu. First entry: the archived Explore pages, listed from Explore's own menu (lib/nav.py) with when each was built; a menu page missing on disk stops the build. Next (James): an analysis link, depreciation by company.
 - 2026-11-12: IMF World Economic Outlook page (scaffold/weo.html, built by scaffold/weo.py), quick lane: fetched from the IMF API when built, nothing stored; a Catalog row links to it. GDP in US dollars (197 countries) and unemployment rate (118), 1980-2031, one row per country, one column per year (James). Years after each series' latest actual year are shaded as IMF estimates and forecasts. Fiscal-year labels (FY2024/25) map to a calendar column by the rule each series' own notes state; Bhutan states none and is left unshaded.
+- 2026-11-12: Country table (D162): config/countries.csv (261 rows, 9 former) and config/sec_country_codes.csv (323 EDGAR codes), written by scripts/build_countries.py. The WEO page now takes its countries, codes and names from it; IMF groups are every code not in the table, and anything else stops the build.
 
 ## Findings
 
@@ -95,3 +96,5 @@ what becomes a skill, a rule, or a decision-log row. Newest entries go at the bo
 - End-of-effort review: what we learned -> a skill, rules, or decision-log rows.
 - WEO: values arrive in units (US GDP 2024 = 29,381,025,000,000); SCALE=9 is a display hint, not a multiplier. 13 of 210 GDP codes are IMF country groups (G001 ... GX123), not countries.
 - WEO: the fiscal-to-calendar mapping differs by series: FY(t-1/t) = CY(t) for most, FY(t/t+1) = CY(t) for India GDP and unemployment, Iran and Lesotho, SY(t/t+1) = CY(t) for Afghanistan, none stated for Bhutan. Eritrea and Syria carry no update date.
+- Countries: EDGAR uses 272 state/country codes in submissions (upper-cased; lower-case duplicates exist). 14 are retired codes not on the SEC's current list; 12 resolve by their filers' addresses (I8, I9, X9 Germany; U2 Russia; E6, O6 Quebec; L4, L5 Israel; G5 Czechoslovakia; Y2 Yugoslavia; Q9 Northern Mariana Islands; LO a typo for Louisiana), E7 and L1 do not. XX (unknown) covers 1,617 entities.
+- Countries: IMF has six three-letter region codes (AFR, APD, EUR, MCD, SDS, WHD), so three letters is not a country test. IMF and World Bank differ on Kosovo (KOS/XKX) and West Bank and Gaza (WBG/PSE); Taiwan is IMF-only; the World Bank names Nauru Naoero.

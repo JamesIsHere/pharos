@@ -1,0 +1,324 @@
+sec_code,sec_name,country,subdivision,basis
+1A,ANGUILLA,AIA,,sec list
+1B,ARMENIA,ARM,,sec list
+1C,ARUBA,ABW,,sec list
+1D,AZERBAIJAN,AZE,,sec list
+1E,BOSNIA AND HERZEGOVINA,BIH,,sec list
+1F,BELARUS,BLR,,sec list
+1G,DJIBOUTI,DJI,,sec list
+1H,ESTONIA,EST,,sec list
+1J,ERITREA,ERI,,sec list
+1K,"MICRONESIA, FEDERATED STATES OF",FSM,,sec list
+1L,SOUTH GEORGIA AND THE SOUTH SANDWICH ISLANDS,SGS,,sec list
+1M,CROATIA,HRV,,sec list
+1N,KYRGYZSTAN,KGZ,,sec list
+1P,KAZAKSTAN,KAZ,,sec list
+1Q,LITHUANIA,LTU,,sec list
+1R,LATVIA,LVA,,sec list
+1S,"MOLDOVA, REPUBLIC OF",MDA,,sec list
+1T,MARSHALL ISLANDS,MHL,,sec list
+1U,"MACEDONIA, THE FORMER YUGOSLAV REPUBLIC OF",MKD,,sec list
+1V,NORTHERN MARIANA ISLANDS,MNP,,sec list
+1W,NEW CALEDONIA,NCL,,sec list
+1X,"PALESTINIAN TERRITORY, OCCUPIED",PSE,,sec list
+1Y,PALAU,PLW,,sec list
+1Z,RUSSIAN FEDERATION,RUS,,sec list
+2A,SLOVENIA,SVN,,sec list
+2B,SLOVAKIA,SVK,,sec list
+2C,FRENCH SOUTHERN TERRITORIES,ATF,,sec list
+2D,TAJIKISTAN,TJK,,sec list
+2E,TURKMENISTAN,TKM,,sec list
+2G,TUVALU,TUV,,sec list
+2H,UKRAINE,UKR,,sec list
+2J,UNITED STATES MINOR OUTLYING ISLANDS,UMI,,sec list
+2K,UZBEKISTAN,UZB,,sec list
+2L,VANUATU,VUT,,sec list
+2M,GERMANY,DEU,,sec list
+2N,CZECH REPUBLIC,CZE,,sec list
+2P,MAYOTTE,MYT,,sec list
+2Q,GEORGIA,GEO,,sec list
+A0,"ALBERTA, CANADA",CAN,A0,sec list
+A1,"BRITISH COLUMBIA, CANADA",CAN,A1,sec list
+A2,"MANITOBA, CANADA",CAN,A2,sec list
+A3,"NEW BRUNSWICK, CANADA",CAN,A3,sec list
+A4,"NEWFOUNDLAND, CANADA",CAN,A4,sec list
+A5,"NOVA SCOTIA, CANADA",CAN,A5,sec list
+A6,"ONTARIO, CANADA",CAN,A6,sec list
+A7,"PRINCE EDWARD ISLAND, CANADA",CAN,A7,sec list
+A8,"QUEBEC, CANADA",CAN,A8,sec list
+A9,"SASKATCHEWAN, CANADA",CAN,A9,sec list
+AK,ALASKA,USA,AK,sec list
+AL,ALABAMA,USA,AL,sec list
+AR,ARKANSAS,USA,AR,sec list
+AZ,ARIZONA,USA,AZ,sec list
+B0,"YUKON, CANADA",CAN,B0,sec list
+B1,BOTSWANA,BWA,,sec list
+B2,AFGHANISTAN,AFG,,sec list
+B3,ALBANIA,ALB,,sec list
+B4,ALGERIA,DZA,,sec list
+B5,AMERICAN SAMOA,ASM,,sec list
+B6,ANDORRA,AND,,sec list
+B7,ANGOLA,AGO,,sec list
+B8,ANTARCTICA,ATA,,sec list
+B9,ANTIGUA AND BARBUDA,ATG,,sec list
+C0,UNITED ARAB EMIRATES,ARE,,sec list
+C1,ARGENTINA,ARG,,sec list
+C3,AUSTRALIA,AUS,,sec list
+C4,AUSTRIA,AUT,,sec list
+C5,BAHAMAS,BHS,,sec list
+C6,BAHRAIN,BHR,,sec list
+C7,BANGLADESH,BGD,,sec list
+C8,BARBADOS,BRB,,sec list
+C9,BELGIUM,BEL,,sec list
+CA,CALIFORNIA,USA,CA,sec list
+CO,COLORADO,USA,CO,sec list
+CT,CONNECTICUT,USA,CT,sec list
+D0,BERMUDA,BMU,,sec list
+D1,BELIZE,BLZ,,sec list
+D2,BHUTAN,BTN,,sec list
+D3,BOLIVIA,BOL,,sec list
+D4,BOUVET ISLAND,BVT,,sec list
+D5,BRAZIL,BRA,,sec list
+D6,BRITISH INDIAN OCEAN TERRITORY,IOT,,sec list
+D7,SOLOMON ISLANDS,SLB,,sec list
+D8,"VIRGIN ISLANDS, BRITISH",VGB,,sec list
+D9,BRUNEI DARUSSALAM,BRN,,sec list
+DC,DISTRICT OF COLUMBIA,USA,DC,sec list
+DE,DELAWARE,USA,DE,sec list
+E0,BULGARIA,BGR,,sec list
+E1,MYANMAR,MMR,,sec list
+E2,BURUNDI,BDI,,sec list
+E3,CAMBODIA,KHM,,sec list
+E4,CAMEROON,CMR,,sec list
+E8,CAPE VERDE,CPV,,sec list
+E9,CAYMAN ISLANDS,CYM,,sec list
+F0,CENTRAL AFRICAN REPUBLIC,CAF,,sec list
+F1,SRI LANKA,LKA,,sec list
+F2,CHAD,TCD,,sec list
+F3,CHILE,CHL,,sec list
+F4,CHINA,CHN,,sec list
+F5,TAIWAN,TWN,,sec list
+F6,CHRISTMAS ISLAND,CXR,,sec list
+F7,COCOS (KEELING) ISLANDS,CCK,,sec list
+F8,COLOMBIA,COL,,sec list
+F9,COMOROS,COM,,sec list
+FL,FLORIDA,USA,FL,sec list
+G0,CONGO,COG,,sec list
+G1,COOK ISLANDS,COK,,sec list
+G2,COSTA RICA,CRI,,sec list
+G3,CUBA,CUB,,sec list
+G4,CYPRUS,CYP,,sec list
+G6,BENIN,BEN,,sec list
+G7,DENMARK,DNK,,sec list
+G8,DOMINICAN REPUBLIC,DOM,,sec list
+G9,DOMINICA,DMA,,sec list
+GA,GEORGIA,USA,GA,sec list
+GU,GUAM,GUM,,sec list
+H1,ECUADOR,ECU,,sec list
+H2,EGYPT,EGY,,sec list
+H3,EL SALVADOR,SLV,,sec list
+H4,EQUATORIAL GUINEA,GNQ,,sec list
+H5,ETHIOPIA,ETH,,sec list
+H6,FAROE ISLANDS,FRO,,sec list
+H7,FALKLAND ISLANDS (MALVINAS),FLK,,sec list
+H8,FIJI,FJI,,sec list
+H9,FINLAND,FIN,,sec list
+HI,HAWAII,USA,HI,sec list
+I0,FRANCE,FRA,,sec list
+I3,FRENCH GUIANA,GUF,,sec list
+I4,FRENCH POLYNESIA,PYF,,sec list
+I5,GABON,GAB,,sec list
+I6,GAMBIA,GMB,,sec list
+IA,IOWA,USA,IA,sec list
+ID,IDAHO,USA,ID,sec list
+IL,ILLINOIS,USA,IL,sec list
+IN,INDIANA,USA,IN,sec list
+J0,GHANA,GHA,,sec list
+J1,GIBRALTAR,GIB,,sec list
+J2,KIRIBATI,KIR,,sec list
+J3,GREECE,GRC,,sec list
+J4,GREENLAND,GRL,,sec list
+J5,GRENADA,GRD,,sec list
+J6,GUADELOUPE,GLP,,sec list
+J8,GUATEMALA,GTM,,sec list
+J9,GUINEA,GIN,,sec list
+K0,GUYANA,GUY,,sec list
+K1,HAITI,HTI,,sec list
+K2,HONDURAS,HND,,sec list
+K3,HONG KONG,HKG,,sec list
+K4,HEARD ISLAND AND MCDONALD ISLANDS,HMD,,sec list
+K5,HUNGARY,HUN,,sec list
+K6,ICELAND,ISL,,sec list
+K7,INDIA,IND,,sec list
+K8,INDONESIA,IDN,,sec list
+K9,"IRAN, ISLAMIC REPUBLIC OF",IRN,,sec list
+KS,KANSAS,USA,KS,sec list
+KY,KENTUCKY,USA,KY,sec list
+L0,IRAQ,IRQ,,sec list
+L2,IRELAND,IRL,,sec list
+L3,ISRAEL,ISR,,sec list
+L6,ITALY,ITA,,sec list
+L7,COTE D'IVOIRE,CIV,,sec list
+L8,JAMAICA,JAM,,sec list
+L9,SVALBARD AND JAN MAYEN,SJM,,sec list
+LA,LOUISIANA,USA,LA,sec list
+M0,JAPAN,JPN,,sec list
+M2,JORDAN,JOR,,sec list
+M3,KENYA,KEN,,sec list
+M4,"KOREA, DEMOCRATIC PEOPLE'S REPUBLIC OF",PRK,,sec list
+M5,"KOREA, REPUBLIC OF",KOR,,sec list
+M6,KUWAIT,KWT,,sec list
+M7,LAO PEOPLE'S DEMOCRATIC REPUBLIC,LAO,,sec list
+M8,LEBANON,LBN,,sec list
+M9,LESOTHO,LSO,,sec list
+MA,MASSACHUSETTS,USA,MA,sec list
+MD,MARYLAND,USA,MD,sec list
+ME,MAINE,USA,ME,sec list
+MI,MICHIGAN,USA,MI,sec list
+MN,MINNESOTA,USA,MN,sec list
+MO,MISSOURI,USA,MO,sec list
+MS,MISSISSIPPI,USA,MS,sec list
+MT,MONTANA,USA,MT,sec list
+N0,LIBERIA,LBR,,sec list
+N1,LIBYAN ARAB JAMAHIRIYA,LBY,,sec list
+N2,LIECHTENSTEIN,LIE,,sec list
+N4,LUXEMBOURG,LUX,,sec list
+N5,MACAU,MAC,,sec list
+N6,MADAGASCAR,MDG,,sec list
+N7,MALAWI,MWI,,sec list
+N8,MALAYSIA,MYS,,sec list
+N9,MALDIVES,MDV,,sec list
+NC,NORTH CAROLINA,USA,NC,sec list
+ND,NORTH DAKOTA,USA,ND,sec list
+NE,NEBRASKA,USA,NE,sec list
+NH,NEW HAMPSHIRE,USA,NH,sec list
+NJ,NEW JERSEY,USA,NJ,sec list
+NM,NEW MEXICO,USA,NM,sec list
+NV,NEVADA,USA,NV,sec list
+NY,NEW YORK,USA,NY,sec list
+O0,MALI,MLI,,sec list
+O1,MALTA,MLT,,sec list
+O2,MARTINIQUE,MTQ,,sec list
+O3,MAURITANIA,MRT,,sec list
+O4,MAURITIUS,MUS,,sec list
+O5,MEXICO,MEX,,sec list
+O9,MONACO,MCO,,sec list
+OH,OHIO,USA,OH,sec list
+OK,OKLAHOMA,USA,OK,sec list
+OR,OREGON,USA,OR,sec list
+P0,MONGOLIA,MNG,,sec list
+P1,MONTSERRAT,MSR,,sec list
+P2,MOROCCO,MAR,,sec list
+P3,MOZAMBIQUE,MOZ,,sec list
+P4,OMAN,OMN,,sec list
+P5,NAURU,NRU,,sec list
+P6,NEPAL,NPL,,sec list
+P7,NETHERLANDS,NLD,,sec list
+P8,NETHERLANDS ANTILLES,ANT,,sec list
+PA,PENNSYLVANIA,USA,PA,sec list
+PR,PUERTO RICO,PRI,,sec list
+Q1,VIET NAM,VNM,,sec list
+Q2,NEW ZEALAND,NZL,,sec list
+Q3,NICARAGUA,NIC,,sec list
+Q4,NIGER,NER,,sec list
+Q5,NIGERIA,NGA,,sec list
+Q6,NIUE,NIU,,sec list
+Q7,NORFOLK ISLAND,NFK,,sec list
+Q8,NORWAY,NOR,,sec list
+R0,PAKISTAN,PAK,,sec list
+R1,PANAMA,PAN,,sec list
+R2,PAPUA NEW GUINEA,PNG,,sec list
+R4,PARAGUAY,PRY,,sec list
+R5,PERU,PER,,sec list
+R6,PHILIPPINES,PHL,,sec list
+R8,PITCAIRN,PCN,,sec list
+R9,POLAND,POL,,sec list
+RI,RHODE ISLAND,USA,RI,sec list
+S0,GUINEA-BISSAU,GNB,,sec list
+S1,PORTUGAL,PRT,,sec list
+S3,QATAR,QAT,,sec list
+S4,REUNION,REU,,sec list
+S5,ROMANIA,ROU,,sec list
+S6,RWANDA,RWA,,sec list
+S8,SAN MARINO,SMR,,sec list
+S9,SAO TOME AND PRINCIPE,STP,,sec list
+SC,SOUTH CAROLINA,USA,SC,sec list
+SD,SOUTH DAKOTA,USA,SD,sec list
+T0,SAUDI ARABIA,SAU,,sec list
+T1,SENEGAL,SEN,,sec list
+T2,SEYCHELLES,SYC,,sec list
+T3,SOUTH AFRICA,ZAF,,sec list
+T6,NAMIBIA,NAM,,sec list
+T7,YEMEN,YEM,,sec list
+T8,SIERRA LEONE,SLE,,sec list
+TN,TENNESSEE,USA,TN,sec list
+TX,TEXAS,USA,TX,sec list
+U0,SINGAPORE,SGP,,sec list
+U1,SOMALIA,SOM,,sec list
+U3,SPAIN,ESP,,sec list
+U5,WESTERN SAHARA,ESH,,sec list
+U7,SAINT KITTS AND NEVIS,KNA,,sec list
+U8,SAINT HELENA,SHN,,sec list
+U9,SAINT LUCIA,LCA,,sec list
+UT,UTAH,USA,UT,sec list
+V0,SAINT PIERRE AND MIQUELON,SPM,,sec list
+V1,SAINT VINCENT AND THE GRENADINES,VCT,,sec list
+V2,SUDAN,SDN,,sec list
+V3,SURINAME,SUR,,sec list
+V6,SWAZILAND,SWZ,,sec list
+V7,SWEDEN,SWE,,sec list
+V8,SWITZERLAND,CHE,,sec list
+V9,SYRIAN ARAB REPUBLIC,SYR,,sec list
+VA,VIRGINIA,USA,VA,sec list
+VI,"VIRGIN ISLANDS, U.S.",VIR,,sec list
+VT,VERMONT,USA,VT,sec list
+W0,"TANZANIA, UNITED REPUBLIC OF",TZA,,sec list
+W1,THAILAND,THA,,sec list
+W2,TOGO,TGO,,sec list
+W3,TOKELAU,TKL,,sec list
+W4,TONGA,TON,,sec list
+W5,TRINIDAD AND TOBAGO,TTO,,sec list
+W6,TUNISIA,TUN,,sec list
+W7,TURKS AND CAICOS ISLANDS,TCA,,sec list
+W8,TURKEY,TUR,,sec list
+W9,UGANDA,UGA,,sec list
+WA,WASHINGTON,USA,WA,sec list
+WI,WISCONSIN,USA,WI,sec list
+WV,WEST VIRGINIA,USA,WV,sec list
+WY,WYOMING,USA,WY,sec list
+X0,UNITED KINGDOM,GBR,,sec list
+X1,UNITED STATES,USA,,sec list
+X2,BURKINA FASO,BFA,,sec list
+X3,URUGUAY,URY,,sec list
+X4,HOLY SEE (VATICAN CITY STATE),VAT,,sec list
+X5,VENEZUELA,VEN,,sec list
+X8,WALLIS AND FUTUNA,WLF,,sec list
+XX,UNKNOWN,,,unknown
+Y0,SAMOA,WSM,,sec list
+Y3,"CONGO, THE DEMOCRATIC REPUBLIC OF THE",COD,,sec list
+Y4,ZAMBIA,ZMB,,sec list
+Y5,ZIMBABWE,ZWE,,sec list
+Y6,ALAND ISLANDS,ALA,,sec list
+Y7,GUERNSEY,GGY,,sec list
+Y8,ISLE OF MAN,IMN,,sec list
+Y9,JERSEY,JEY,,sec list
+Z0,SAINT BARTHELEMY,BLM,,sec list
+Z1,SAINT MARTIN,MAF,,sec list
+Z2,SERBIA,SRB,,sec list
+Z3,TIMOR-LESTE,TLS,,sec list
+Z4,CANADA (Federal Level),CAN,,sec list
+Z5,MONTENEGRO,MNE,,sec list
+E6,"(retired) 64 filers, all Montreal or Laval",CAN,QC,inferred
+E7,"(retired) 9 filers: Ontario, Cayman, Amsterdam, Jersey, Guernsey",,,unknown
+G5,"(retired) 3 filers: Czech Republic, Slovak Republic",CSK,,inferred
+I8,"(retired) 94 filers: Dusseldorf, Essen, Wiesbaden, Neuss ...",DEU,,inferred
+I9,"(retired) 29 filers: Munich, Berlin, Mainz, Cologne; 1 Tel Aviv, 1 Russia",DEU,,inferred
+L1,"(retired) 4 filers: Tokyo, Mumbai, Liechtenstein, Wiesbaden",,,unknown
+L4,"(retired) 4 filers: Yokneam, Tel Aviv, Beer Sheva",ISR,,inferred
+L5,"(retired) 4 filers: Yokneam, Ramat Gan, Tel Aviv",ISR,,inferred
+LO,"(retired) 11 filers: Baton Rouge, Metairie, Monroe; a typo for LA",USA,LA,inferred
+O6,"(retired) 2 filers, Montreal",CAN,QC,inferred
+Q9,(retired) 1 filer: Northern Mariana Islands,MNP,,inferred
+U2,"(retired) 39 filers: Moscow, Kazan, Samara, St Petersburg",RUS,,inferred
+X9,"(retired) 18 filers: Berlin, Germany; 1 Sao Paulo",DEU,,inferred
+Y2,"(retired) 8 filers: Belgrade, Novi Beograd; strays in Nevis, Ukraine, Moscow, Whitehorse",YUG,,inferred

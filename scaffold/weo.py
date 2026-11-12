@@ -3,9 +3,11 @@
 Fetched from the IMF's SDMX API (api.imf.org, no key) when the page is built; nothing is stored. The live WEO
 dataflow, annual: NGDPD (GDP, current prices, US dollars) and LUR (unemployment rate, percent). Values arrive in
 units (US GDP 2024 = 29,381,025,000,000): SCALE is a display hint, not a multiplier. Each country and series carries
-LATEST_ACTUAL_ANNUAL_DATA; years after it are IMF estimates or forecasts and are shaded. Codes that are not three
-letters are IMF country groups, counted in the population table and left out of the country tables.
+LATEST_ACTUAL_ANNUAL_DATA; years after it are IMF estimates or forecasts and are shaded. Countries are the IMF codes
+in config/countries.csv (imf_code), shown by that table's code and name; every other code must be an IMF country
+group (G followed by digits or X), counted in the population table and left out of the country tables.
 Run: uv run python scaffold/weo.py"""
+import csv
 import re
 import urllib.request
 import xml.etree.ElementTree as XT
@@ -18,7 +20,7 @@ HERE = Path(__file__).parent
 API = "https://api.imf.org/external/sdmx/2.1/"
 UA = {"User-Agent": "pharos-scaffold"}
 SERIES = {"NGDPD": "GDP, current prices, US$ billions", "LUR": "Unemployment rate, percent"}
-XML_LANG = "{http://www.w3.org/XML/1998/namespace}lang"
+COUNTRIES = HERE.parent / "config" / "countries.csv"
 
 
 def get(path):
@@ -30,16 +32,10 @@ def local(tag):
     return tag.rsplit("}", 1)[-1]
 
 
-# Country names: the WEO structure's own country codelist.
-names = {}
-for cl in XT.fromstring(get("dataflow/IMF.RES/WEO/latest?references=all&detail=full")).iter():
-    if local(cl.tag) == "Codelist" and cl.get("id") == "CL_WEO_COUNTRY":
-        for code in cl:
-            if local(code.tag) == "Code":
-                en = [n.text for n in code if local(n.tag) == "Name" and n.get(XML_LANG) == "en"]
-                names[code.get("id")] = en[0]
-if len(names) < 300:
-    raise SystemExit(f"weo: CL_WEO_COUNTRY has {len(names)} codes, expected 300+")
+# Countries: config/countries.csv, by IMF code.
+with open(COUNTRIES, encoding="utf-8") as f:
+    country = {r["imf_code"]: r for r in csv.DictReader(f) if r["imf_code"]}
+names = {k: r["name"] for k, r in country.items()}
 
 # Data: one series per country and indicator; group blocks carry the latest actual year and the labor definition.
 root = XT.fromstring(get("data/IMF.RES,WEO/." + "+".join(SERIES) + ".A"))
@@ -59,15 +55,15 @@ for e in root.iter():
 for ind, m in data.items():
     if not m:
         raise SystemExit(f"weo: no series came back for {ind}")
-    unnamed = sorted(set(m) - set(names))
-    if unnamed:
-        raise SystemExit(f"weo: {ind} codes not in CL_WEO_COUNTRY: {unnamed}")
-if len([c for c in data["NGDPD"] if re.fullmatch("[A-Z]{3}", c)]) < 190:
+    unknown = sorted(c for c in m if c not in country and not re.fullmatch("G[0-9X]+", c))
+    if unknown:
+        raise SystemExit(f"weo: {ind} codes neither in config/countries.csv nor IMF groups: {unknown}")
+if len([c for c in data["NGDPD"] if c in country]) < 190:
     raise SystemExit("weo: fewer than 190 countries have GDP")
 
 
 def is_country(c):
-    return re.fullmatch("[A-Z]{3}", c) is not None
+    return c in country
 
 
 def la_label(ind, c):
@@ -138,7 +134,7 @@ def table(ind, fmt, extra_head="", extra=lambda c: ""):
         cells = "".join(
             f'<td class="num{" est" if la is not None and y > la else ""}">{fmt(obs[y]) if y in obs else ""}</td>'
             for y in years)
-        rows.append(f"<tr><td class=cty>{esc(names[c])}</td><td>{c}</td>{extra(c)}"
+        rows.append(f"<tr><td class=cty>{esc(names[c])}</td><td>{country[c]['code']}</td>{extra(c)}"
                     f"<td class=num>{la_cell(ind, c)}</td>{cells}</tr>")
     return (f'<div class="wrap"><table class="panel"><tr><th class=cty>Country</th><th>Code</th>{extra_head}'
             f"<th>Latest actual</th>{head}</tr>{''.join(rows)}</table></div>"), len(rows)

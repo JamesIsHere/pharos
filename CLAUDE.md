@@ -31,11 +31,11 @@ scripts\register-tasks.ps1         # registers the nightly refresh in Task Sched
 
 ## Layout
 ```
-config/            watchlist.csv (the expected set), sources.yaml, expected_states.csv, corporate_actions.csv
+config/            watchlist.csv (the expected set), sources.yaml, expected_states.csv, corporate_actions.csv, countries.csv + sec_country_codes.csv (D162)
 src/pharos/        loaders/, transform/*.sql, cli.py, refresh.py, stage.py, checks.py, publish.py, health.py, board.py, ...
 checks/            *.sql, one check per file
 app/               Home.py, common.py, pages/1_Health.py, pages/2_Charts.py
-scripts/           open-dashboard.ps1, nightly-refresh.ps1, register-tasks.ps1, pharos.ico (make_icon.py)
+scripts/           open-dashboard.ps1, nightly-refresh.ps1, register-tasks.ps1, build_countries.py (writes the two country CSVs), pharos.ico (make_icon.py)
 tests/             incl. test_faults.py
 docs/              design.md, plan.md, later.md, decisions.md
 scaffold/          James's pages for keeping up with Pharos: Catalog, source sheets, Pipeline, Notes (scaffold/notes.md), Archive. Scripts tracked, generated .html gitignored. Run: uv run python scaffold/<page>.py
