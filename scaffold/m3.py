@@ -80,6 +80,42 @@ r_d, inv_ratio, backlog = col("""SELECT obs_date::VARCHAR, AMTMTI / AMTMVS, AMTM
                                   WHERE AMTMVS IS NOT NULL AND AMTMTI IS NOT NULL ORDER BY obs_date""")
 g_d, g_v = col("SELECT obs_date::VARCHAR, gap / 1e3 FROM gap WHERE gap IS NOT NULL ORDER BY obs_date")
 
+# Year-over-year growth: each month against the same month a year earlier, matched by date (no row-count lag).
+y_d, y_no, y_vs, y_core = col("""SELECT a.obs_date::VARCHAR, (a.AMTMNO / b.AMTMNO - 1) * 100, (a.AMTMVS / b.AMTMVS - 1) * 100,
+                                        (a.NEWORDER / b.NEWORDER - 1) * 100
+                                 FROM wide a JOIN wide b ON b.obs_date = a.obs_date - INTERVAL 12 MONTH
+                                 WHERE a.obs_date >= DATE '1993-01-01' ORDER BY a.obs_date""")
+b_d, b2b = col("SELECT obs_date::VARCHAR, AMTMNO / AMTMVS FROM wide WHERE AMTMNO IS NOT NULL AND AMTMVS IS NOT NULL "
+               "ORDER BY obs_date")
+
+# Real new orders: deflated by CPI (CPIAUCSL, latest vintage), in dollars of M3's latest month.
+for need in ("fred:CPIAUCSL", "fred:GDPC1"):
+    if not q(f"SELECT 1 FROM '{OBS}' WHERE series_id = '{need}' LIMIT 1"):
+        raise SystemExit(f"served version {version} has no rows for {need}")
+con.execute(f"""CREATE VIEW latest_other AS SELECT series_id, obs_date, value FROM '{OBS}'
+                WHERE series_id IN ('fred:CPIAUCSL', 'fred:GDPC1')
+                QUALIFY row_number() OVER (PARTITION BY series_id, obs_date ORDER BY vintage DESC) = 1""")
+base_month = q("SELECT max(obs_date) FROM wide WHERE AMTMNO IS NOT NULL")[0][0]
+base_cpi = q(f"SELECT value FROM latest_other WHERE series_id = 'fred:CPIAUCSL' AND obs_date = DATE '{base_month}'")
+if not base_cpi or base_cpi[0][0] is None:
+    raise SystemExit(f"no CPI for {base_month}, the base month of real new orders")
+base_cpi = base_cpi[0][0]
+r2_d, real_no, nom_no = col(f"""SELECT w.obs_date::VARCHAR, w.AMTMNO / c.value * {base_cpi} / 1e3, w.AMTMNO / 1e3
+                               FROM wide w JOIN latest_other c ON c.series_id = 'fred:CPIAUCSL' AND c.obs_date = w.obs_date
+                               WHERE w.AMTMNO IS NOT NULL AND c.value IS NOT NULL ORDER BY w.obs_date""")
+cpi_gaps = q("""SELECT count(*) FROM wide w LEFT JOIN latest_other c ON c.series_id = 'fred:CPIAUCSL' AND c.obs_date = w.obs_date
+                WHERE w.AMTMNO IS NOT NULL AND c.value IS NULL""")[0][0]
+
+# Core capital goods orders against real GDP, quarterly, each as growth over the same quarter a year earlier.
+# A quarter counts only with all three months of orders.
+con.execute("""CREATE VIEW core_q AS SELECT date_trunc('quarter', obs_date) AS q, sum(NEWORDER) AS v FROM wide
+               WHERE NEWORDER IS NOT NULL GROUP BY 1 HAVING count(*) = 3""")
+q_d, q_core, q_gdp = col("""SELECT a.q::VARCHAR, (a.v / b.v - 1) * 100, (g.value / g0.value - 1) * 100
+                           FROM core_q a JOIN core_q b ON b.q = a.q - INTERVAL 12 MONTH
+                           JOIN latest_other g ON g.series_id = 'fred:GDPC1' AND g.obs_date = a.q
+                           JOIN latest_other g0 ON g0.series_id = 'fred:GDPC1' AND g0.obs_date = a.q - INTERVAL 12 MONTH
+                           WHERE a.q >= DATE '1993-01-01' ORDER BY a.q""")
+
 BLUE, AMBER, GREEN, GREY = "#2563eb", "#b45309", "#15803d", "#9ca3af"
 
 
@@ -96,6 +132,14 @@ CHARTS = [
      [line(d, dg, "Durable goods new orders", BLUE), line(d, core, "Nondefense capital goods ex aircraft", GREEN)]),
     ("c3", "Months of shipments: inventories and unfilled orders, each divided by monthly shipments",
      [line(r_d, inv_ratio, "Inventories / shipments", AMBER), line(r_d, backlog, "Unfilled orders / shipments", BLUE)]),
+    ("c5", "Year-over-year growth: new orders, shipments, core capital goods orders (%)",
+     [line(y_d, y_no, "New orders", BLUE), line(y_d, y_vs, "Shipments", AMBER), line(y_d, y_core, "Core capital goods orders", GREEN)]),
+    ("c6", "New orders divided by shipments, total manufacturing (above 1: orders arriving faster than goods ship)",
+     [line(b_d, b2b, "New orders / shipments", BLUE)]),
+    ("c7", f"New orders, total manufacturing: nominal and deflated by CPI ($ billions of {base_month:%Y-%m})",
+     [line(r2_d, real_no, "Real (CPI-deflated)", BLUE), line(r2_d, nom_no, "Nominal", GREY, "dot")]),
+    ("c8", "Core capital goods orders and real GDP, quarterly, growth over the same quarter a year earlier (%)",
+     [line(q_d, q_core, "Core capital goods orders", GREEN), line(q_d, q_gdp, "Real GDP (GDPC1)", BLUE)]),
     ("c4", "Backlog identity gap: new orders minus (shipments + change in unfilled orders), $ billions",
      [line(g_d, g_v, "Gap", BLUE)]),
 ]
@@ -143,6 +187,7 @@ body = f"""<div class=head><div><h1>Manufacturing (Census M3)</h1>
 
 <h2>Charts</h2>
 <p class=muted>Values are each month's latest vintage. The dotted grey line in the first chart is each month's first print, so the space between it and the blue line is the later revision.</p>
+<p class=muted>Real new orders use CPI (all urban consumers), a consumer price index, so they are an approximation of volume, not a measure of it; months with no CPI value are left out ({cpi_gaps}). Real GDP is GDPC1; core capital goods orders for a quarter are the sum of its three months.</p>
 {"".join(chart_div(cid, t) for cid, t, _ in CHARTS)}
 
 <h2>Basic checks</h2>
@@ -154,10 +199,10 @@ body = f"""<div class=head><div><h1>Manufacturing (Census M3)</h1>
 <h3>Nesting</h3>
 <p>Core capital goods orders never exceed durable goods orders, and durable goods orders never exceed total orders: {num(nest[1])} and {num(nest[2])} violations in {num(nest[0])} months. Durable goods are {f1(nest[3])}% to {f1(nest[4])}% of total orders.</p>
 <h3>Backlog identity</h3>
-<p>New orders should equal shipments plus the change in unfilled orders. They miss in every one of {num(gap_n)} months: median ${gap_med / 1e3:,.1f}B, largest ${gap_max / 1e3:,.1f}B (fourth chart). A spot test on FRED's live data (2026-11-12, the six months to 2026-09) found the same gap, to the million, in durable goods and in computers and electronic products (NAICS 334), and a similar gap in the not seasonally adjusted series: in those months it sits entirely inside NAICS 334. Earlier years were not tested. The likely reason, not yet confirmed against Census documentation: Census excludes semiconductors from new and unfilled orders but includes them in shipments.</p>
+<p>New orders should equal shipments plus the change in unfilled orders. They miss in every one of {num(gap_n)} months: median ${gap_med / 1e3:,.1f}B, largest ${gap_max / 1e3:,.1f}B (last chart above). A spot test on FRED's live data (2026-11-12, the six months to 2026-09) found the same gap, to the million, in durable goods and in computers and electronic products (NAICS 334), and a similar gap in the not seasonally adjusted series: in those months it sits entirely inside NAICS 334. Earlier years were not tested. The likely reason, not yet confirmed against Census documentation: Census excludes semiconductors from new and unfilled orders but includes them in shipments.</p>
 """
 
 out = HERE / "m3.html"
-out.write_text(page("Manufacturing (M3)", None, body, crumb="Manufacturing (M3)", head=f'<script src="{PLOTLY}"></script>')
+out.write_text(page("Manufacturing (M3)", "Catalog", body, crumb="Manufacturing (M3)", parent=("FRED / ALFRED", "fred.html"), head=f'<script src="{PLOTLY}"></script>')
                .replace("</main></body>", f"</main><script>{script}</script></body>"), encoding="utf-8")
 print(f"wrote {out}")

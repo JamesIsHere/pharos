@@ -69,10 +69,13 @@ def keep_dates(body):
                    for p in parts)
 
 
-def page(title, active, body, crumb=None, head=""):
+def page(title, active, body, crumb=None, head="", parent=None):
+    """parent: (label, href) of the page this one hangs off, shown as a link before the crumb."""
     body = keep_dates(body)
     menu = "".join(f'<a href="{h}"{" class=on" if lb == active else ""}>{lb}</a>' for lb, h in MENU)
     crumb_html = f'<span class="crumb">/ {esc(crumb)}</span>' if crumb else ""
+    if parent:
+        crumb_html = f'<span class="crumb">/ <a href="{parent[1]}" style="padding:0">{esc(parent[0])}</a></span>' + crumb_html
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
