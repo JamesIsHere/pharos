@@ -9,6 +9,7 @@ SEC Company Facts,landed,Every XBRL financial fact every company reported,sec/co
 IMF World Economic Outlook,quick lane,"GDP (US$) and unemployment rate for every country, 1980 on, with IMF forecasts",,,,on page build,Scaffold page: World Economic Outlook (scaffold/weo.py),weo.html,scaffold/weo.html
 Census QFR,quick lane,"Quarterly income statements and balance sheets by industry for US corporations, private included; domestic operations only",,,,on page build,Scaffold page: Quarterly Financial Report (scaffold/qfr.py),qfr.html,scaffold/qfr.html
 Census housing pipeline,quick lane,"Building permits, housing starts, units under construction and completions, monthly",,,,on page build,Scaffold page: Housing pipeline (scaffold/housing.py),housing.html,scaffold/housing.html
+Housing supply vs need,quick lane,"Homes completed against households formed, vacancy, household size, new-home price against income",,,,on page build,Scaffold page: Housing supply vs need (scaffold/housing_need.py),housing-need.html,scaffold/housing-need.html
 FRED (page builds),retired,Series an Appendix page fetched when it built; never stored,,,,,"Appendix pages: World, People and Work, Where GDP Goes, Data Tests",,
 IMF,retired,Trade between economies; was fetched by an Appendix page,,,,,Appendix page: Trade Flows,,
 World Bank,retired,"GDP, for trade shares; was fetched by an Appendix page",,,,,Appendix page: Trade Flows,,

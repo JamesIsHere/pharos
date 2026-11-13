@@ -8,7 +8,7 @@ from pathlib import Path
 
 HERE = Path(__file__).parent
 # Catalog first (the source sheets hang off it), then the sheets, then the menu pages.
-PAGES = ["build", "fred", "prices", "company_facts", "weo", "m3", "qfr", "housing", "pipeline", "notes", "appendix"]
+PAGES = ["build", "fred", "prices", "company_facts", "weo", "m3", "qfr", "housing", "housing_need", "pipeline", "notes", "appendix"]
 
 missing = [p for p in PAGES if not (HERE / f"{p}.py").exists()]
 if missing:
