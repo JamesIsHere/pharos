@@ -9,7 +9,10 @@ holds for any fiscal year end (D.R. Horton's ends in September, Toll Brothers' i
 
 REV = ("Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "RevenueFromContractWithCustomerIncludingAssessedTax",
        "SalesRevenueNet", "SalesRevenueGoodsNet")
-XBRL_ALL = "2011-07-01"   # quarter the last SEC phase-in group began XBRL (fiscal periods after 2011-06-15; from memory, not checked)
+# First calendar quarter every SEC filer had to report in XBRL. The last phase-in group starts with a 10-Q "for a fiscal
+# period ending on or after June 15, 2011" (SEC Release 33-9002, 74 FR 6776, read 2026-11-14). The quarter before is
+# partial: a fiscal quarter ending 2011-06-30 is covered, one ending 2011-05-31 is not.
+XBRL_ALL = "2011-07-01"
 
 
 def build(con, serving, sics, table, start=XBRL_ALL):
