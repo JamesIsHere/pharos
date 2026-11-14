@@ -170,13 +170,14 @@ body = f"""<div class="head"><h1>IMF World Economic Outlook</h1>
 <h2>GDP, current prices, US$ billions</h2>
 <p class=sub>{n_gdp} countries, largest first by {us_la} GDP. Shaded years come after the country's latest actual
 year: IMF estimates and forecasts. A fiscal-year country shows its fiscal year beside the calendar column the IMF files
-it under.</p>
+it under. Both tables open at the newest years; scroll left for earlier ones, back to {LO}.</p>
 {gdp_html}
 
 <h2>Unemployment rate, percent</h2>
 <p class=sub>{n_lur} countries, in the GDP table's order. Definition is the IMF's label for each country: its own
 national definition, or the ILO's harmonized one. Shaded years: estimates and forecasts, as above.</p>
-{lur_html}"""
+{lur_html}
+<script>document.querySelectorAll(".wrap").forEach(w => {{ if (w.querySelector(".panel")) w.scrollLeft = w.scrollWidth; }});</script>"""
 
 (HERE / "weo.html").write_text(page("World Economic Outlook", "Catalog", body, crumb="IMF World Economic Outlook",
                                     head=CSS), encoding="utf-8")
