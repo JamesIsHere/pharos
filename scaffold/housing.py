@@ -70,9 +70,10 @@ pop = {r[0]: r[1:] for r in pop}
 con.execute("""CREATE TABLE ident AS SELECT d, UNDCONTNSA - lag(UNDCONTNSA) OVER (ORDER BY d) AS dstock,
                  HOUSTNSA - COMPUTNSA AS flow, HOUSTNSA AS starts FROM wide
                WHERE UNDCONTNSA IS NOT NULL AND HOUSTNSA IS NOT NULL AND COMPUTNSA IS NOT NULL""")
-id_n, id_med, id_max, id_pct, id_neg, id_lo, id_hi = q("""
+id_n, id_med, id_max, id_pct, id_neg, id_lo, id_hi, id_sum, id_starts = q("""
   SELECT count(*), median(abs(dstock - flow)), max(abs(dstock - flow)), median(abs(dstock - flow) / starts) * 100,
-         count(*) FILTER (WHERE dstock - flow < 0), min(d), max(d) FROM ident WHERE dstock IS NOT NULL""")[0]
+         count(*) FILTER (WHERE dstock - flow < 0), min(d), max(d), sum(dstock - flow), sum(starts)
+  FROM ident WHERE dstock IS NOT NULL""")[0]
 
 # ---------------------------------------------------------------- comparisons, quarterly
 con.execute("CREATE TABLE cmp (pair VARCHAR, side VARCHAR, q DATE, v DOUBLE)")
@@ -120,6 +121,15 @@ fit = {r[0]: r[1:] for r in q("""
 missing = [k for k, *_ in PAIRS if k not in fit]
 if missing:
     raise SystemExit(f"no overlapping quarters for {missing}")
+# Review 2026-11-13: starts lead the dollar series, and the newest homebuilder quarter can rest on few companies.
+lead = dict(q("""SELECT a.pair, corr(a.g, b.g) FROM yoy a JOIN yoy b ON b.pair = a.pair AND b.q = a.q + INTERVAL 3 MONTH
+                 WHERE a.side = 'nrc' AND b.side = 'other' AND a.pair IN ('spend', 'prfi') GROUP BY a.pair"""))
+hb_n = q("""SELECT a.q, count(*), sum(b.v) FROM hb_q a JOIN hb_q b ON b.cik = a.cik AND b.q = a.q - INTERVAL 1 YEAR
+            GROUP BY a.q ORDER BY a.q DESC LIMIT 5""")
+if len(hb_n) < 5:
+    raise SystemExit("homebuilders: fewer than five quarters of same-company growth")
+hb_quarters = q("SELECT count(DISTINCT q) FROM hb_q")[0][0]
+mer_n = q("SELECT count(*) FROM hb_q WHERE name ILIKE 'Meritage Homes%'")[0][0]
 
 
 def qlabel(d):
@@ -173,6 +183,13 @@ rows_fit = "".join(
     f"<td class=num>{fit[k][5]:+.1f}%</td><td class=num>{fit[k][6]:+.1f}%</td></tr>" for k, lb, nrc, ol in PAIRS)
 top = ", ".join(f"{esc(n)} (${v / 1e9:,.1f}B)" for n, v in hb_top)
 upd = max(meta[s]["last_updated"] for s in PIPE)[:10]
+prior = hb_n[1:]
+hb_note = (f"Newest quarter: the homebuilder line's {qlabel(hb_n[0][0])} point counts {hb_n[0][1]} companies, with ${hb_n[0][2] / 1e9:,.1f}B of revenue "
+           f"a year earlier; the four quarters before it count {min(r[1] for r in prior)} to {max(r[1] for r in prior)} companies and "
+           f"${min(r[2] for r in prior) / 1e9:,.1f}B to ${max(r[2] for r in prior) / 1e9:,.1f}B.")
+if hb_n[0][1] < min(r[1] for r in prior):
+    hb_note += (" It is still filling in, so the last point covers only part of the industry and can move. Builders whose "
+                "fiscal year ends in September or October arrive last: their fourth quarter is worked out from the annual report.")
 
 body = f"""<div class=head><div><h1>Housing pipeline (Census New Residential Construction)</h1>
 <p class=sub>Quick lane: fetched from FRED (release {NRC_RELEASE}) when this page was built, never stored. Built {now_et()}; last updated on FRED {upd}; served version {esc(version)} for the Company Facts side.</p></div></div>
@@ -192,21 +209,22 @@ body = f"""<div class=head><div><h1>Housing pipeline (Census New Residential Con
 <div id="c_stock" style="height:340px"></div>
 
 <h2>Check: the stock moves by starts less completions</h2>
-<p>Units under construction at the end of a month should equal the prior month's count plus that month's starts less its completions (not seasonally adjusted series). Over {num(id_n)} months, {id_lo} to {id_hi}, the miss is a median {id_med:,.1f} thousand units ({id_pct:.1f}% of the month's starts), at most {id_max:,.1f} thousand; in {num(id_neg)} of the months the stock grew by less than starts less completions. The identity is not exact: the three series are separate sample estimates, and units abandoned or converted mid-construction leave the stock without being completed.</p>
+<p>Units under construction at the end of a month should equal the prior month's count plus that month's starts less its completions (not seasonally adjusted series). Over {num(id_n)} months, {id_lo} to {id_hi}, the miss is a median {id_med:,.1f} thousand units ({id_pct:.1f}% of the month's starts), at most {id_max:,.1f} thousand; in {num(id_neg)} of the months the stock grew by less than starts less completions. Added up over the whole period, the stock grew by {abs(id_sum):,.0f} thousand units {"less" if id_sum < 0 else "more"} than starts less completions, {abs(id_sum) / id_starts * 100:.1f}% of all units started. My read, not checked against Census: the three series are separate sample estimates, and units abandoned or converted mid-construction leave the stock without being completed.</p>
 
 <h2>Comparisons: do they move together?</h2>
 <div class=wrap><table>
 <tr><th>Comparison</th><th>Census series</th><th>Compared with</th><th>Quarters</th><th>Count</th><th>Growth correlation</th><th>Growth gap</th><th>Census, latest</th><th>Other, latest</th></tr>
 {rows_fit}</table></div>
-<p class=muted>Growth is over the same quarter a year earlier; monthly rates are averaged to quarters. Growth correlation: 1 means the two move in lockstep. Growth gap: the median distance between the two growth rates, in percentage points. Construction spending and residential investment are in dollars, so they also carry price changes and spending on improvements; starts count units.</p>
+<p class=muted>Growth is over the same quarter a year earlier; monthly rates are averaged to quarters. Growth correlation: 1 means the two move in lockstep. Growth gap: the median distance between the two growth rates, in percentage points. Construction spending and residential investment are in dollars, so they also carry price changes and spending on improvements; starts count units. The table compares the same quarter. Starts come first: set against the following quarter's dollars, the correlation is {lead["spend"]:.2f} for construction spending and {lead["prfi"]:.2f} for residential investment.</p>
 
 <h3>Starts vs residential construction spending</h3>
 <div id="c_spend" style="height:320px"></div>
 <h3>Starts vs residential investment in GDP</h3>
 <div id="c_prfi" style="height:320px"></div>
 <h3>Single-family completions vs homebuilder revenue</h3>
-<p>Homebuilders book revenue when a finished house closes, so their revenue should follow completions more than starts. The homebuilder line is same-company growth for companies filing under SIC 1531 (operative builders): {num(hb_pop[0])} companies, {num(hb_pop[1])} company-quarters ({num(hb_pop[2])} of them a fiscal fourth quarter worked out as the year less the three quarters reported inside it), {qlabel(hb_pop[3])} to {qlabel(hb_pop[4])}. Largest in 2025: {top}. Lennar files under SIC 1520 and is not included. Revenue is the largest of {", ".join(REV)} reported for the calendar quarter (SEC's frame). Starts in {qlabel(XBRL_ALL)}, when every SEC filer was reporting in XBRL.</p>
+<p>Homebuilders book revenue when a finished house closes, so their revenue should follow completions more than starts. The homebuilder line is same-company growth for companies filing under SIC 1531 (operative builders): {num(hb_pop[0])} companies, {num(hb_pop[1])} company-quarters ({num(hb_pop[2])} of them a fiscal fourth quarter worked out as the year less the three quarters reported inside it), {qlabel(hb_pop[3])} to {qlabel(hb_pop[4])}. Largest in 2025: {top}. Two large builders are missing: Lennar files under SIC 1520 and is not included, and Meritage Homes files under SIC 1531 but has a figure in only {mer_n} of the {hb_quarters} quarters, because it mostly reports revenue under a label outside the five used here. Revenue is the largest of {", ".join(REV)} reported for the calendar quarter (SEC's frame). The line starts in {qlabel(XBRL_ALL)}, when every SEC filer was reporting in XBRL.</p>
 <div id="c_builders" style="height:320px"></div>
+<p class=muted>{hb_note}</p>
 """
 
 out = HERE / "housing.html"

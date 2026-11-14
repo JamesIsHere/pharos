@@ -85,20 +85,31 @@ def fred_series(sid):
     return [(r["date"], float(r["value"])) for r in o["observations"] if r["value"] != "."]
 
 
-con.execute("CREATE TABLE ppi_cap (obs_date DATE, value DOUBLE)")
-con.executemany("INSERT INTO ppi_cap VALUES (?, ?)", fred_series("WPSFD41312"))
-c_d, c_real = col("""SELECT a.obs_date::VARCHAR, ((a.NEWORDER / b.NEWORDER) / (pa.value / pb.value) - 1) * 100
-                     FROM wide a JOIN wide b ON b.obs_date = a.obs_date - INTERVAL 12 MONTH
-                     JOIN ppi_cap pa ON pa.obs_date = a.obs_date JOIN ppi_cap pb ON pb.obs_date = b.obs_date
-                     WHERE a.NEWORDER IS NOT NULL AND b.NEWORDER IS NOT NULL ORDER BY a.obs_date""")
-if not c_d:
-    raise SystemExit("real core capital goods orders: no months where orders and the PPI overlap")
-c_last_d, c_last = c_d[-1], c_real[-1]
-c_nom, c_ppi = q(f"""SELECT (a.NEWORDER / b.NEWORDER - 1) * 100, (pa.value / pb.value - 1) * 100
-                     FROM wide a JOIN wide b ON b.obs_date = a.obs_date - INTERVAL 12 MONTH
-                     JOIN ppi_cap pa ON pa.obs_date = a.obs_date JOIN ppi_cap pb ON pb.obs_date = b.obs_date
-                     WHERE a.obs_date = DATE '{c_last_d}'""")[0]
-c_prev = next(((d_, v_) for d_, v_ in zip(reversed(c_d), reversed(c_real)) if d_ < c_last_d[:4] and v_ >= c_last), None)
+def real_growth(sid):
+    """NEWORDER over the same month a year earlier, deflated by FRED price index sid. Returns the months, the real
+    growth in each, the last month's dollar growth and price rise, and the last earlier-year month at least as high."""
+    con.execute(f"CREATE TABLE ppi_{sid} (obs_date DATE, value DOUBLE)")
+    con.executemany(f"INSERT INTO ppi_{sid} VALUES (?, ?)", fred_series(sid))
+    joins = f"""FROM wide a JOIN wide b ON b.obs_date = a.obs_date - INTERVAL 12 MONTH
+                JOIN ppi_{sid} pa ON pa.obs_date = a.obs_date JOIN ppi_{sid} pb ON pb.obs_date = b.obs_date"""
+    got = col(f"""SELECT a.obs_date::VARCHAR, ((a.NEWORDER / b.NEWORDER) / (pa.value / pb.value) - 1) * 100 {joins}
+                  WHERE a.NEWORDER IS NOT NULL AND b.NEWORDER IS NOT NULL ORDER BY a.obs_date""")
+    if not got:
+        raise SystemExit(f"real core capital goods orders: no months where orders and {sid} overlap")
+    d, real = got
+    nom, ppi = q(f"""SELECT (a.NEWORDER / b.NEWORDER - 1) * 100, (pa.value / pb.value - 1) * 100 {joins}
+                     WHERE a.obs_date = DATE '{d[-1]}'""")[0]
+    prev = next((d_ for d_, v_ in zip(reversed(d), reversed(real)) if d_ < d[-1][:4] and v_ >= real[-1]), None)
+    return d, real, nom, ppi, prev
+
+
+# The answer depends on the price index (review 2026-11-13), so the page states both. The chart uses the first.
+c_d, c_real, c_nom, c_ppi, c_prev = real_growth("WPSFD41312")
+m_d, m_real, _m_nom, m_ppi, m_prev = real_growth("WPU11")
+c_last_d, c_last, m_last = c_d[-1], c_real[-1], m_real[-1]
+if m_d[-1] != c_last_d:
+    raise SystemExit(f"real core capital goods orders: WPSFD41312 ends {c_last_d}, WPU11 ends {m_d[-1]}")
+prev_txt = " and ".join(f"{p[:7]} ({sid})" for sid, p in (("WPSFD41312", c_prev), ("WPU11", m_prev)) if p)
 
 layout = {"margin": {"l": 50, "r": 20, "t": 10, "b": 40}, "hovermode": "x unified", "showlegend": False,
           "font": {"family": "system-ui, Segoe UI, sans-serif", "size": 13},
@@ -177,14 +188,14 @@ body = f"""<div class=head><div><h1>Manufacturing (Census M3)</h1>
 <p class=muted>Example row: {esc(ex[0])}, {ex[1]}, value {ex[2]:,.0f} ({esc(ex[3])}), available {ex[4]}, vintage {ex[5]}, run {esc(ex[6])}.</p>
 
 <h2>Core capital goods orders (NEWORDER), growth after inflation</h2>
-<p>Core capital goods orders are new orders for business equipment, excluding defense and aircraft: the M3 series most watched as an early read on business investment. The line is growth over the same month a year earlier, after taking out the rise in capital equipment prices. In {c_last_d[:7]} real orders were up {c_last:.1f}% ({c_nom:.1f}% in dollars, less {c_ppi:.1f}% price rise){"" if c_prev is None else f"; before this year it was last this high in {c_prev[0][:7]}"}. My read: this is the one strong signal in M3 right now. Total factory shipments are up about 10% in dollars but close to flat once each industry's own price rise is removed (a one-off calculation on 2026-11-12, not on this page), so the strength is in business equipment, not manufacturing as a whole.</p>
+<p>Core capital goods orders are new orders for business equipment, excluding defense and aircraft: the M3 series most watched as an early read on business investment. The line is growth over the same month a year earlier, after taking out the rise in private capital equipment prices (WPSFD41312). In {c_last_d[:7]} orders were up {c_nom:.1f}% in dollars and {min(c_last, m_last):.1f}% to {max(c_last, m_last):.1f}% after inflation, depending on the price index: {c_last:.1f}% with private capital equipment prices (WPSFD41312, up {c_ppi:.1f}%), {m_last:.1f}% with machinery and equipment prices (WPU11, up {m_ppi:.1f}%){f"; before this year real growth was last this high in {prev_txt}" if prev_txt else ""}. My read: this is the one strong signal in M3 right now. Total factory shipments are up about 10% in dollars but close to flat once each industry's own price rise is removed (a one-off calculation on 2026-11-12, not on this page), so the strength is in business equipment, not manufacturing as a whole.</p>
 <div id="c1" style="height:380px"></div>
-<p class=muted>Price index: producer price index, final demand, private capital equipment (WPSFD41312), fetched from FRED when this page was built. Orders are each month's latest vintage.</p>
+<p class=muted>Price indexes: producer price index, final demand, private capital equipment (WPSFD41312, the line above) and producer price index, machinery and equipment (WPU11), both fetched from FRED when this page was built. Orders are each month's latest vintage.</p>
 
 <h2>Basic checks</h2>
 <h3>Latest month and revision size</h3>
 <div class=wrap><table>
-<tr><th>Series</th><th>Latest month</th><th>$ billions</th><th>Change from prior month</th><th>Median revision since 2015</th><th>Largest revision since 2015</th></tr>
+<tr><th>Series</th><th>Latest month</th><th>$ billions</th><th>Change from prior month</th><th>First print to latest value, median since 2015</th><th>First print to latest value, largest since 2015</th></tr>
 {rows_last}</table></div>
 <p class=muted>Revision: the absolute percentage difference between a month's first print and its latest value.</p>
 <h3>Nesting</h3>

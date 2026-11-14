@@ -194,6 +194,29 @@ chart("c_ph", "pharma", "Public pharma (Company Facts)")
 grid = "".join(f"<div><h3>{esc(lab[k][0])} <span class=muted>(corr {fit[k][3]:.2f})</span></h3>"
                f"<div id='c_{k}' style='height:240px'></div></div>" for k in IND)
 
+# The latest quarter against the long run, all manufacturing sales (review 2026-11-13): the table's correlation
+# covers every quarter since 2001 and says little about the newest one.
+g_rows = q("""SELECT a.q, a.g, b.g FROM yoy a JOIN yoy b USING (pair, q)
+              WHERE pair = 'mfg_sales' AND a.side = 'qfr' AND b.side = 'other' ORDER BY a.q""")
+g_q, g_qfr, g_m3 = g_rows[-1]
+g_gap = g_qfr - g_m3
+g_wider = sum(abs(a - b) > abs(g_gap) for _q, a, b in g_rows[:-1])
+g_run = next((i for i, (_q, a, b) in enumerate(reversed(g_rows)) if (a - b) * g_gap <= 0), len(g_rows))
+chg = dict(q(f"""SELECT a.pair, a.v - b.v FROM cmp a JOIN cmp b
+                 ON b.pair = a.pair AND b.side = a.side AND b.q = a.q - INTERVAL 1 YEAR
+                 WHERE a.side = 'qfr' AND a.q = DATE '{g_q}'"""))
+latest_txt = (
+    f"The newest quarter: in {qlabel(g_q)} QFR manufacturing sales grew {g_qfr:.1f}% on a year earlier and M3 shipments "
+    f"{g_m3:.1f}%, {abs(g_gap):.1f} points apart against the table's median growth gap of {fit['mfg_sales'][4]:.1f}, "
+    + (f"the widest gap of the {len(g_rows)} quarters compared" if g_wider == 0
+       else f"a wider gap than in {len(g_rows) - 1 - g_wider} of the other {len(g_rows) - 1} quarters")
+    + f". QFR has grown {'faster' if g_gap > 0 else 'slower'} than M3 for {g_run} quarter{'s' if g_run != 1 else ''} running.")
+if g_gap > 0 and chg["mfg_sales"] > 0:
+    top = sorted(IND, key=lambda k: -chg[k])[:2]
+    latest_txt += (f" Of the ${chg['mfg_sales'] / 1e3:,.1f}B rise in QFR's sales over the year, "
+                   + " and ".join(f"{lab[k][0].lower()} is {chg[k] / chg['mfg_sales'] * 100:.0f}%" for k in top)
+                   + ", the two largest of the six industries charted below.")
+
 com_r = q("""SELECT a.q, a.v / b.v FROM cmp a JOIN cmp b USING (pair, q)
                WHERE pair = 'com' AND a.side = 'qfr' AND b.side = 'other' ORDER BY a.q""")
 ph_last = ph_level[-1]
@@ -220,6 +243,7 @@ body = f"""<div class=head><div><h1>Quarterly Financial Report (Census QFR)</h1>
 <tr><th>Comparison</th><th>QFR series</th><th>Compared with</th><th>Quarters</th><th>Count</th><th>Growth correlation</th><th>Growth gap</th><th>Level ratio, latest</th><th>Level ratio, range</th><th>QFR, latest</th><th>Other, latest</th></tr>
 {summary}</table></div>
 <p class=muted>Growth correlation: correlation of the two year-over-year growth rates over the quarters both have (1 means they move in lockstep). Growth gap: the median distance between the two growth rates, in percentage points. Level ratio: QFR's dollars divided by the other side's, each quarter; a steady ratio means the two measure the same thing at a different scale.</p>
+<p>{latest_txt}</p>
 
 <h2>All manufacturing: sales vs M3 shipments</h2>
 <p>QFR net sales against M3 total shipments (served, summed to quarters). QFR counts a manufacturing company's whole sales, including any non-manufacturing business it runs; M3 counts what its plants ship.</p>
@@ -237,7 +261,7 @@ body = f"""<div class=head><div><h1>Quarterly Financial Report (Census QFR)</h1>
 <h2>Pharmaceuticals: QFR sales vs public pharma revenue</h2>
 <p>QFR pharmaceuticals and medicines net sales against the revenue of companies filing with the SEC under SIC {", ".join(PHARMA_SIC)} (Company Facts, served). The Company Facts line is same-company growth: only companies with a figure in both quarters count, so companies entering or leaving the filing population do not move it. It starts in {qlabel(XBRL_ALL)}, when every SEC filer was reporting in XBRL; before that Company Facts holds only the largest companies. The two measure different things: QFR is domestic operations, private firms included; the 10-K figures are worldwide. In {qlabel(ph_ratio_q[0])} QFR's sales were {ph_ratio_q[1]:.2f} times the public companies' total.</p>
 <div id="c_ph" style="height:360px"></div>
-<p class=muted>Company Facts side: {num(ph_pop[0])} companies, {num(ph_pop[1])} company-quarters ({num(ph_pop[2])} of them a fiscal fourth quarter worked out as the year less the three quarters reported inside it), {qlabel(ph_pop[3])} to {qlabel(ph_pop[4])}. Revenue is the largest of {", ".join(REV)} the company reported for the calendar quarter (SEC's frame). Latest quarter, {qlabel(ph_last[0])}: ${ph_last[1] / 1e9:,.1f}B from {num(ph_last[2])} companies; a quarter still being filed is partial in level, not in same-company growth.</p>
+<p class=muted>Company Facts side: {num(ph_pop[0])} companies, {num(ph_pop[1])} company-quarters ({num(ph_pop[2])} of them a fiscal fourth quarter worked out as the year less the three quarters reported inside it), {qlabel(ph_pop[3])} to {qlabel(ph_pop[4])}. Revenue is the largest of {", ".join(REV)} the company reported for the calendar quarter (SEC's frame). Latest quarter, {qlabel(ph_last[0])}: ${ph_last[1] / 1e9:,.1f}B from {num(ph_last[2])} companies; a quarter still being filed is partial: its total is low, and its same-company growth counts only the companies that have filed so far.</p>
 """
 
 out = HERE / "qfr.html"

@@ -28,6 +28,7 @@ def fred(path, **p):
 SERIES = {  # fetched from FRED at build
     "COMPUTNSA": "New homes completed, total (monthly, thousands, NSA)",
     "TTLHH": "Households (annual, thousands; Census CPS)",
+    "EOCCUSQ176N": "Occupied housing units (quarterly, thousands; Census Housing Vacancy Survey)",
     "ETOTALUSQ176N": "Housing units, total stock (quarterly, thousands)",
     "RRVRUSQ156N": "Rental vacancy rate (quarterly, %)",
     "RHVRUSQ156N": "Homeowner vacancy rate (quarterly, %)",
@@ -64,14 +65,16 @@ con.execute("""CREATE TABLE yr AS
        p AS (SELECT year(d) y, avg(v) pop FROM m WHERE sid = 'POPTHM' GROUP BY 1 HAVING count(*) = 12),
        h AS (SELECT year(d) y, v hh FROM m WHERE sid = 'TTLHH'),
        i AS (SELECT year(d) y, v inc FROM m WHERE sid = 'MEHOINUSA646N'),
+       o AS (SELECT year(d) y, avg(v) occ FROM m WHERE sid = 'EOCCUSQ176N' GROUP BY 1 HAVING count(*) = 4),
        qv AS (SELECT year(d) y, avg(v) FILTER (WHERE sid = 'RRVRUSQ156N') rv, avg(v) FILTER (WHERE sid = 'RHVRUSQ156N') hv,
                      avg(v) FILTER (WHERE sid = 'MSPUS') price, count(*) FILTER (WHERE sid = 'MSPUS') np,
                      count(*) FILTER (WHERE sid = 'RRVRUSQ156N') nr, count(*) FILTER (WHERE sid = 'RHVRUSQ156N') nh
               FROM m WHERE sid IN ('RRVRUSQ156N', 'RHVRUSQ156N', 'MSPUS') GROUP BY 1)
-  SELECT y, comp, pop, hh, hh - lag(hh) OVER (ORDER BY y) AS hh_add, pop / hh AS per_hh, comp / pop * 1000 AS comp_per_k,
+  SELECT y, comp, pop, hh, hh - lag(hh) OVER (ORDER BY y) AS hh_add, occ, occ - lag(occ) OVER (ORDER BY y) AS occ_add,
+         pop / hh AS per_hh, comp / pop * 1000 AS comp_per_k,
          CASE WHEN nr = 4 THEN rv END AS rv, CASE WHEN nh = 4 THEN hv END AS hv, CASE WHEN np = 4 THEN price END AS price, inc
   FROM (SELECT DISTINCT y FROM (SELECT y FROM c UNION SELECT y FROM h UNION SELECT y FROM p UNION SELECT y FROM qv))
-  LEFT JOIN c USING (y) LEFT JOIN p USING (y) LEFT JOIN h USING (y) LEFT JOIN i USING (y) LEFT JOIN qv USING (y)
+  LEFT JOIN c USING (y) LEFT JOIN p USING (y) LEFT JOIN h USING (y) LEFT JOIN i USING (y) LEFT JOIN o USING (y) LEFT JOIN qv USING (y)
   ORDER BY y""")
 # cumulative completions less households added, from the first year both exist
 first = q("SELECT min(y) FROM yr WHERE comp IS NOT NULL AND hh_add IS NOT NULL")[0][0]
@@ -91,8 +94,10 @@ def period(a, b):
     pp = q(f"SELECT (max(pop) FILTER (WHERE y = {b}) - max(pop) FILTER (WHERE y = {a})) FROM yr")[0][0]
     st = q(f"""SELECT avg(v) FILTER (WHERE year(d) = {b}) - avg(v) FILTER (WHERE year(d) = {a})
                FROM m WHERE sid = 'ETOTALUSQ176N'""")[0][0]
+    oc = q(f"SELECT (max(occ) FILTER (WHERE y = {b}) - max(occ) FILTER (WHERE y = {a})) FROM yr")[0][0]
     c = comp[0] / n if comp[1] == n else None
-    return (a, b, c, None if hh is None else hh / n, None if pp is None else pp / n, None if st is None else st / n)
+    return (a, b, c, None if hh is None else hh / n, None if oc is None else oc / n, None if pp is None else pp / n,
+            None if st is None else st / n)
 
 
 per = [period(a, b) for a, b in PERIODS]
@@ -104,9 +109,10 @@ def k(x):
 
 rows_per = "".join(
     f"<tr><td class=nw>{a} to {b}</td><td class=num>{k(c)}</td><td class=num>{k(h)}</td>"
-    f"<td class=num>{'' if c is None or h is None else f'{c - h:+,.0f}'}</td><td class=num>{k(p)}</td>"
+    f"<td class=num>{'' if c is None or h is None else f'{c - h:+,.0f}'}</td><td class=num>{k(o)}</td>"
+    f"<td class=num>{'' if c is None or o is None else f'{c - o:+,.0f}'}</td><td class=num>{k(p)}</td>"
     f"<td class=num>{k(s)}</td><td class=num>{'' if c is None or not p else f'{c / p * 1000:,.0f}'}</td></tr>"
-    for a, b, c, h, p, s in per)
+    for a, b, c, h, o, p, s in per)
 
 # ---------------------------------------------------------------- charts
 FONT = {"family": "system-ui, Segoe UI, sans-serif", "size": 13}
@@ -138,7 +144,8 @@ def chart(div, traces, suffix="", kind="scatter", zero=True):
 
 y1, comp = col(f"SELECT y, round(comp) FROM yr WHERE y BETWEEN {first} AND {last_full} ORDER BY y")
 y2, hha = col(f"SELECT y, round(hh_add) FROM yr WHERE y BETWEEN {first} AND {last_full} ORDER BY y")
-chart("c_flow", [("Homes completed", y1, comp), ("Households added", y2, hha)])
+y3, occa = col(f"SELECT y, round(occ_add) FROM yr WHERE occ_add IS NOT NULL AND y BETWEEN {first} AND {last_full} ORDER BY y")
+chart("c_flow", [("Homes completed", y1, comp), ("Households added (annual survey)", y2, hha), ("Occupied homes added", y3, occa)])
 yg, cum = col("SELECT y, round(cum) FROM gap ORDER BY y")
 chart("c_gap", [("Completions less households added, running total", yg, cum)], kind="bar", zero=False)
 yp, cpk = col("SELECT y, round(comp_per_k, 2) FROM yr WHERE comp_per_k IS NOT NULL ORDER BY y")
@@ -156,6 +163,16 @@ g = dict(q("SELECT y, cum FROM gap"))
 # the largest decline in the running total: the year furthest below its own earlier high, and that high
 low_y, low, peak = q("""SELECT y, cum, max(cum) OVER (ORDER BY y) FROM gap ORDER BY max(cum) OVER (ORDER BY y) - cum DESC LIMIT 1""")[0]
 peak_y = q(f"SELECT min(y) FROM gap WHERE cum = {peak}")[0][0]
+# the second household count over the same years, and the size of the annual survey's one-year jumps (review 2026-11-13)
+occ_span = q(f"""SELECT (SELECT sum(comp) FROM yr WHERE y > {peak_y} AND y <= {low_y}) -
+                        (max(occ) FILTER (WHERE y = {low_y}) - max(occ) FILTER (WHERE y = {peak_y})) FROM yr""")[0][0]
+occ_txt = "" if occ_span is None else (
+    f" On Census's second count, occupied homes, the same years come to {abs(occ_span) / 1e3:,.1f} million "
+    f"{'fewer' if occ_span < 0 else 'more'} homes finished than occupied homes added.")
+jumps = q(f"SELECT y, hh_add FROM yr WHERE y BETWEEN {first} AND {last_full} ORDER BY hh_add DESC LIMIT 3")
+hh_med = q(f"SELECT median(hh_add) FROM yr WHERE y BETWEEN {first} AND {last_full}")[0][0]
+occ_first = q("SELECT min(y) FROM yr WHERE occ_add IS NOT NULL")[0][0]
+occ_jump = q("SELECT y, occ_add FROM yr WHERE occ_add IS NOT NULL ORDER BY occ_add DESC LIMIT 1")[0]
 ph_first, ph_last = q("SELECT min_by(per_hh, y), max_by(per_hh, y), min(y), max(y) FROM yr WHERE per_hh IS NOT NULL")[0][:2]
 ph_y = q("SELECT min(y), max(y) FROM yr WHERE per_hh IS NOT NULL")[0]
 pi_first = q("SELECT y, price / inc FROM yr WHERE price IS NOT NULL AND inc IS NOT NULL ORDER BY y LIMIT 1")[0]
@@ -173,18 +190,19 @@ body = f"""<div class=head><div><h1>Housing supply vs need</h1>
 <p>Is the US building homes as fast as it forms households? Each new household needs a home, so homes completed should at least keep up with households added, plus whatever is torn down. Vacancy rates show how tight the stock is; household size and price against income show what a shortage does to people.</p>
 
 <h2>Per year, by period (thousands)</h2>
-<div class=wrap><table>
-<tr><th>Period</th><th>Homes completed</th><th>Households added</th><th>Completed less households</th><th>Population added</th><th>Housing stock added</th><th>Completed per 1,000 people added</th></tr>
+<style>table.per th {{ white-space: normal; vertical-align: bottom; }}</style>
+<div class=wrap><table class=per>
+<tr><th>Period</th><th>Homes completed</th><th>Households added</th><th>Completed less households</th><th>Occupied homes added</th><th>Completed less occupied homes</th><th>Population added</th><th>Housing stock added</th><th>Completed per 1,000 people added</th></tr>
 {rows_per}</table></div>
-<p class=muted>Completions are summed over the years from the start of each period up to its end year, not including it; households, population and housing stock are the change from the start year to the end year, per year. Housing stock is the Census estimate, which starts in 2000. The last period ends at {last_full}, the latest year with both completions and households.</p>
+<p class=muted>Completions are summed over the years from the start of each period up to its end year, not including it; households, occupied homes, population and housing stock are the change from the start year to the end year, per year. Households are the Census annual survey (CPS), counted in March. Occupied homes are a second Census count of the same thing, from the quarterly Housing Vacancy Survey; its first full year is {occ_first - 1}. Housing stock is the Census estimate, which starts in 2000 Q2, so 2000 is the average of three quarters. The last period ends at {last_full}, the latest year with both completions and households.</p>
 
 <h2>Homes completed vs households added, each year</h2>
 <div id="c_flow" style="height:340px"></div>
-<p class=muted>Households come from an annual survey (Census CPS); the year-to-year change is noisy, so the running total below is the steadier read.</p>
+<p class=muted>The two household counts disagree year to year. The annual survey has one-year jumps well outside its usual: {", ".join(f"{y} ({v:+,.0f} thousand)" for y, v in jumps)}, against a median year of {hh_med:,.0f} thousand. Occupied homes has one of its own: {occ_jump[0]} ({occ_jump[1]:+,.0f} thousand). The running total below uses the annual survey, the only one of the two that goes back to {first}, and a one-year jump stays in a running total for good.</p>
 
 <h2>Running total: homes completed less households added, from {first}</h2>
 <div id="c_gap" style="height:340px"></div>
-<p>The largest decline: from {peak:,.0f} thousand in {peak_y} to {low:,.0f} thousand in {low_y}, {(peak - low) / 1e3:,.1f} million fewer homes finished than households formed over those years. In {last_full} the total stood at {g[last_full]:,.0f} thousand. A falling stretch means fewer homes were finished than households formed. It does not count homes torn down or the manufactured homes that are not in Census completions, so its level is not a shortage estimate; its slope is the signal.</p>
+<p>The largest decline: from {peak:,.0f} thousand in {peak_y} to {low:,.0f} thousand in {low_y}, {(peak - low) / 1e3:,.1f} million fewer homes finished than households formed over those years, on the annual survey.{occ_txt} In {last_full} the total stood at {g[last_full]:,.0f} thousand ({g[last_full] - g[last_full - 1]:+,.0f} in that year alone). A falling stretch means fewer homes were finished than households formed. The total does not count homes torn down or the manufactured homes that are not in Census completions, so its level is not a shortage estimate. Its slope over several years is the signal, and only as far as the two counts agree.</p>
 
 <h2>Homes completed per 1,000 people</h2>
 <div id="c_pc" style="height:300px"></div>
@@ -196,7 +214,7 @@ body = f"""<div class=head><div><h1>Housing supply vs need</h1>
 
 <h2>People per household</h2>
 <div id="c_size" style="height:300px"></div>
-<p>{ph_first:.2f} in {ph_y[0]}, {ph_last:.2f} in {ph_y[1]}. Smaller households mean more homes per person. When homes are short, young adults stay with parents and roommates double up, so households added (above) can understate the demand.</p>
+<p>{ph_first:.2f} in {ph_y[0]}, {ph_last:.2f} in {ph_y[1]}. Population here is everyone, including armed forces overseas and people who do not live in a household, so the figure runs a little above the size of an actual household. Smaller households mean more homes per person. When homes are short, young adults stay with parents and roommates double up, so households added (above) can understate the demand.</p>
 
 <h2>New-home price against household income</h2>
 <div id="c_pi" style="height:300px"></div>
