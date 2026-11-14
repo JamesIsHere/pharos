@@ -161,9 +161,8 @@ list_rows = "".join(f"<tr><td style='padding-left:{r['depth'] * 28}px'>{link(r)}
                     for r in out)
 published = re.search(r"^Serving:.*\(published (.+?) E[SD]T\)", health_md, re.M).group(1) + " ET"
 cat_rows = "".join(
-    f"<tr><td><b>{link(r)}</b><div class=sub>{esc(r['what'])}</div></td>"
-    f"<td><span class='st {r['state'].replace(' ', '-')}'>{esc(r['state'])}</span></td>"
-    f"<td>{esc(r['cadence'])}</td>"
+    f"<tr><td class=nw>{link(r)}</td>"
+    f"<td style='min-width:9em'>{esc(r['cadence'])}</td>"
     f"<td class=num>{num(r['files'])}</td><td>{esc(run_et(r['newest']) if r['newest'] else '')}</td>"
     f"<td class=mono>{esc(r['served'].replace(':', ' '))}</td><td class=num>{num(r['n'])}</td>"
     f"<td class=num>{num(r['series'])}</td>"
@@ -176,7 +175,7 @@ body = f"""<div class="head"><h1>Data Sources</h1>
 
 <h2>Details</h2>
 <div class="wrap"><table>
-<tr><th>Source</th><th>State</th><th>Cadence</th><th>Raw files</th><th>Last loaded</th><th>Served as</th>
+<tr><th>Source</th><th>Cadence</th><th>Raw files</th><th>Last loaded</th><th>Served as</th>
 <th>Rows served</th><th>Series</th><th>Dates (obs_date)</th><th>Freshness</th><th>Where</th></tr>
 {cat_rows}
 </table></div>"""
