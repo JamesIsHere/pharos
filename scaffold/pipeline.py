@@ -226,6 +226,50 @@ NOTES = {
         ("if e.status != 404", "A company with no XBRL data answers 404. That is normal; any other error stops the load."),
         ("result = _land(", "Save three raw files: the facts, the concept list, and which companies changed, with a note of how many."),
     ]),
+    "yahoo.load_prices": ("Prices", "Daily bars for every watchlist ticker, from Yahoo Finance.", [
+        ("auto_adjust = cfg", "Whether Yahoo adjusts prices for splits and dividends is set in config/sources.yaml and "
+                              "passed explicitly: the library's default has changed between versions."),
+        ("end = datetime.now(NEW_YORK).date()", "Pull through yesterday, New York time. Today's bar is left out."),
+        ("for row in config.watchlist()", "One ticker at a time, from config/watchlist.csv."),
+        ('start, reason = first, "bootstrap"', "Nothing stored for this ticker: pull its full history."),
+        ('start, reason = first, "window_extended"', "The watchlist now starts earlier than the stored history: pull "
+                                                     "the full history again, as a new vintage (D72)."),
+        ('start = stored["obs_date"].max() - timedelta', "Otherwise pull only the last few days, overlapping what is "
+                                                         "stored (the overlap is in config/sources.yaml)."),
+        ("raise EmptyPullError", "Yahoo returned nothing for days it answered before: an outage, not data. The whole "
+                                 "load stops and nothing is written."),
+        ("reason = classify(stored, frame)", "Compare the overlap days with what is stored. A new split, every stored "
+                                             "price off by one ratio (a re-basing), or no shared day: pull the full "
+                                             "history again, as a new vintage (D21)."),
+        ('return write_raw(download, "yf"', "Save one write-once raw file for this run: raw/yf/prices/<run>.parquet."),
+    ]),
+    "fred.load_macro": ("Macro series", "Every FRED series listed in config/sources.yaml, with every vintage.", [
+        ('for fred_id in config.sources()["fred"]["series"]', "One series at a time, from config/sources.yaml."),
+        ("obs = normalize_observations(fetch_observations", "Every value FRED ever published for the series, each "
+                                                            "with the date it was published (its vintage)."),
+        ("meta = normalize_series(fetch_series", "The series' description: title, frequency, units."),
+        ("failed.append(", "A series that fails either request is left out whole and named in the load record; the "
+                           "others still land (D144)."),
+        ("raise SeriesLoadError", "If every series failed, the load stops."),
+        ('"fred", "observations", run_id, note=note)', "Save the observations: raw/fred/observations/<run>.parquet."),
+        ("series_path = write_raw(", "Save the descriptions: raw/fred/series/<run>.parquet."),
+    ]),
+    "stage._stage_prices_macro": ("Stage the two tables", "Rebuilt whole from the raw files on every run.", [
+        ("bind_raw(con, included)", "Read the raw files of every run included, not only this one."),
+        ('fred = _transform(con, "fred_observations"', "Clean the FRED rows with fred_observations.sql. Rows out must "
+                                                       "equal rows in."),
+        ('"units IS NULL"', "Every FRED row must have units, or the group stops (D19)."),
+        ('yf = _transform(con, "yf_observations"', "Clean the price rows with yf_observations.sql, the same way."),
+        ('"vintage IS NULL"', "Every price row must belong to a full-history pull, or the group stops (D20)."),
+        ("CREATE TABLE series_catalog AS", "Build series_catalog: one row per series, with its frequency and start date."),
+        ('raise StageError(f"series_catalog: no current metadata', "A series with no frequency or start date would be "
+                                                                    "skipped silently by the checks, so the group stops."),
+        ('raise StageError(f"series_catalog: source or frequency', "The same for a source or frequency the checks have "
+                                                                    "no case for (D74)."),
+        ("CREATE TABLE observations AS", "Stack FRED and prices into one observations table. A row several runs landed "
+                                         "identically is kept once, from the earliest run."),
+        ("COPY {table} TO", "Write the two staged tables as Parquet."),
+    ]),
     "stage_sec.stage_group": ("Stage the five tables", "The SEC group's stager: one table at a time.", [
         ("One connection per dataset", "One table at a time, each with its own DuckDB connection, so memory never "
                                        "holds two of the 27-million-row tables at once."),
@@ -333,7 +377,8 @@ def plain_code(fn):
 def load_panel(gname):
     cards = ""
     for m, f, _ in GROUP[gname]["loads"]:
-        url = next((getattr(m, a) for a in ("URL", "COMPANY_URL") if hasattr(m, a)), "")
+        url = "Yahoo Finance, through the yfinance library" if hasattr(m, "yf") else \
+            next(getattr(m, a) for a in ("URL", "COMPANY_URL", "API") if hasattr(m, a))
         raw = ", ".join(f"raw/{s}/{d}" for s, d in writes(m))
         cards += code_card(getattr(m, f), f"{m.__name__.rsplit('.', 1)[-1]}.{f}", [("Reads", url), ("Writes", raw)])
     return (f"Load: {gname}", f"""<p class=sub>The {len(GROUP[gname]["loads"])} loaders, in the order a run calls them (refresh.py):</p>
@@ -367,6 +412,19 @@ SQL file, then merged into the table served now by one rule: newest value per ke
 {code_card(ss.stage_group, "stage_sec.stage_group")}{code_card(ss._merge, "stage_sec._merge")}""")
 
 
+def prices_macro_stage_panel():
+    """Stage: the two tables, rebuilt whole by one function."""
+    sql_dir = Path(inspect.getsourcefile(stage)).parent / "transform"
+    links = []
+    for name in ("fred_observations", "yf_observations", "series_catalog"):
+        need((sql_dir / f"{name}.sql").exists(), f"{sql_dir / name}.sql not on disk")
+        links.append(f'<a href="{(sql_dir / f"{name}.sql").as_uri()}">{name}.sql</a>')
+    tables = GROUP["prices_macro"]["g"].tables
+    return ("Stage: prices_macro", f"""<p class=sub>{len(tables)} tables ({esc(', '.join(tables))}), built by one function from
+three SQL files: {', '.join(links)}.</p>
+{code_card(stage.STAGERS["prices_macro"], "stage._stage_prices_macro")}""")
+
+
 def publish_panel():
     """Check and publish: the same code for every group."""
     from pharos import publish as pub
@@ -376,9 +434,12 @@ then each group's tables are published, carried forward, or left as they are.</p
 {code_card(pub._build, "publish._build")}""")
 
 
-PANELS = {"sec_load": lambda: load_panel("sec"), "sec_stage": sec_stage_panel, "publish": publish_panel}
+PANELS = {"sec_load": lambda: load_panel("sec"), "sec_stage": sec_stage_panel,
+          "prices_macro_load": lambda: load_panel("prices_macro"), "prices_macro_stage": prices_macro_stage_panel,
+          "publish": publish_panel}
 # summary box -> the panel it opens: each group's check, publish and keep boxes all open Check and publish
 CLICKS = {"sec_load": "sec_load", "sec_stage": "sec_stage",
+          "prices_macro_load": "prices_macro_load", "prices_macro_stage": "prices_macro_stage",
           **{f"{g}_{box}": "publish" for g in GROUPS for box in ("check", "pub", "keep")}}
 
 
