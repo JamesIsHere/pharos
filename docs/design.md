@@ -103,7 +103,7 @@ Entity tables beside the series model. Each row carries the four columns every o
 | second price source | M1 | reconciliation only | Independent of Yahoo. Candidates: Tiingo free tier, Alpha Vantage free tier, Stooq. Pick in M1 and log the decision | No: Tiingo (chosen, D35) free accounts are 'internal and personal use only', no redistribution 'in any form' |
 | FRED / ALFRED | M1 | the series listed in config/sources.yaml: GDP, prices, people and work (D141), manufacturing, Census M3 (D169) | Pull all vintages. Freshness uses FRED release dates, not a hard-coded lag (releases slip, e.g. shutdowns). Each series loads on its own: one that fails is left out of the run and named red by C41, while the others publish (D144) | Not now (#103): the API terms bar storing its content; the series are public domain at BEA/BLS/Census |
 | SEC Company Facts | M2 (D128, D139, D140) | XBRL facts, all filers: bulk baseline, then per-CIK documents for companies with changed submission filings. `company_facts` (one row per fact, keyed cik, taxonomy, concept, unit, accession, start_date, end_date), `company_concepts` | Keeps accession + filed date per fact = point-in-time is reconstructible. Served as self-contained per-CIK partition snapshots: unchanged files are reused, changed CIKs replaced, then the SEC group publishes atomically; freshness C40 | Yes (SEC data is public; unverified, from prior) |
-| SEC Financial Statement Data Sets | M3 | dimensional facts (multi-class shares), `pre` table | companyfacts drops dimensional facts | Yes (as above) |
+| SEC Financial Statement Data Sets | not landed | dimensional facts (multi-class shares), `pre` table | companyfacts drops dimensional facts | Yes (as above) |
 | SEC EDGAR full-index (`master.gz` per quarter) | M2 | every filing: CIK, name, form, date filed: `filings` | Annual reports, events and gap years (D54, D65); current and previous quarter re-landed each run. Served one folder per quarter: only re-landed quarters are rebuilt, the rest hard-linked (D155). Landed level; freshness C25 | Yes (as above) |
 | SEC submissions.zip | M2 | company details (name, SIC, state, tickers, exchanges) and filing history: `submission_details`, `submission_filings` | Nightly bulk; details snapshot every run, history past the watermark (D58). `submission_filings` served one folder per filing-date quarter, with a `quarter` column; only touched quarters rebuilt (D156). Landed level; freshness C31 | Yes (as above) |
 | SEC company_tickers_exchange.json | retired 2026-11-12 (D165) | was `tickers`, current ticker to CIK and exchange | Not loaded; `submission_details` carries each company's tickers and exchanges. Code and check C34 in archive/tickers-2026-11-12/ | Yes (as above) |
@@ -187,7 +187,7 @@ Before trusting the first backfill:
 ## 8. Dashboard
 Retired 2026-11-13 (D170). The code is in `archive/app-2026-11-13/`.
 
-## 9. Known traps for fundamentals (M3+), as rules
+## 9. Known traps for fundamentals, as rules
 - **Shares:**
   - Book value per share uses `CommonStockSharesOutstanding` (balance-sheet date) or `dei:EntityCommonStockSharesOutstanding` (cover page).
   - Never use weighted-average shares; never use `CommonStockSharesIssued` (it includes treasury shares).

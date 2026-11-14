@@ -14,7 +14,7 @@ import base   # noqa: E402
 import nav    # noqa: E402
 
 AS_OF = date.today()
-CONCEPTS = (base.PROJECT_ROOT / "config" / "concepts.csv").as_posix()
+CONCEPTS = (Path(__file__).resolve().parent / "concepts.csv").as_posix()   # moved here from config/ 2026-11-13
 
 # Ratios: key, family, label, formula as shown, SQL over the statement row s (avg_ = mean of opening and closing,
 # both from the same 10-K; days = the revenue period's actual days).

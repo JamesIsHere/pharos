@@ -19,8 +19,8 @@ Available today:
 - Versioned Parquet serving data
 - Data-health checks and fault-injection tests
 
-SEC source data is landed and queryable, but it is not yet curated into
-standardized financial statements or ratios. That work begins in M3.
+SEC source data is landed and queryable. It is not curated into standardized
+financial statements or ratios; pages work out the company figures they need.
 
 ## How it works
 
@@ -156,6 +156,6 @@ terms.
 
 - [`docs/design.md`](docs/design.md) — architecture, schemas, time semantics,
   and health system
-- [`docs/plan.md`](docs/plan.md) — current milestone, status, and open issues
+- [`docs/plan.md`](docs/plan.md) — status and open issues
 - [`docs/decisions.md`](docs/decisions.md) — design-decision history
 - [`CLAUDE.md`](CLAUDE.md) — repository working rules and maintainer commands
