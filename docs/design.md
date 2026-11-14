@@ -38,9 +38,6 @@ serving/   <run_id>/: series_catalog + observations (from U also universe_filer,
            per-CIK Parquet partitions behind the same catalog views (D140),
            and filings and submission_filings one per quarter (D155, D156)
 health/    run_manifest, loads, check_results, baseline, audit, latest.md
-   |
-   v
-Streamlit app (DuckDB queries -> Plotly charts)
 catalog.duckdb: views over raw/, the latest staging/, serving/ and health/, for DBeaver; a run rebuilds it right after it publishes (D146)
 ```
 
@@ -119,7 +116,7 @@ Entity tables beside the series model. Each row carries the four columns every o
 4. **Write-audit-publish with atomic swap.** A failed run leaves yesterday's serving data intact. `serving/` is one write-once folder per published run plus `CURRENT`, a one-line pointer; the swap is replacing `CURRENT` (D30).
 5. **Run manifest every run**, including failed runs.
 6. **Idempotent.** Rerunning immediately adds zero rows to `serving/` and stays green. (`raw/` gains that run's snapshot file; that is the evidence trail, not a defect.)
-7. The nightly schedule is a Windows Task Scheduler entry with "run as soon as possible after a missed start" enabled. A failure raises no notification; it shows on the dashboard (D50).
+7. The nightly schedule is a Windows Task Scheduler entry with "run as soon as possible after a missed start" enabled. A failure raises no notification; it shows in `pharos health` (D50).
 
 ## 7. Health system
 
@@ -166,21 +163,11 @@ Completeness requires a declared expectation. `config/watchlist.csv` plus each s
 - **Green**: all checks pass and the last successful run is under 26h old.
 - **Yellow**: warnings only. A warn check whose every failing row is acknowledged in `config/expected_states.csv` reports `acknowledged` and doesn't count; its rows stay listed with their notes (D46).
 - **Red**: any error, a blocked publish, or staleness.
-- One overall status, no per-source roll-up (D42). Which source a failure belongs to is read from its rows, grouped on the health page.
+- One overall status, no per-source roll-up (D42). Which source a failure belongs to is read from its rows.
 
-### Three surfaces, one source of truth (`health/` tables)
-1. **Health page**: the first page in the app. A status bar on every page.
-2. **`uv run pharos health`**: a colored terminal table. Every Claude Code session starts here.
-3. **`health/latest.md`**: a plain-text summary rewritten every run and every `pharos health` (D34).
-
-### Health page contents
-- Overall traffic light: last successful run, latest obs date, row count, pass/warn/fail counts. Failing rows are grouped by source (the `yf:`/`fred:` series prefix, or the row's source column) under each failing check (D42).
-- Coverage heatmap: rows = series, columns = months, color = % of expected observations present, by C04's definition (`transform/expected_dates.sql`, D44). A quarterly date fills its quarter's three months. Starts at `backfill_start`, with a full-history toggle.
-- Row count by run per source.
-- Run strip: last 30 runs as colored squares.
-- Failing checks table, drillable to the failing rows.
-- Latest run blocked or failed: that run's own recorded failing checks (and crash error), drillable, above everything that describes what is served (D45).
-- Spot-check panel: 5 served observations per source, chosen by a hash seeded with the published run_id, so a run's sample is fixed and re-performable (D44); each linked to its source page (audit sampling).
+### Two surfaces, one source of truth (`health/` tables)
+1. **`uv run pharos health`**: a colored terminal table. Every Claude Code session starts here.
+2. **`health/latest.md`**: a plain-text summary rewritten every run and every `pharos health` (D34).
 
 ### Opening-balance audit
 Before trusting the first backfill:
@@ -190,27 +177,15 @@ Before trusting the first backfill:
 - `uv run pharos audit` runs it against `serving/CURRENT` (D39, D41): every common date is compared and written. An isolated day over 0.5% is reported as a print disagreement; consecutive days over, a day at either end of the range, or an active ticker with fewer than 5 dates compared block, and then no baseline is recorded and it exits 1.
 
 ### Fault injection (control effectiveness)
-`tests/test_design_faults.py` drives each fault end to end through `refresh()` (load -> stage -> checks -> publish -> manifest) and `pharos health`, on a synthetic data root (never real data), injecting it where it would really happen. Each fault must produce the expected color and appear on the health page (step 8). Fault 2 has two halves: a duplicated bar in raw is absorbed by staging's dedup (C07 passes, publishes), and a duplicate that survives staging is injected into the staged table, where C07 guards the dedup. `tests/test_faults.py` keeps the per-check tests on staged tables:
-1. Delete one month of one ticker → C04 red, publish blocked, the C04 rows on the health page under the blocked run (D45). The heatmap stays whole: it shows serving/, which the hole never reached.
+`tests/test_design_faults.py` drives each fault end to end through `refresh()` (load -> stage -> checks -> publish -> manifest) and `pharos health`, on a synthetic data root (never real data), injecting it where it would really happen. Each fault must produce the expected color. Fault 2 has two halves: a duplicated bar in raw is absorbed by staging's dedup (C07 passes, publishes), and a duplicate that survives staging is injected into the staged table, where C07 guards the dedup. `tests/test_faults.py` keeps the per-check tests on staged tables:
+1. Delete one month of one ticker → C04 red, publish blocked, serving unchanged.
 2. Duplicate one day → C07 red, publish blocked, serving unchanged.
 3. Backdate the last successful run by 2 days → C01 red.
 4. Multiply one close by 10 → C10 warn.
 5. Change one past close in a later raw snapshot, same vintage → C14 red, publish blocked, serving unchanged.
 
 ## 8. Dashboard
-- **Pages:** Home (watchlist chart + status bar; never empty on open), Health, Charts.
-- **Charts page:**
-  - A stack of up to 4 panels sharing one date axis (D48). Each panel overlays any series and has its own rebase and log toggles. Up to 8 series across panels, one color slot each; a series keeps its slot in every panel and while shown.
-  - Each value is drawn at the date it became public, at its latest vintage: a close at its trading day, a FRED value at its first vintage, or at period end + `expected_lag_days`, flagged estimated, where ALFRED records no release (D47). Macro draws as steps.
-  - Date range with range-selector buttons (1Y/5Y/YTD/Max).
-  - Rebase to 100 at range start by default: each series' value in effect at the start (D47). No dual axes: series that need their own scale go in their own panel (D48).
-  - Log toggle.
-  - Chart state lives in the URL (`st.query_params`), so a bookmark reopens the same chart.
-- **Caching:** `st.cache_resource` for the DuckDB connection; `st.cache_data` keyed on `last_published_at` and the latest run_id (D45). The status bar and health page evaluation are keyed on (`last_published_at`, wall clock to the minute), and the app evaluates with `record=False` (D43).
-- **Desktop icon:**
-  - Shortcut runs `pwsh -NoProfile -WindowStyle Hidden -File scripts\open-dashboard.ps1`, with a custom .ico.
-  - The script checks whether `localhost:8517` responds, starts Streamlit headless if not, waits, then opens Edge in app mode on it. Port 8517, not Streamlit's default 8501, so another project's app on 8501 is never mistaken for Pharos.
-  - No PyInstaller, Electron, or pywebview.
+Retired 2026-11-13 (D170). The code is in `archive/app-2026-11-13/`.
 
 ## 9. Known traps for fundamentals (M3+), as rules
 - **Shares:**
@@ -235,11 +210,7 @@ Before trusting the first backfill:
 - **Ticker history:** CIK is stable and tickers aren't (FB→META). The SEC tickers file is current-only.
 
 ## 10. Hosting path (milestone H, D104)
-- The refresh stays on JAMESTOWN (the nightly task). Publish copies the new version and `health/` to Cloudflare R2, `CURRENT` last. Raw stays local. A refresh on GitHub Actions would need the whole raw history in R2 (staging reads every landing, D18/D84; C05 reconciles raw), so it is a separate, floating step.
-- The Streamlit Community Cloud app reads R2 through DuckDB.
-- Constraints: about 1 GB memory, sleeps after 12h idle, one private app (the repo is public).
-- The desktop icon gets repointed to the hosted URL; the phone uses Add to Home Screen.
-- Failure alerts: as today, the dashboard and the status email (#96); GitHub Actions' email applies only if the refresh moves there.
+On hold (D106). The draft is in `docs/later.md`; it assumed the app retired by D170.
 
 ## 11. Decision log
 In `docs/decisions.md` (D129).

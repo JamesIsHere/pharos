@@ -241,15 +241,6 @@ def test_a_carried_groups_gate_results_are_its_source_runs(toy):
     assert (c96["status"], c96["run_id"]) == ("pass", RUNS[0])   # the served tables passed then
 
 
-def test_rows_of_another_groups_check_file_under_that_group():
-    import json
-    from pharos.board import failing_rows_by_source
-    rows = [{"cik": 320193, "ticker": "AAPL"}]
-    assert failing_rows_by_source({"group": "sec", "sample": json.dumps(rows)}) == {"sec": rows}
-    # prices_macro keeps D42's column rule: a ticker-only row is Tiingo's
-    assert failing_rows_by_source({"group": "prices_macro", "sample": json.dumps(rows)}) == {"tiingo": rows}
-
-
 def test_latest_md_and_the_email_list_each_group(toy):
     from pharos import health, notify
     toy["run"](RUNS[0])

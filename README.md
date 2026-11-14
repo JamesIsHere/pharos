@@ -18,7 +18,6 @@ Available today:
 - SEC filing indexes, submissions, company details, tickers, and companyfacts
 - Versioned Parquet serving data
 - Data-health checks and fault-injection tests
-- Streamlit health and chart pages
 
 SEC source data is landed and queryable, but it is not yet curated into
 standardized financial statements or ratios. That work begins in M3.
@@ -36,7 +35,7 @@ checks/    quality gates and monitoring checks
    ↓
 serving/   versioned, approved Parquet data
    ↓
-DuckDB / Streamlit / other projects
+DuckDB / other projects
 ```
 
 A failed check never overwrites the last good serving version.
@@ -96,12 +95,6 @@ Inspect current data health:
 
 ```powershell
 uv run pharos health
-```
-
-Run the dashboard:
-
-```powershell
-uv run streamlit run app/Home.py
 ```
 
 The first SEC refresh establishes the large Company Facts baseline. Later

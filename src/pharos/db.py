@@ -1,9 +1,9 @@
-"""One-off DuckDB queries for code that runs on the app's threads.
+"""One-off DuckDB queries, each on its own connection.
 
 DuckDB's module-level duckdb.sql() runs on one default connection shared by
-the whole process. Streamlit renders each page on its own thread, so two tabs
-interleaving on that connection throw InvalidInputException (#68). Code the
-app calls queries through here instead: each call gets its own connection.
+the whole process, so two threads interleaving on it throw
+InvalidInputException (#68). Code that may run on more than one thread queries
+through here instead: each call gets its own connection.
 """
 
 import duckdb

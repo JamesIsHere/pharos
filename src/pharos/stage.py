@@ -73,7 +73,7 @@ def complete_runs(group: Group = PRICES_MACRO) -> list[str]:
     # only the required datasets count: a reference load (Tiingo) neither makes
     # nor breaks a run's completeness (D36)
     required = ", ".join(f"'{s}/{d}'" for s, d in group.required)
-    # on the app's threads too (health binds it at view time): own connection (#68)
+    # health binds it at view time, possibly on another thread: own connection (#68)
     _, rows = query(
         f"""SELECT run_id FROM read_parquet('{records}', union_by_name = true)
             WHERE source || '/' || dataset IN ({required})

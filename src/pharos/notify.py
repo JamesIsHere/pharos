@@ -2,7 +2,7 @@
 
 Sent at the end of refresh(), after the run manifest and health, crashed runs
 included. Built from the run's own manifest (health/run_manifest/<run_id>.parquet)
-and the health status, so it says what the dashboard would say.
+and the health status, so it says what `pharos health` would say.
 
 Never fails a run: any problem sending (no settings, wrong password, no network)
 is written to <data root>/logs/notify.log and swallowed. The test suite
@@ -83,7 +83,7 @@ def compose(run_id: str, health) -> EmailMessage:
 
 
 def _served_rows() -> dict[str, int]:
-    """Rows in the version the dashboard reads, by source (yf, fred)."""
+    """Rows in the served version, by source (yf, fred)."""
     from pharos.publish import current_version
     version = current_version()
     if version is None:

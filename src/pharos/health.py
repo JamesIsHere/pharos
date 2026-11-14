@@ -29,8 +29,8 @@ check `expected_states`, so the file can't go stale quietly. Error checks
 can't be acknowledged. The recorded check_results keep the check's own status.
 
 health/latest.md is rewritten on every evaluation, so it always says what the
-last look found. It is plain text with aligned columns. The app evaluates
-with record=False: it writes neither latest.md nor check_results (D43).
+last look found. It is plain text with aligned columns. An evaluation
+with record=False writes neither latest.md nor check_results (D43).
 """
 
 import json

@@ -50,7 +50,7 @@ from pharos.stage import any_complete_runs, bind_config, bind_raw, complete_runs
 
 CHECKS_DIR = PROJECT_ROOT / "checks"
 HEADER_FIELDS = ("id", "severity", "gate", "group", "description")
-# what checks and the app read besides the version's tables; publish copies
+# what checks read besides the version's tables; publish copies
 # each into serving/<version>/inputs/ (D76). Each group declares its own.
 INPUTS_DIR = "inputs"
 VIEW_INPUTS = PRICES_MACRO.inputs
@@ -140,7 +140,7 @@ def run_checks(run_id: str, directory: Path = CHECKS_DIR, now: datetime | None =
     At view time the health CLI passes `tables` (the published version) and
     `monitors_only`: gate checks tested staged data that hasn't changed, so their
     run-time results stand (D34). Results record which context produced them.
-    The app passes record=False: it reads health/, never writes it (D43).
+    record=False evaluates without writing health/ (D43).
     A group's checks run only when all its tables are in the folder; a group
     that isn't there has no results here (D81, D98)."""
     checks = discover(directory)
@@ -334,7 +334,7 @@ BINDERS = {"prices_macro": bind, "sec": bind_sec}
 
 def bind_view_inputs(con: duckdb.DuckDBPyConnection, run_id: str) -> None:
     """The VIEW_INPUTS tables, from config/ and this run's Tiingo file. Publish
-    copies them into the version, so view-time health and the app read the
+    copies them into the version, so view-time health reads the
     inputs the run was checked against, never raw/ or config/ (D76)."""
     # the reference source, this run's file only (D37); a run without one binds
     # an empty table of the same shape, so C18 reports the gap instead of breaking

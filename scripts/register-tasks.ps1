@@ -1,5 +1,5 @@
-# register-tasks.ps1 -- registers the nightly refresh in Task Scheduler and puts
-# the Pharos icon on the desktop. Safe to re-run: both are replaced in place.
+# register-tasks.ps1 -- registers the nightly refresh in Task Scheduler.
+# Safe to re-run: the task is replaced in place.
 #
 # Task "Pharos Nightly Refresh": daily 07:30 UTC (02:30 EST / 03:30 EDT), run
 # as soon as possible after a missed start, only while you are logged on (no
@@ -22,17 +22,6 @@ $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances 
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive
 
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings `
-    -Principal $principal -Description 'uv run pharos refresh; failures show on the dashboard. Registered by pharos\scripts\register-tasks.ps1' `
+    -Principal $principal -Description 'uv run pharos refresh; failures show in pharos health. Registered by pharos\scripts\register-tasks.ps1' `
     -Force | Out-Null
 "registered task '$taskName'"
-
-$shortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Pharos.lnk'
-$lnk = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut)
-$lnk.TargetPath = $pwsh
-$lnk.Arguments = "-NoProfile -WindowStyle Hidden -File `"$(Join-Path $PSScriptRoot 'open-dashboard.ps1')`""
-$lnk.WorkingDirectory = $root
-$lnk.IconLocation = Join-Path $PSScriptRoot 'pharos.ico'
-$lnk.WindowStyle = 7   # minimized, so the console doesn't flash up
-$lnk.Description = 'Open the Pharos dashboard'
-$lnk.Save()
-"wrote $shortcut"

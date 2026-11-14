@@ -815,7 +815,7 @@ def test_ack_key_on_an_error_check_fails_discovery(tmp_path):
 # --- view-time inputs: a version carries what its checks read (D76, #67) ----
 
 def test_view_time_health_reads_neither_raw_nor_config(staged_run, monkeypatch):
-    from pharos import board, config
+    from pharos import config
     serve(staged_run)
     _, before = view(monkeypatch, [])
     def unreadable(*a, **k):
@@ -826,9 +826,6 @@ def test_view_time_health_reads_neither_raw_nor_config(staged_run, monkeypatch):
     h, after = view(monkeypatch, [])
     assert {k: v["status"] for k, v in after.items()} == {k: v["status"] for k, v in before.items()}
     assert all(v["status"] != "broken" for v in after.values()), [v["error"] for v in after.values()]
-    con = board.connect()
-    assert len(board.coverage(con)) > 0 and board.settings(con)["backfill_start"].to_list() == [date(2026, 1, 1)]   # conftest's
-    con.close()
 
 
 def test_version_without_inputs_fails_loudly(staged_run, monkeypatch):

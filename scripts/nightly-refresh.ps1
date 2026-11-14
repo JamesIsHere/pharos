@@ -1,7 +1,7 @@
 # nightly-refresh.ps1 -- what the scheduled task runs (design.md section 6, rule 7).
 # Runs `uv run pharos refresh` and keeps its output in data/logs/. The exit
 # code is the refresh's, so Task Scheduler's "Last Run Result" tells the same
-# story. There is no notification: a failure shows on the dashboard (D50).
+# story. There is no notification: a failure shows in `pharos health` (D50).
 #
 # Workshop mirror guard (open issue #9, D49): the weekly robocopy mirror
 # (task "Workshop Mirror", Wednesday 06:00, 8 copy threads) must not copy

@@ -1,11 +1,9 @@
 -- expected_dates: every date a series should have, and whether it has a row.
 --
--- Inputs (names the check runner and the app bind): observations,
+-- Inputs (names the check runner binds): observations,
 -- series_catalog, trading_days.
 --
--- Used by C04 (a missing date is a failing row) and the health page's coverage
--- heatmap (share present per series per month). One file, so the heatmap's
--- hole and C04's error are the same fact.
+-- Used by C04 (a missing date is a failing row).
 --
 -- Window: active_from to the earlier of active_to and the series' last
 -- observation in any vintage. Ending at the last observation means C04 finds

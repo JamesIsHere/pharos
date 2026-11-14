@@ -4,7 +4,7 @@ serving/ holds one write-once folder per published run and CURRENT, a one-line
 file naming the version readers use (D30). Publishing copies the staged tables
 into a new folder nobody reads yet, then replaces CURRENT. That replace is the
 swap: one small file, so a reader holding a Parquet file of the old version
-(DBeaver, the app) never blocks it, and the old version stays readable.
+(DBeaver, a page build) never blocks it, and the old version stays readable.
 
 Rules applied here:
 - The checks run first, per source group (D81). A run publishes when at least
@@ -31,7 +31,7 @@ Rules applied here:
   rebuild-staging`), and a published run's tables live on in its version. A
   blocked or failed run keeps its folder until a later run publishes (D103).
 - A version carries inputs/: config/ and this run's Tiingo file as the checks
-  read them, so view-time health and the app never read config/ or raw/ (D76).
+  read them, so view-time health never reads config/ or raw/ (D76).
 """
 
 import os
@@ -98,7 +98,7 @@ def composition(version: Path) -> dict[str, dict]:
     if not record.exists():
         return {g.name: {"outcome": PUBLISHED, "source_run": version.name, "reason": None}
                 for g in groups_in(version)}
-    # read on the app's threads too: its own connection, never the shared default (#68)
+    # may be read from more than one thread: its own connection, never the shared default (#68)
     return {r.pop("group"): r for r in records(f"SELECT * FROM read_parquet('{record.as_posix()}')")}
 
 

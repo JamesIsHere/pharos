@@ -6,7 +6,6 @@ __pycache__/
 .env*
 !.env.example
 /scratch/
-.streamlit/secrets.toml
 /scaffold/**/*.html
 !/scaffold/core-capex-in-gdp.html
 /archive/**/*.html

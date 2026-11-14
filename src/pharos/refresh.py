@@ -19,7 +19,7 @@ run-level fields repeated. Long, not wide: a new source adds rows, not columns.
   states counts in checks_acknowledged, not checks_warn, so the run strip agrees
   with health. check_results keep each check's own status.
 - published_at is set only when the run published. Its maximum over all
-  manifests is last_published_at, the app's cache key.
+  manifests is last_published_at.
 - git_commit and git_dirty name the code the run ran (D103), read before
   anything loads; a run that can't read them fails without loading.
 - Source groups (D81): each group's loaders run on their own, so one group
