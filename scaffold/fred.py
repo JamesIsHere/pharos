@@ -224,7 +224,7 @@ body = f"""
 <ul>{q_html}</ul>
 
 <h3>Population: {len(POP)} series, every vintage</h3>
-<p class=sub>Topic page: <a href="m3.html">Manufacturing (M3)</a>, the six Census M3 series charted, with basic checks.</p>
+<p class=sub>Pages built on these series: <a href="m3.html">Manufacturing (M3)</a>, <a href="qfr.html">Census QFR</a>, <a href="housing.html">Housing pipeline</a>, <a href="housing-need.html">Housing supply vs need</a>.</p>
 <div class=wrap><table><tr><th>Series</th><th>Name</th><th>Freq</th><th>Adj</th><th>Units (latest)</th><th>Rows</th>
 <th>Periods</th><th>Periods span</th><th>Vintages</th><th>Vintages span</th><th>Null values</th></tr>{pop_rows}</table></div>
 

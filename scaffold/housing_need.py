@@ -1,6 +1,7 @@
-"""Housing supply vs need (quick lane): is the US building homes as fast as households form? New homes completed
-(Census) against households added (Census CPS), population (served, FRED POPTHM), vacancy rates, people per household,
-and new-home price against household income. FRED series are fetched at build time and never stored.
+"""Housing supply vs need: is the US building homes as fast as households form? New homes completed (Census)
+against households added (Census CPS), population (FRED POPTHM), vacancy rates, people per household, and new-home
+price against household income. Read from the served version (stored by D171), except the two annual series
+(households TTLHH, median household income MEHOINUSA646N), which are fetched from FRED at build time.
 Read-only. Writes housing-need.html. Run: uv run python scaffold/housing_need.py"""
 import json
 import os
@@ -10,7 +11,7 @@ from pathlib import Path
 
 import duckdb
 
-from common import esc, num, now_et, page
+from common import esc, num, now_et, page, served_obs, served_vintage
 from pharos.paths import data_root
 
 HERE = Path(__file__).parent
@@ -25,7 +26,8 @@ def fred(path, **p):
     return json.load(urllib.request.urlopen(f"https://api.stlouisfed.org/fred/{path}?" + urllib.parse.urlencode(p)))
 
 
-SERIES = {  # fetched from FRED at build
+FETCHED = ("TTLHH", "MEHOINUSA646N")   # annual, not in config/sources.yaml: fetched from FRED at build time
+SERIES = {
     "COMPUTNSA": "New homes completed, total (monthly, thousands, NSA)",
     "TTLHH": "Households (annual, thousands; Census CPS)",
     "EOCCUSQ176N": "Occupied housing units (quarterly, thousands; Census Housing Vacancy Survey)",
@@ -37,20 +39,20 @@ SERIES = {  # fetched from FRED at build
 }
 con = duckdb.connect()
 con.execute("CREATE TABLE m (sid VARCHAR, d DATE, v DOUBLE)")
-upd = {}
+upd = {}   # where each series was read from, for the Series table
 for sid in SERIES:
-    upd[sid] = fred("series", series_id=sid)["seriess"][0]["last_updated"][:10]
-    rows = [(sid, r["date"], float(r["value"])) for r in fred("series/observations", series_id=sid)["observations"]
-            if r["value"] != "."]
-    if not rows:
-        raise SystemExit(f"FRED {sid}: no observations")
-    con.executemany("INSERT INTO m VALUES (?, ?, ?)", rows)
-# population from the served version (latest vintage of each month)
-pop = con.execute(f"""SELECT 'POPTHM', obs_date, value FROM '{OBS}' WHERE series_id = 'fred:POPTHM' AND value IS NOT NULL
-                      QUALIFY row_number() OVER (PARTITION BY obs_date ORDER BY vintage DESC) = 1""").fetchall()
-if not pop:
-    raise SystemExit(f"served version {version} has no rows for fred:POPTHM; run a refresh first")
-con.executemany("INSERT INTO m VALUES (?, ?, ?)", pop)
+    if sid in FETCHED:
+        upd[sid] = "FRED when this page was built; last updated there " + fred("series", series_id=sid)["seriess"][0]["last_updated"][:10]
+        rows = [(r["date"], float(r["value"])) for r in fred("series/observations", series_id=sid)["observations"]
+                if r["value"] != "."]
+        if not rows:
+            raise SystemExit(f"FRED {sid}: no observations")
+    else:
+        upd[sid] = f"served version {version}; newest vintage {served_vintage(con, OBS, [sid])}"
+        rows = served_obs(con, OBS, sid)
+    con.executemany("INSERT INTO m VALUES (?, ?, ?)", [(sid, d, v) for d, v in rows])
+# population, also from the served version
+con.executemany("INSERT INTO m VALUES (?, ?, ?)", [("POPTHM", d, v) for d, v in served_obs(con, OBS, "POPTHM")])
 
 
 def q(sql):
@@ -185,7 +187,7 @@ cpk_last = q("SELECT y, comp_per_k FROM yr WHERE comp_per_k IS NOT NULL ORDER BY
 src = "".join(f"<tr><td>{s}</td><td>{esc(t)}</td><td class=nw>{upd[s]}</td></tr>" for s, t in SERIES.items())
 
 body = f"""<div class=head><div><h1>Housing supply vs need</h1>
-<p class=sub>Quick lane: FRED series fetched when this page was built, never stored; population from served version {esc(version)}. Built {now_et()}.</p></div></div>
+<p class=sub>Read from served version {esc(version)}, each period at its latest vintage. Two annual series are not stored and are fetched from FRED when this page is built: households (TTLHH) and median household income (MEHOINUSA646N). Built {now_et()}.</p></div></div>
 
 <p>Is the US building homes as fast as it forms households? Each new household needs a home, so homes completed should at least keep up with households added, plus whatever is torn down. Vacancy rates show how tight the stock is; household size and price against income show what a shortage does to people.</p>
 
@@ -221,8 +223,8 @@ body = f"""<div class=head><div><h1>Housing supply vs need</h1>
 <p>The median new house sold cost {pi_first[1]:.1f} years of median household income in {pi_first[0]} and {pi_last[1]:.1f} in {pi_last[0]}. New houses only; the price includes changes in what gets built (size, location), not only the price of the same house.</p>
 
 <h2>Series</h2>
-<div class=wrap><table><tr><th>FRED series</th><th>What</th><th>Last updated on FRED</th></tr>
-{src}<tr><td>POPTHM</td><td>Population (monthly, thousands)</td><td>served version {esc(version)}</td></tr></table></div>
+<div class=wrap><table><tr><th>FRED series</th><th>What</th><th>Read from</th></tr>
+{src}<tr><td>POPTHM</td><td>Population (monthly, thousands)</td><td class=nw>served version {esc(version)}; newest vintage {served_vintage(con, OBS, ["POPTHM"])}</td></tr></table></div>
 """
 
 out = HERE / "housing-need.html"

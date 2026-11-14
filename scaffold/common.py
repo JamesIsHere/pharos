@@ -57,6 +57,24 @@ def now_et():
     return datetime.now(ET).strftime("%Y-%m-%d %H:%M ET")
 
 
+def served_obs(con, obs, sid):
+    """One stored FRED series from the served observations file `obs`: each date at its latest vintage, dates the
+    latest vintage withdrew (null) dropped. Returns [('YYYY-MM-DD', value)] in date order, the shape FRED's API
+    gives. Stops the build if the series is not served."""
+    rows = con.execute(f"""SELECT obs_date::VARCHAR, value FROM (SELECT obs_date, value FROM '{obs}'
+        WHERE series_id = 'fred:{sid}' QUALIFY row_number() OVER (PARTITION BY obs_date ORDER BY vintage DESC) = 1)
+        WHERE value IS NOT NULL ORDER BY obs_date""").fetchall()
+    if not rows:
+        raise SystemExit(f"served observations have no rows for fred:{sid}; add it to config/sources.yaml and refresh")
+    return rows
+
+
+def served_vintage(con, obs, sids):
+    """The newest vintage date stored for any of the FRED series `sids`, as 'YYYY-MM-DD'."""
+    ids = ",".join(f"'fred:{s}'" for s in sids)
+    return con.execute(f"SELECT max(vintage)::VARCHAR FROM '{obs}' WHERE series_id IN ({ids})").fetchone()[0]
+
+
 _D = r"\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2}(?: ET)?)?"
 DATE = re.compile(f"{_D}(?: to {_D})?")   # a date, or a "date to date" span, kept on one line
 

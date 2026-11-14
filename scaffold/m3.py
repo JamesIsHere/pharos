@@ -2,14 +2,11 @@
 checks run when they landed (2026-11-12). Everything is measured from the served version at build time. Read-only.
 Writes m3.html. Run: uv run python scaffold/m3.py"""
 import json
-import os
-import urllib.parse
-import urllib.request
 from pathlib import Path
 
 import duckdb
 
-from common import esc, num, now_et, page
+from common import esc, num, now_et, page, served_obs
 from pharos.paths import data_root
 
 HERE = Path(__file__).parent
@@ -78,18 +75,12 @@ rev = {r[0]: r[1:] for r in q("""SELECT f.s, count(*), median(abs(l.value / f.va
 # ---------------------------------------------------------------- the chart
 # Core capital goods orders, real growth: each month against the same month a year earlier, after removing the
 # change in capital equipment prices (PPI, final demand, private capital equipment: WPSFD41312, SA). The PPI is
-# fetched from FRED at build time (quick lane; not served).
-def fred_series(sid):
-    a = dict(series_id=sid, api_key=os.environ["FRED_API_KEY"], file_type="json")
-    o = json.load(urllib.request.urlopen("https://api.stlouisfed.org/fred/series/observations?" + urllib.parse.urlencode(a)))
-    return [(r["date"], float(r["value"])) for r in o["observations"] if r["value"] != "."]
-
-
+# read from the served version, latest vintage (stored by D171).
 def real_growth(sid):
     """NEWORDER over the same month a year earlier, deflated by FRED price index sid. Returns the months, the real
     growth in each, the last month's dollar growth and price rise, and the last earlier-year month at least as high."""
     con.execute(f"CREATE TABLE ppi_{sid} (obs_date DATE, value DOUBLE)")
-    con.executemany(f"INSERT INTO ppi_{sid} VALUES (?, ?)", fred_series(sid))
+    con.executemany(f"INSERT INTO ppi_{sid} VALUES (?, ?)", served_obs(con, OBS, sid))
     joins = f"""FROM wide a JOIN wide b ON b.obs_date = a.obs_date - INTERVAL 12 MONTH
                 JOIN ppi_{sid} pa ON pa.obs_date = a.obs_date JOIN ppi_{sid} pb ON pb.obs_date = b.obs_date"""
     got = col(f"""SELECT a.obs_date::VARCHAR, ((a.NEWORDER / b.NEWORDER) / (pa.value / pb.value) - 1) * 100 {joins}
@@ -136,12 +127,10 @@ rows_last = "".join(
     f"<tr><td>{s}</td><td class=nw>{last[s][0]}</td><td class=num>{last[s][1] / 1e3:,.1f}</td>"
     f"<td class=num>{last[s][2]:+.2f}%</td><td class=num>{rev[s][1]:.2f}%</td><td class=num>{rev[s][2]:.2f}%</td></tr>"
     for s in SERIES)
-# What's inside total shipments: the M3 industry lines, fetched live from FRED at build time (quick lane; not served).
-# Parts must sum to their half and the halves to the total, or the build stops.
+# What's inside total shipments: the M3 industry lines, each one's latest month from the served version (stored by
+# D171). Parts must sum to their half and the halves to the total, or the build stops.
 def fred_last(sid):
-    a = dict(series_id=sid, api_key=os.environ["FRED_API_KEY"], file_type="json", sort_order="desc", limit=1)
-    o = json.load(urllib.request.urlopen("https://api.stlouisfed.org/fred/series/observations?" + urllib.parse.urlencode(a)))
-    return o["observations"][0]["date"], float(o["observations"][0]["value"])
+    return served_obs(con, OBS, sid)[-1]
 
 
 HALVES = {
@@ -190,7 +179,7 @@ body = f"""<div class=head><div><h1>Manufacturing (Census M3)</h1>
 <h2>Core capital goods orders (NEWORDER), growth after inflation</h2>
 <p>Core capital goods orders are new orders for business equipment, excluding defense and aircraft: the M3 series most watched as an early read on business investment. The line is growth over the same month a year earlier, after taking out the rise in private capital equipment prices (WPSFD41312). In {c_last_d[:7]} orders were up {c_nom:.1f}% in dollars and {min(c_last, m_last):.1f}% to {max(c_last, m_last):.1f}% after inflation, depending on the price index: {c_last:.1f}% with private capital equipment prices (WPSFD41312, up {c_ppi:.1f}%), {m_last:.1f}% with machinery and equipment prices (WPU11, up {m_ppi:.1f}%){f"; before this year real growth was last this high in {prev_txt}" if prev_txt else ""}. My read: this is the one strong signal in M3 right now. Total factory shipments are up about 10% in dollars but close to flat once each industry's own price rise is removed (a one-off calculation on 2026-11-12, not on this page), so the strength is in business equipment, not manufacturing as a whole.</p>
 <div id="c1" style="height:380px"></div>
-<p class=muted>Price indexes: producer price index, final demand, private capital equipment (WPSFD41312, the line above) and producer price index, machinery and equipment (WPU11), both fetched from FRED when this page was built. Orders are each month's latest vintage.</p>
+<p class=muted>Price indexes: producer price index, final demand, private capital equipment (WPSFD41312, the line above) and producer price index, machinery and equipment (WPU11), both read from served version {esc(version)}, each month's latest vintage, like the orders.</p>
 
 <h2>Basic checks</h2>
 <h3>Latest month and revision size</h3>
@@ -209,7 +198,7 @@ body = f"""<div class=head><div><h1>Manufacturing (Census M3)</h1>
 <div class=wrap><table>
 <tr><th>Half</th><th>Industry</th><th>FRED series</th><th>$ billions</th><th>Share of total</th></tr>
 {rows_mix}</table></div>
-<p class=muted>Fetched from FRED when this page was built, not from served data. The industries add up to each half and the two halves add up to the total; the build stops if they don't.</p>
+<p class=muted>Each series' latest month, read from served version {esc(version)}. The industries add up to each half and the two halves add up to the total; the build stops if they don't.</p>
 """
 
 out = HERE / "m3.html"

@@ -1,6 +1,7 @@
 """Scaffold: James's pages for keeping up with Pharos (2026-11-11).
 
-This build writes catalog.html: every data source Pharos has in any state, one row each. The definitions (what, state,
+This build writes catalog.html: every data source Pharos has in any state, one row each, with the pages built on a
+source indented under it (the 'under' column; pages appear in the top list only). The definitions (what, state,
 cadence, which raw folders and served tables) are typed in catalog.csv, which opens in Excel; every number is measured
 here from the data root at build time: raw files, served rows, date ranges, the last load, and the freshness checks'
 status from health/latest.md. A name in catalog.csv that is not on disk stops the build (fail loud).
@@ -22,9 +23,30 @@ DATA = data_root()
 STATES = ("trusted", "landed", "quick lane", "trial", "retired")
 
 rows = list(csv.DictReader((HERE / "catalog.csv").open(encoding="utf-8")))
-bad = [r["source"] for r in rows if r["state"] not in STATES]
+# A row with the 'under' column filled is a page, not a source: it names the row it is listed beneath (a source or
+# another page), has no state, and must link to its page. Regrouping is a cell edit in catalog.csv.
+names = {r["source"] for r in rows}
+bad = [r["source"] for r in rows if not r["under"] and r["state"] not in STATES]
 if bad:
     raise SystemExit(f"catalog.csv: unknown state for {bad}; allowed {STATES}")
+bad = [r["source"] for r in rows if r["under"] and (r["under"] not in names or r["under"] == r["source"]
+                                                    or r["state"] or not r["sheet"])]
+if bad:
+    raise SystemExit(f"catalog.csv: page rows {bad} need 'under' naming another row, an empty state, and a sheet")
+
+
+def nested(parent, depth):
+    """Rows listed under `parent` ('' for sources), each followed by its own pages, in catalog.csv order."""
+    got = []
+    for r in rows:
+        if r["under"] == parent:
+            got += [dict(r, depth=depth)] + nested(r["source"], depth + 1)
+    return got
+
+
+rows = nested("", 0)
+if len(rows) != len(names):
+    raise SystemExit(f"catalog.csv: {len(names) - len(rows)} rows are unreachable (a loop in 'under', or a repeated name)")
 
 version = (DATA / "serving" / "CURRENT").read_text(encoding="utf-8").strip()
 serving = DATA / "serving" / version
@@ -133,7 +155,8 @@ def as_of(r):
     return f"{t:%Y-%m-%d %H:%M} ET"
 
 
-list_rows = "".join(f"<tr><td>{link(r)}</td><td><span class='st {r['state'].replace(' ', '-')}'>{esc(r['state'])}</span></td>"
+list_rows = "".join(f"<tr><td style='padding-left:{r['depth'] * 28}px'>{link(r)}</td>"
+                    f"<td><span class='st {r['state'].replace(' ', '-')}'>{esc(r['state'])}</span></td>"
                     f"<td>{esc(r['what'])}</td><td class=sub>{esc(as_of(r))}</td><td>{group_of(r)}</td></tr>"
                     for r in out)
 published = re.search(r"^Serving:.*\(published (.+?) E[SD]T\)", health_md, re.M).group(1) + " ET"
@@ -145,11 +168,11 @@ cat_rows = "".join(
     f"<td class=mono>{esc(r['served'].replace(':', ' '))}</td><td class=num>{num(r['n'])}</td>"
     f"<td class=num>{num(r['series'])}</td>"
     f"<td>{esc(r['lo'] or '')}{' to ' + esc(r['hi']) if r['hi'] else ''}</td>"
-    f"<td>{chk(r['checks'])}</td><td class=sub>{esc(r['where'])}</td></tr>" for r in out)
+    f"<td>{chk(r['checks'])}</td><td class=sub>{esc(r['where'])}</td></tr>" for r in out if not r["under"])
 
 body = f"""<div class="head"><h1>Data Sources</h1>
 <div class="stamps"><span>Page built {now_et()}</span></div></div>
-<table class="list"><tr><th>Source</th><th>State</th><th>What</th><th>As of</th><th>Pipeline</th></tr>{list_rows}</table>
+<table class="list"><tr><th>Source, with the pages built on it indented</th><th>State</th><th>What</th><th>As of</th><th>Pipeline</th></tr>{list_rows}</table>
 
 <h2>Details</h2>
 <div class="wrap"><table>
@@ -159,4 +182,5 @@ body = f"""<div class="head"><h1>Data Sources</h1>
 </table></div>"""
 page = render("Data Sources", "Catalog", body)
 (HERE / "catalog.html").write_text(page, encoding="utf-8")
-print(f"wrote {HERE / 'catalog.html'}: {len(out)} sources")
+n_pages = sum(1 for r in out if r["under"])
+print(f"wrote {HERE / 'catalog.html'}: {len(out) - n_pages} sources, {n_pages} pages")

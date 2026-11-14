@@ -1,16 +1,18 @@
-source,state,what,raw,served,freshness,cadence,where,sheet,asof
-Yahoo prices,trusted,"Daily close, splits, dividends for the watchlist tickers",yf/prices,observations:yf,C02 C17,on demand (pharos refresh),,prices.html,
-Tiingo prices,trusted,Second price source that checks Yahoo's closes; never served,tiingo/prices,,C12 C20,on demand (pharos refresh),,prices.html,
-FRED / ALFRED,trusted,"Macro series with every vintage (GDP, CPI, population, labor)",fred/observations fred/series,observations:fred,C02 C17,on demand (pharos refresh),,fred.html,
-SEC filing index,landed,"Every EDGAR filing: company, form, date",sec/full_index,filings,C25,on demand (pharos sec),,,
-SEC submissions,landed,"Company details (SIC, tickers, fiscal year end) and each company's filing list",sec/submission_details sec/submission_filings,submission_details submission_filings,C31,on demand (pharos sec),,,
-SEC tickers,retired,Ticker to company (CIK) map; SEC submissions carries the same tickers (D165),,,,,,,
-SEC Company Facts,landed,Every XBRL financial fact every company reported,sec/companyfacts sec/companyfacts_concepts sec/companyfacts_changes,company_facts company_concepts,C40,on demand (pharos sec),,company-facts.html,
-IMF World Economic Outlook,quick lane,"GDP (US$) and unemployment rate for every country, 1980 on, with IMF forecasts",,,,on page build,Scaffold page: World Economic Outlook (scaffold/weo.py),weo.html,scaffold/weo.html
-Census QFR,quick lane,"Quarterly income statements and balance sheets by industry for US corporations, private included; domestic operations only",,,,on page build,Scaffold page: Quarterly Financial Report (scaffold/qfr.py),qfr.html,scaffold/qfr.html
-Census housing pipeline,quick lane,"Building permits, housing starts, units under construction and completions, monthly",,,,on page build,Scaffold page: Housing pipeline (scaffold/housing.py),housing.html,scaffold/housing.html
-Housing supply vs need,quick lane,"Homes completed against households formed, vacancy, household size, new-home price against income",,,,on page build,Scaffold page: Housing supply vs need (scaffold/housing_need.py),housing-need.html,scaffold/housing-need.html
-FRED (page builds),retired,Series an Appendix page fetched when it built; never stored,,,,,"Appendix pages: World, People and Work, Where GDP Goes, Data Tests",,
-IMF,retired,Trade between economies; was fetched by an Appendix page,,,,,Appendix page: Trade Flows,,
-World Bank,retired,"GDP, for trade shares; was fetched by an Appendix page",,,,,Appendix page: Trade Flows,,
-SEC insider Forms 3/4/5,trial,"Insider holdings and trades, four quarters; not stored",,,,by hand,data/tmp/explore-insiders (Appendix page: Insiders),,data:tmp/explore-insiders/*/fetch.json
+source,state,what,raw,served,freshness,cadence,where,sheet,asof,under
+Yahoo prices,trusted,"Daily close, splits, dividends for the watchlist tickers",yf/prices,observations:yf,C02 C17,on demand (pharos refresh),,prices.html,,
+Tiingo prices,trusted,Second price source that checks Yahoo's closes; never served,tiingo/prices,,C12 C20,on demand (pharos refresh),,prices.html,,
+FRED / ALFRED,trusted,"Macro series with every vintage: GDP, CPI, population, labor, manufacturing (M3), housing, Census QFR",fred/observations fred/series,observations:fred,C02 C17,on demand (pharos refresh),,fred.html,,
+Manufacturing (M3),,"Six Census M3 series charted, with basic checks; core capital goods orders after inflation; shipments by industry",,,,,,m3.html,scaffold/m3.html,FRED / ALFRED
+Where core capital goods orders sit in the economy,,"How an equipment purchase reaches GDP, its weight in GDP growth, the companies buying; written by hand, figures fixed at 2026-11-12",,,,,,core-capex-in-gdp.html,scaffold/core-capex-in-gdp.html,Manufacturing (M3)
+Census QFR,,"Census Quarterly Financial Report: industry sales and inventories against M3 shipments, pharma sales against public pharma revenue (SEC Company Facts)",,,,,,qfr.html,scaffold/qfr.html,FRED / ALFRED
+Housing pipeline,,"Building permits, housing starts, units under construction and completions, monthly; completions against homebuilder revenue (SEC Company Facts)",,,,,,housing.html,scaffold/housing.html,FRED / ALFRED
+Housing supply vs need,,"Homes completed against households formed, vacancy, household size, new-home price against income",,,,,,housing-need.html,scaffold/housing-need.html,FRED / ALFRED
+SEC filing index,landed,"Every EDGAR filing: company, form, date",sec/full_index,filings,C25,on demand (pharos sec),,,,
+SEC submissions,landed,"Company details (SIC, tickers, fiscal year end) and each company's filing list",sec/submission_details sec/submission_filings,submission_details submission_filings,C31,on demand (pharos sec),,,,
+SEC tickers,retired,Ticker to company (CIK) map; SEC submissions carries the same tickers (D165),,,,,,,,
+SEC Company Facts,landed,Every XBRL financial fact every company reported,sec/companyfacts sec/companyfacts_concepts sec/companyfacts_changes,company_facts company_concepts,C40,on demand (pharos sec),,company-facts.html,,
+IMF World Economic Outlook,quick lane,"GDP (US$) and unemployment rate for every country, 1980 on, with IMF forecasts",,,,on page build,Scaffold page: World Economic Outlook (scaffold/weo.py),weo.html,scaffold/weo.html,
+FRED (page builds),retired,Series an Appendix page fetched when it built; never stored,,,,,"Appendix pages: World, People and Work, Where GDP Goes, Data Tests",,,
+IMF,retired,Trade between economies; was fetched by an Appendix page,,,,,Appendix page: Trade Flows,,,
+World Bank,retired,"GDP, for trade shares; was fetched by an Appendix page",,,,,Appendix page: Trade Flows,,,
+SEC insider Forms 3/4/5,trial,"Insider holdings and trades, four quarters; not stored",,,,by hand,data/tmp/explore-insiders (Appendix page: Insiders),,data:tmp/explore-insiders/*/fetch.json,

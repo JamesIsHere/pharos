@@ -1,9 +1,9 @@
-"""Quarterly Financial Report (Census QFR, via FRED; quick lane): QFR series fetched from FRED at build time, never
-stored, charted against data Pharos already holds, to see whether the trends move together. Comparisons:
-manufacturing sales and inventories against Census M3 (served), six industries' sales against their M3 industry
-shipments (FRED, build time), and pharmaceutical sales against public pharma companies' revenue (SEC Company Facts,
-served). Growth is year over year, which takes out QFR's seasonality (QFR is not seasonally adjusted; M3 is).
-Read-only. Writes qfr.html. Run: uv run python scaffold/qfr.py"""
+"""Quarterly Financial Report (Census QFR, via FRED): nine QFR series read from the served version (stored by D171),
+charted against other data Pharos holds, to see whether the trends move together. Comparisons: manufacturing sales
+and inventories against Census M3, six industries' sales against their M3 industry shipments, and pharmaceutical
+sales against public pharma companies' revenue (SEC Company Facts); all served. Only the count of what FRED has in
+the QFR release is fetched from FRED at build time. Growth is year over year, which takes out QFR's seasonality
+(QFR is not seasonally adjusted; M3 is). Read-only. Writes qfr.html. Run: uv run python scaffold/qfr.py"""
 import json
 import os
 import urllib.parse
@@ -13,13 +13,14 @@ from pathlib import Path
 import duckdb
 
 import sec_revenue
-from common import esc, num, now_et, page
+from common import esc, num, now_et, page, served_obs
 from pharos.paths import data_root
 
 HERE = Path(__file__).parent
 DATA = data_root()
 version = (DATA / "serving" / "CURRENT").read_text(encoding="utf-8").strip()
 S = DATA / "serving" / version
+OBS = (S / "observations.parquet").as_posix()
 PLOTLY = "https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"
 QFR_RELEASE = 434   # FRED release id for the Quarterly Financial Report
 
@@ -27,14 +28,6 @@ QFR_RELEASE = 434   # FRED release id for the Quarterly Financial Report
 def fred(path, **p):
     p.update(api_key=os.environ["FRED_API_KEY"], file_type="json")
     return json.load(urllib.request.urlopen(f"https://api.stlouisfed.org/fred/{path}?" + urllib.parse.urlencode(p)))
-
-
-def fred_obs(sid):
-    rows = [(r["date"], float(r["value"])) for r in fred("series/observations", series_id=sid)["observations"]
-            if r["value"] != "."]
-    if not rows:
-        raise SystemExit(f"FRED {sid}: no observations")
-    return rows
 
 
 con = duckdb.connect()
@@ -78,18 +71,10 @@ def m3_quarter(rows, how):
     return q(f"SELECT date_trunc('quarter', d)::DATE, {agg} FROM m GROUP BY 1 HAVING count(*) = 3 ORDER BY 1")
 
 
-# M3 totals from the served version (latest vintage of each month)
-OBS = (S / "observations.parquet").as_posix()
-served = {s: q(f"""SELECT obs_date, value FROM '{OBS}' WHERE series_id = 'fred:{s}' AND value IS NOT NULL
-                   QUALIFY row_number() OVER (PARTITION BY obs_date ORDER BY vintage DESC) = 1 ORDER BY obs_date""")
-          for s in ("AMTMVS", "AMTMTI")}
-for s, rows in served.items():
-    if not rows:
-        raise SystemExit(f"served version {version} has no rows for fred:{s}; run a refresh first")
-
+# Every QFR and M3 series below comes from the served version, each period at its latest vintage (common.served_obs)
 PAIRS = [  # key, label, QFR series, other series, other label, how the other is built
-    ("mfg_sales", "All manufacturing: sales vs M3 shipments", "QFR101MFGUSNO", "AMTMVS", "M3 shipments (served)", "sum"),
-    ("mfg_inv", "All manufacturing: inventories vs M3 inventories", "QFR214MFGUSNO", "AMTMTI", "M3 inventories (served)", "end"),
+    ("mfg_sales", "All manufacturing: sales vs M3 shipments", "QFR101MFGUSNO", "AMTMVS", "M3 shipments", "sum"),
+    ("mfg_inv", "All manufacturing: inventories vs M3 inventories", "QFR214MFGUSNO", "AMTMTI", "M3 inventories", "end"),
     ("com", "Computer and electronic products", "QFR101COMUSNO", "A34SVS", "M3 shipments", "sum"),
     ("mach", "Machinery", "QFR101333USNO", "A33SVS", "M3 shipments", "sum"),
     ("tra", "Transportation equipment", "QFR101TRAUSNO", "A36SVS", "M3 shipments", "sum"),
@@ -98,8 +83,8 @@ PAIRS = [  # key, label, QFR series, other series, other label, how the other is
     ("pet", "Petroleum and coal products", "QFR101324USNO", "A24SVS", "M3 shipments", "sum"),
 ]
 for key, _lb, qid, oid, _ol, how in PAIRS:
-    add(key, "qfr", fred_obs(qid))
-    add(key, "other", m3_quarter(served[oid] if oid in served else fred_obs(oid), how))
+    add(key, "qfr", served_obs(con, OBS, qid))
+    add(key, "other", m3_quarter(served_obs(con, OBS, oid), how))
 
 # Pharma: QFR pharmaceuticals and medicines (NAICS 3254) vs public companies in the matching SIC codes, from Company
 # Facts; quarterly revenue per sec_revenue.py, from the quarter every SEC filer was reporting in XBRL.
@@ -109,7 +94,7 @@ REV, XBRL_ALL = sec_revenue.REV, sec_revenue.XBRL_ALL
 ph_pop = q("SELECT count(DISTINCT cik), count(*), count(*) FILTER (WHERE derived), min(q), max(q) FROM ph_q")[0]
 ph_yoy = sec_revenue.same_company_growth(con, "ph_q")
 ph_level = q("SELECT q, sum(v), count(*) FROM ph_q GROUP BY q ORDER BY q")
-add("pharma", "qfr", fred_obs("QFR101385USNO"))
+add("pharma", "qfr", served_obs(con, OBS, "QFR101385USNO"))
 add("pharma", "other", [(d, v / 1e6) for d, v, _n in ph_level])   # Company Facts dollars -> QFR millions
 con.execute(f"DELETE FROM cmp WHERE pair = 'pharma' AND q < DATE '{XBRL_ALL}'")
 PAIRS.append(("pharma", "Pharmaceuticals: QFR sales vs public pharma revenue", "QFR101385USNO", "Company Facts",
@@ -233,11 +218,12 @@ ph_ratio_q = q("""SELECT a.q, a.v / b.v FROM cmp a JOIN cmp b USING (pair, q)
                   WHERE pair = 'pharma' AND a.side = 'qfr' AND b.side = 'other' ORDER BY a.q DESC LIMIT 1""")[0]
 
 body = f"""<div class=head><div><h1>Quarterly Financial Report (Census QFR)</h1>
-<p class=sub>Quick lane: fetched from FRED (release {QFR_RELEASE}) when this page was built, never stored. Built {now_et()}; served version {esc(version)} for the M3 and Company Facts side.</p></div></div>
+<p class=sub>The QFR, M3 and Company Facts figures are read from served version {esc(version)}, each period at its latest vintage. Only the "What FRED has" table is fetched from FRED (release {QFR_RELEASE}) when this page is built. Built {now_et()}.</p></div></div>
 
 <p>The QFR is a Census survey of US corporations above a size threshold, public and private, in manufacturing, mining, wholesale and retail trade, information, and professional services. It counts domestic operations only: foreign subsidiaries are not consolidated. Each line below puts a QFR series next to data Pharos already has, as growth over the same quarter a year earlier, to see whether they move together. QFR is not seasonally adjusted; year-over-year growth takes the season out.</p>
 
 <h2>What FRED has</h2>
+<p class=muted>The whole QFR release on FRED. Pharos stores nine of these series: net sales for all manufacturing and seven industries, and manufacturing inventories.</p>
 <table class=facts>
 <tr><td>Series</td><td class=num>{num(len(release))} ({num(len(live))} live, {num(len(release) - len(live))} discontinued)</td></tr>
 <tr><td>Industries</td><td class=num>{len(industries)} live</td></tr>
@@ -255,15 +241,15 @@ body = f"""<div class=head><div><h1>Quarterly Financial Report (Census QFR)</h1>
 <p>{latest_txt}</p>
 
 <h2>All manufacturing: sales vs M3 shipments</h2>
-<p>QFR net sales against M3 total shipments (served, summed to quarters). QFR counts a manufacturing company's whole sales, including any non-manufacturing business it runs; M3 counts what its plants ship.</p>
+<p>QFR net sales against M3 total shipments (summed to quarters). QFR counts a manufacturing company's whole sales, including any non-manufacturing business it runs; M3 counts what its plants ship.</p>
 <div id="c_sales" style="height:360px"></div>
 
 <h2>All manufacturing: inventories vs M3 inventories</h2>
-<p>QFR inventories at quarter end against M3 total inventories (served) in the quarter's last month.</p>
+<p>QFR inventories at quarter end against M3 total inventories in the quarter's last month.</p>
 <div id="c_inv" style="height:360px"></div>
 
 <h2>Six industries: sales vs M3 shipments</h2>
-<p>Each industry's QFR net sales against its M3 shipments (fetched from FRED at build, summed to quarters). <span style="color:{QFR_C};font-weight:600">QFR</span> and <span style="color:{OTHER_C};font-weight:600">M3</span>, growth over the same quarter a year earlier.</p>
+<p>Each industry's QFR net sales against its M3 shipments (summed to quarters). <span style="color:{QFR_C};font-weight:600">QFR</span> and <span style="color:{OTHER_C};font-weight:600">M3</span>, growth over the same quarter a year earlier.</p>
 <p>Computer and electronic products is the one that has come apart: QFR's sales were {com_r[0][1]:.1f} times M3's shipments in {qlabel(com_r[0][0])} and {com_r[-1][1]:.1f} times in {qlabel(com_r[-1][0])}. QFR places a company by what it sells; M3 counts what US plants ship. My read, not checked: a US company that designs chips or computers and has them made abroad shows up in QFR's sales but not in M3's shipments, and that is where the recent growth is.</p>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:12px">{grid}</div>
 

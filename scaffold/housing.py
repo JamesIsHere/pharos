@@ -1,8 +1,9 @@
-"""Housing pipeline (Census New Residential Construction, via FRED; quick lane): building permits, housing starts,
-units under construction and completions, fetched from FRED at build time and never stored. One internal check (the
+"""Housing pipeline (Census New Residential Construction, via FRED): building permits, housing starts, units under
+construction and completions, read from the served version (stored by D171). One internal check (the
 under-construction stock should move by starts less completions) and three comparisons, as year-over-year growth:
-starts against residential construction spending (Census) and residential investment (BEA), and single-family
-completions against public homebuilders' revenue (SEC Company Facts, served).
+starts against residential construction spending (Census, served) and residential investment (BEA; PRFI, the one
+series here not stored, fetched from FRED at build time), and single-family completions against public
+homebuilders' revenue (SEC Company Facts, served).
 Read-only. Writes housing.html. Run: uv run python scaffold/housing.py"""
 import json
 import os
@@ -13,15 +14,16 @@ from pathlib import Path
 import duckdb
 
 import sec_revenue
-from common import esc, num, now_et, page
+from common import esc, num, now_et, page, served_obs, served_vintage
 from pharos.paths import data_root
 
 HERE = Path(__file__).parent
 DATA = data_root()
 version = (DATA / "serving" / "CURRENT").read_text(encoding="utf-8").strip()
 S = DATA / "serving" / version
+OBS = (S / "observations.parquet").as_posix()
 PLOTLY = "https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"
-NRC_RELEASE = 27   # FRED release id for New Residential Construction
+FETCHED = ("PRFI",)   # not in config/sources.yaml: fetched from FRED at build time
 
 
 def fred(path, **p):
@@ -29,11 +31,7 @@ def fred(path, **p):
     return json.load(urllib.request.urlopen(f"https://api.stlouisfed.org/fred/{path}?" + urllib.parse.urlencode(p)))
 
 
-meta = {}
-
-
 def fred_obs(sid):
-    meta[sid] = fred("series", series_id=sid)["seriess"][0]
     rows = [(r["date"], float(r["value"])) for r in fred("series/observations", series_id=sid)["observations"]
             if r["value"] != "."]
     if not rows:
@@ -61,7 +59,8 @@ OTHER = {"PRRESCONS": "Residential construction spending, Census (monthly, $M SA
          "PRFI": "Private residential fixed investment, BEA (quarterly, $B SAAR)"}
 con.execute("CREATE TABLE m (sid VARCHAR, d DATE, v DOUBLE)")
 for sid in {**PIPE, **OTHER}:
-    con.executemany("INSERT INTO m VALUES (?, ?, ?)", [(sid, d, v) for d, v in fred_obs(sid)])
+    rows = fred_obs(sid) if sid in FETCHED else served_obs(con, OBS, sid)
+    con.executemany("INSERT INTO m VALUES (?, ?, ?)", [(sid, d, v) for d, v in rows])
 con.execute("CREATE TABLE wide AS PIVOT m ON sid USING first(v) GROUP BY d ORDER BY d")
 pop = q("SELECT sid, count(*), min(d), max(d) FROM m GROUP BY sid")
 pop = {r[0]: r[1:] for r in pop}
@@ -182,7 +181,7 @@ rows_fit = "".join(
     f"<td class=num>{fit[k][0]}</td><td class=num>{fit[k][3]:.2f}</td><td class=num>{fit[k][4]:.1f} pts</td>"
     f"<td class=num>{fit[k][5]:+.1f}%</td><td class=num>{fit[k][6]:+.1f}%</td></tr>" for k, lb, nrc, ol in PAIRS)
 top = ", ".join(f"{esc(n)} (${v / 1e9:,.1f}B)" for n, v in hb_top)
-upd = max(meta[s]["last_updated"] for s in PIPE)[:10]
+upd = served_vintage(con, OBS, PIPE)
 prior = hb_n[1:]
 hb_note = (f"Newest quarter: the homebuilder line's {qlabel(hb_n[0][0])} point counts {hb_n[0][1]} companies, with ${hb_n[0][2] / 1e9:,.1f}B of revenue "
            f"a year earlier; the four quarters before it count {min(r[1] for r in prior)} to {max(r[1] for r in prior)} companies and "
@@ -192,7 +191,7 @@ if hb_n[0][1] < min(r[1] for r in prior):
                 "fiscal year ends in September or October arrive last: their fourth quarter is worked out from the annual report.")
 
 body = f"""<div class=head><div><h1>Housing pipeline (Census New Residential Construction)</h1>
-<p class=sub>Quick lane: fetched from FRED (release {NRC_RELEASE}) when this page was built, never stored. Built {now_et()}; last updated on FRED {upd}; served version {esc(version)} for the Company Facts side.</p></div></div>
+<p class=sub>Read from served version {esc(version)}, each month at its latest vintage; the newest vintage of the Census series is {upd}. One series is not stored and is fetched from FRED when this page is built: residential investment (PRFI). Built {now_et()}.</p></div></div>
 
 <p>Census follows each new privately owned housing unit through its stages: a building permit is issued, construction starts, the unit is under construction, and it is completed. Units are thousands of housing units. Monthly rates (SAAR) are seasonally adjusted and stated at an annual pace; the stocks (under construction, authorized but not started) are counts at month end.</p>
 
