@@ -5,7 +5,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 ET = ZoneInfo("America/New_York")
-MENU = (("Catalog", "catalog.html"), ("Pipeline", "pipeline.html"), ("Notes", "notes.html"), ("Appendix", "appendix.html"))
+MENU = (("Catalog", "catalog.html"), ("Series", "series.html"), ("Pipeline", "pipeline.html"), ("Ideas", "ideas.html"), ("Notes", "notes.html"), ("Appendix", "appendix.html"))
 MERMAID = "https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"
 
 CSS = """

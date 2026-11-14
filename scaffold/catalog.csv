@@ -16,3 +16,6 @@ FRED (page builds),retired,Series an Appendix page fetched when it built; never 
 IMF,retired,Trade between economies; was fetched by an Appendix page,,,,,Appendix page: Trade Flows,,,
 World Bank,retired,"GDP, for trade shares; was fetched by an Appendix page",,,,,Appendix page: Trade Flows,,,
 SEC insider Forms 3/4/5,trial,"Insider holdings and trades, four quarters; not stored",,,,by hand,data/tmp/explore-insiders (Appendix page: Insiders),,data:tmp/explore-insiders/*/fetch.json,
+SEC Financial Statement Data Sets,quick lane,"Which financial statement filers present each us-gaap concept on; one quarter (2026 Q3), read by the Concepts page",,,,on page build,Scaffold page: Company Facts concepts (scaffold/concepts.py),concepts.html,scaffold/concepts.html,
+UN World Population Prospects,quick lane,"Population of every country by year, 1950 on, with UN projections to 2100",,,,on page build,Scaffold page: World Population (scaffold/population.py),population.html,scaffold/population.html,
+World GDP per person,,"Charts for exploring GDP per person by country, 1980 on, adjusted for inflation and price differences: levels, growth over a chosen period, the top 10, one-year drops, every country by year, regions",,,,,,world.html,scaffold/world.html,IMF World Economic Outlook

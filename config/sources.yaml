@@ -99,6 +99,12 @@ fred:
     # Producer prices used to deflate M3 orders (D171).
     - WPSFD41312     # PPI, final demand private capital equipment, monthly
     - WPU11          # PPI, machinery and equipment, monthly
+    # Interest rates (D173): the federal funds rate and four Treasury yields, as monthly averages of daily figures.
+    - FEDFUNDS       # federal funds effective rate, monthly, percent
+    - GS3M           # Treasury yield, 3-month constant maturity, monthly, percent
+    - GS2            # Treasury yield, 2-year constant maturity, monthly, percent
+    - GS10           # Treasury yield, 10-year constant maturity, monthly, percent
+    - GS30           # Treasury yield, 30-year constant maturity, monthly, percent
   # Days after a period ends by which its first release is expected (checks C02,
   # C17; D33). Measured first-release lags 2023-2026: CPIAUCSL median 12 days,
   # GDP and GDPC1 median 30; a few days of slack on top. Added series (D141),
@@ -110,6 +116,7 @@ fred:
   # spending 32, housing stock and vacancy 30, new-home price 25, QFR 71, PPI 13).
   # PRFI, which D171 missed (the housing page fetched it at build): median 30 over 15
   # releases 2023-2026, the same BEA release as GDP, so it takes GDP's 35.
+  # Interest rates (D173): median first-release lag 1 day over 46 releases 2023-2026 (range 1 to 3), plus 4.
   # Every series above must have one, or staging stops.
   expected_lag_days:
     GDP: 35
@@ -178,6 +185,11 @@ fred:
     QFR214MFGUSNO: 75
     WPSFD41312: 17
     WPU11: 17
+    FEDFUNDS: 5
+    GS3M: 5
+    GS2: 5
+    GS10: 5
+    GS30: 5
 
 sec:
   # submissions.zip filing history: after the first run, each run lands only

@@ -1,0 +1,33 @@
+joins_to,idea,adds,source,ease,status
+US national series,Interest rates and the yield curve,"Fed funds, 3-month, 2-year, 10-year and 30-year Treasury yields, monthly averages; stored 2026-11-14 (daily rates are not)",FRED,easy,added
+US national series,Mortgage rates,"30-year fixed mortgage rate, weekly; sits beside the housing pages",FRED (Freddie Mac),easy,idea
+US national series,Commodity prices,"Oil, natural gas, copper, lumber",FRED,easy,idea
+US national series,Time use,"How Americans spend their day (work, childcare, screens), yearly since 2003",BLS American Time Use Survey,medium,idea
+US national series,Business formation,"New business applications, weekly",Census Business Formation Statistics,easy,idea
+US national series,Freight and travel,"Rail carloads, truck tonnage, airline passengers, TSA checkpoint counts (daily)","AAR, ATA, BTS, TSA",medium,idea
+US national series,Births by month,Leads school enrollment by five years and housing by 25,CDC,easy,idea
+US national series,Weather and climate,Temperature and heating-degree days against energy use and retail,NOAA,medium,idea
+US national series,Prices of specific things,"A loaf of bread, a gallon of gas, a college year, over decades",BLS average price series,easy,idea
+Countries,Age structure,"Working-age share, aging, dependency ratios","UN World Population Prospects, same family as population",easy,idea
+Countries,Life expectancy and fertility,The classic second axis for a GDP bubble chart,"UN World Population Prospects, same family as population",easy,idea
+Countries,Years of schooling,"Education per adult, by country, back to 1950","Barro-Lee, UN, World Bank",easy,idea
+Countries,Test scores,"What 15-year-olds can do in reading, maths and science","OECD PISA, every 3 years",medium,idea
+Countries,Energy use and electricity,"Energy per person, share from each fuel","Energy Institute, Ember",easy,idea
+Countries,Government debt and deficits,Who borrowed through each crisis,"IMF, same download as GDP",easy,idea
+Countries,Trade partners,Who sells what to whom,"UN Comtrade, IMF",medium,idea
+Countries,Hours worked,GDP per hour rather than per person,"Penn World Table, OECD",easy,idea
+Countries,Night lights from satellites,An independent check on GDP where statistics are doubted,NASA / NOAA,hard,idea
+Countries,Big Mac prices,A homemade price-level check on the IMF's price adjustment,"The Economist, on GitHub",easy,idea
+Countries,Shipping,Container freight rates and port volumes as a leading read on goods trade,Various,medium,idea
+Companies,Employee counts,Revenue per employee by company and industry; partly in Company Facts already,SEC Company Facts,easy,idea
+Companies,Executive pay,The pay tags are already in Company Facts and unused,SEC Company Facts,easy,idea
+Companies,Insider trades,"Holdings and trades by insiders; a four-quarter trial was run","SEC Forms 3, 4, 5",medium,idea
+Companies,Patents by company,"Matched to companies by name, which is the hard part",USPTO bulk data,hard,idea
+Companies,Layoff notices,WARN Act notices are public by state; job postings data is mostly paid,State labor departments,medium,idea
+Companies,Government contracts,Every federal award by recipient,USAspending.gov,medium,idea
+Companies,Attention,"Wikipedia page views or Google Trends for a company or topic, daily","Wikimedia, Google",easy,idea
+Schools,Colleges,"Cost, enrollment, completion and graduate earnings for every US college, yearly","College Scorecard, IPEDS",easy,idea
+Schools,State test scores,"Comparable scores by state, every two years",NAEP,easy,idea
+Schools,School spending,"Finance by school district, yearly",Census,medium,idea
+Schools,District and school outcomes,Comparable test scores below the state level exist only through one research project,Stanford SEDA,hard,idea
+Odd and small,Consumer oddities,"Box office, book sales, restaurant bookings: small high-frequency reads on spending",Various,medium,idea

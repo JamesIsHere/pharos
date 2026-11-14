@@ -6,6 +6,9 @@ units (US GDP 2024 = 29,381,025,000,000): SCALE is a display hint, not a multipl
 LATEST_ACTUAL_ANNUAL_DATA; years after it are IMF estimates or forecasts and are shaded. Countries are the IMF codes
 in config/countries.csv (imf_code), shown by that table's code and name; every other code must be an IMF country
 group (G followed by digits or X), counted in the population table and left out of the country tables.
+GDP per person divides NGDPD by the UN's population for the same country and year (World Population Prospects, the
+file scaffold/population.py downloads; that page must have been built once). Population is as of July 1, in
+thousands; from the UN's first projection year on it is the Medium projection.
 Run: uv run python scaffold/weo.py"""
 import csv
 import re
@@ -14,7 +17,10 @@ import xml.etree.ElementTree as XT
 from datetime import datetime
 from pathlib import Path
 
+import duckdb
 from common import esc, now_et, page
+
+from pharos.paths import data_root
 
 HERE = Path(__file__).parent
 API = "https://api.imf.org/external/sdmx/2.1/"
@@ -118,24 +124,51 @@ example = (f"<tr><td>USA</td><td>NGDPD</td><td>{us_la}</td><td class=num>{data['
            f"<td>{us_la}</td></tr>")
 
 # Countries ordered by GDP in the last year every large economy has as an actual (the US's latest actual year).
-order = sorted((c for c in data["NGDPD"] if is_country(c)),
+ORDER = sorted((c for c in data["NGDPD"] if is_country(c)),
                key=lambda c: -data["NGDPD"][c].get(us_la, 0.0))
-order += sorted(c for c in data["LUR"] if is_country(c) and c not in data["NGDPD"])
+ORDER += sorted(c for c in data["LUR"] if is_country(c) and c not in data["NGDPD"])
+
+# GDP per person: NGDPD over the UN's population (thousands, July 1) for the same country and year.
+WPP = data_root() / "tmp" / "scaffold" / "wpp" / "WPP2024_TotalPopulationBySex.csv.gz"
+if not WPP.exists():
+    raise SystemExit(f"weo: {WPP} is not on disk; run scaffold/population.py first (it downloads the file)")
+con = duckdb.connect()
+people = {}
+for code, y, v in con.execute(f"SELECT ISO3_code, Time, PopTotal FROM read_csv('{WPP.as_posix()}') "
+                              "WHERE LocTypeName = 'Country/Area' AND Variant = 'Medium'").fetchall():
+    people.setdefault(code, {})[y] = v
+pop_first_proj = con.execute(f"SELECT min(Time) FROM read_csv('{WPP.as_posix()}') WHERE Variant <> 'Medium'").fetchone()[0]
+gdp_countries = [c for c in data["NGDPD"] if is_country(c)]
+no_people = sorted(names[c] for c in gdp_countries if country[c]["code"] not in people)
+data["PC"] = {}
+for c in gdp_countries:
+    ppl = people.get(country[c]["code"])
+    if ppl is None:
+        continue
+    missing = [y for y in data["NGDPD"][c] if y not in ppl]
+    if missing:
+        raise SystemExit(f"weo: {c} has GDP for {missing} but the UN file has no population for those years")
+    data["PC"][c] = {y: v / (ppl[y] * 1000) for y, v in data["NGDPD"][c].items()}
+PC_ORDER = sorted(data["PC"], key=lambda c: -data["PC"][c].get(us_la, float("-inf")))
+RANK = {c: i for i, c in enumerate((c for c in PC_ORDER if us_la in data["PC"][c]), 1)}
 
 
-def table(ind, fmt, extra_head="", extra=lambda c: ""):
+def table(ind, fmt, extra_head="", extra=lambda c: "", la_ind=None, order=None):
+    """la_ind: the IMF series whose latest actual year shades this table (a derived table has none of its own).
+    order: the countries, in row order; the GDP table's order when not given."""
+    la_ind, order = la_ind or ind, order or ORDER
     head = "".join(f"<th>{y}</th>" for y in years)
     rows = []
     for c in order:
         obs = data[ind].get(c)
         if obs is None:
             continue
-        la = latest_actual(ind, c)
+        la = latest_actual(la_ind, c)
         cells = "".join(
             f'<td class="num{" est" if la is not None and y > la else ""}">{fmt(obs[y]) if y in obs else ""}</td>'
             for y in years)
         rows.append(f"<tr><td class=cty>{esc(names[c])}</td><td>{country[c]['code']}</td>{extra(c)}"
-                    f"<td class=num>{la_cell(ind, c)}</td>{cells}</tr>")
+                    f"<td class=num>{la_cell(la_ind, c)}</td>{cells}</tr>")
     return (f'<div class="wrap"><table class="panel"><tr><th class=cty>Country</th><th>Code</th>{extra_head}'
             f"<th>Latest actual</th>{head}</tr>{''.join(rows)}</table></div>"), len(rows)
 
@@ -148,6 +181,8 @@ def gdp_fmt(v):
 gdp_html, n_gdp = table("NGDPD", gdp_fmt)
 lur_html, n_lur = table("LUR", lambda v: f"{v:.1f}", "<th>Definition</th>",
                         lambda c: f"<td>{esc(meta['LUR'].get(c, {}).get('LABOR_SECTOR_EMPLOYMENT_TYPE', ''))}</td>")
+pc_html, n_pc = table("PC", lambda v: f"{v:,.0f}", f"<th>Rank, {us_la}</th>",
+                      lambda c: f"<td class=num>{RANK.get(c, '')}</td>", la_ind="NGDPD", order=PC_ORDER)
 
 upd = sorted(datetime.strptime(d, "%m/%d/%Y").date().isoformat() for _, d in updated if d)
 no_upd = sorted({c for c, d in updated if not d})
@@ -177,8 +212,15 @@ it under. Both tables open at the newest years; scroll left for earlier ones, ba
 <p class=sub>{n_lur} countries, in the GDP table's order. Definition is the IMF's label for each country: its own
 national definition, or the ILO's harmonized one. Shaded years: estimates and forecasts, as above.</p>
 {lur_html}
+
+<h2 id="per-person">GDP per person, US$</h2>
+<p class=sub>{n_pc} countries, ranked by {us_la} GDP per person, highest first. Each value is the GDP above divided by
+the UN's population for that country and year (<a href="population.html">UN World Population Prospects</a>, as of
+July 1). Shaded years are IMF GDP estimates and forecasts, as above; population from {pop_first_proj} on is the UN's
+Medium projection.{(" No UN population, so not in this table: " + esc(", ".join(no_people)) + ".") if no_people else ""}</p>
+{pc_html}
 <script>document.querySelectorAll(".wrap").forEach(w => {{ if (w.querySelector(".panel")) w.scrollLeft = w.scrollWidth; }});</script>"""
 
 (HERE / "weo.html").write_text(page("World Economic Outlook", "Catalog", body, crumb="IMF World Economic Outlook",
                                     head=CSS), encoding="utf-8")
-print(f"wrote {HERE / 'weo.html'}: GDP {n_gdp} countries, unemployment {n_lur}, years {LO}-{HI}")
+print(f"wrote {HERE / 'weo.html'}: GDP {n_gdp} countries, unemployment {n_lur}, per person {n_pc}, years {LO}-{HI}")
