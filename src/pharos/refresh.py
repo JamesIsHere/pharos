@@ -69,11 +69,23 @@ def _load_sec_full_companyfacts(run_id: str) -> None:
     sec_companyfacts.load_companyfacts(run_id)
 
 
+def _load_imf(run_id: str) -> None:
+    imf.load_weo(run_id)
+
+
+def _load_un(run_id: str) -> None:
+    un.load_population(run_id)
+
+
+def _load_fsds(run_id: str) -> None:
+    sec_fsds.load_pre(run_id)
+
+
 # group -> its required loads, and its reference loads (whose failure is only recorded, D37).
 # Only groups registered in GROUPS are loaded: a loader here for an unregistered
 # group is built but switched off
 LOADERS = {"prices_macro": _load_prices_macro, "sec": _load_sec,
-           "imf": imf.load_weo, "un": un.load_population, "fsds": sec_fsds.load_pre}
+           "imf": _load_imf, "un": _load_un, "fsds": _load_fsds}
 REFERENCE_LOADERS = {("tiingo", "prices"): lambda run_id: tiingo.load_prices(run_id)}
 
 

@@ -221,6 +221,7 @@ def _stage_landed(name: str):
     def run(included: list[str], target: Path) -> None:
         from pharos.stage_landed import stage_group   # stage_landed imports this module
         stage_group(name, included, target)
+    run.__name__ = f"_stage_{name}"
     return run
 
 

@@ -81,7 +81,8 @@ for g in GROUPS.values():
         CMD[g.name] = [g.name]
 need("companyfacts" in COMMANDS, "cli has no companyfacts command")
 CMD["companyfacts"] = ["sec"]
-CMD_NOTE = {"refresh": "", "sec": "", "companyfacts": "rare: a new full Company Facts baseline"}
+CMD_NOTE = {"refresh": "", "sec": "", "imf": "", "un": "", "fsds": "",
+            "companyfacts": "rare: a new full Company Facts baseline"}
 
 GROUP = {}
 for name, g in GROUPS.items():
