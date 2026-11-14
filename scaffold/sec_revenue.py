@@ -15,14 +15,15 @@ REV = ("Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "Reven
 XBRL_ALL = "2011-07-01"
 
 
-def build(con, serving, sics, table, start=XBRL_ALL):
+def build(con, serving, sics, table, start=XBRL_ALL, extra=()):
     """Create <table>(cik, name, q, v, derived) in con. derived is true only when the figure kept (the largest across
     the revenue concepts) is a worked-out fourth quarter, not when a reported figure was kept beside one. Stops if a
-    company/concept/frame carries two facts."""
+    company/concept/frame carries two facts. extra: total-revenue concepts read on top of REV, for an industry that
+    used its own (homebuilders before 2018, housing.py)."""
     cf = f"read_parquet('{(serving / 'company_facts.parquet').as_posix()}/**/*.parquet', hive_partitioning=false)"
     sd = f"read_parquet('{(serving / 'submission_details.parquet').as_posix()}')"
     s = ", ".join(f"'{x}'" for x in sics)
-    r = ", ".join(f"'{x}'" for x in REV)
+    r = ", ".join(f"'{x}'" for x in REV + tuple(extra))
     con.execute(f"""CREATE TABLE {table}_f AS SELECT cik, d.name, concept, frame, start_date, end_date, val
                     FROM {cf} AS f JOIN {sd} AS d USING (cik)
                     WHERE sic IN ({s}) AND taxonomy = 'us-gaap' AND unit = 'USD' AND concept IN ({r})

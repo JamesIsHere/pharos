@@ -75,8 +75,11 @@ add("prfi", "other", quarterly("PRFI"))
 
 # Homebuilders: companies filing under SIC 1531 (operative builders); quarterly revenue per sec_revenue.py.
 SIC = ("1531",)
-sec_revenue.build(con, S, SIC, "hb_q")
-REV, XBRL_ALL = sec_revenue.REV, sec_revenue.XBRL_ALL
+# Before the 2018 revenue standard (ASC 606) several builders (Toll Brothers, Meritage, Beazer, CalAtlantic) reported
+# total revenue only under these two labels; without them about a fifth of 2011-2017 revenue is missed (2026-11-14).
+HB_EXTRA = ("RealEstateRevenueNet", "HomeBuildingRevenue")
+sec_revenue.build(con, S, SIC, "hb_q", extra=HB_EXTRA)
+REV, XBRL_ALL = sec_revenue.REV + HB_EXTRA, sec_revenue.XBRL_ALL
 hb_pop = q("SELECT count(DISTINCT cik), count(*), count(*) FILTER (WHERE derived), min(q), max(q) FROM hb_q")[0]
 hb_top = q("SELECT any_value(name), sum(v) FROM hb_q WHERE year(q) = 2025 GROUP BY cik ORDER BY 2 DESC LIMIT 5")
 hb_yoy = sec_revenue.same_company_growth(con, "hb_q")
@@ -107,8 +110,15 @@ hb_n = q("""SELECT a.q, count(*), sum(b.v) FROM hb_q a JOIN hb_q b ON b.cik = a.
             GROUP BY a.q ORDER BY a.q DESC LIMIT 5""")
 if len(hb_n) < 5:
     raise SystemExit("homebuilders: fewer than five quarters of same-company growth")
-hb_quarters = q("SELECT count(DISTINCT q) FROM hb_q")[0][0]
-mer_n = q("SELECT count(*) FROM hb_q WHERE name ILIKE 'Meritage Homes%'")[0][0]
+# Meritage Homes: after 2018 Q2 Company Facts holds no total-revenue fact for it under any US-GAAP label, in any frame,
+# except two quarters (checked 2026-11-14 on served version 20261114T033425Z). No label added here can fix that. Cause,
+# read in the XBRL of its 10-Qs for 2018-09-30, 2021-06-30 and 2023-06-30: every revenue fact is
+# RevenueFromContractWithCustomerExcludingAssessedTax with a srt:ProductOrServiceAxis member (RealEstateMember is total
+# closing revenue), none without a dimension, and Company Facts drops dimensioned facts. The two quarters it has both
+# come from the 10-Q for 2022-06-30 (accession 0001437749-22-018107), which tagged the total without a dimension.
+MER_GAP = "2018-07-01"
+mer_after = [r[0] for r in q(f"SELECT q FROM hb_q WHERE name ILIKE 'Meritage Homes%' AND q >= DATE '{MER_GAP}' ORDER BY q")]
+mer_span = q(f"SELECT count(DISTINCT q) FROM hb_q WHERE q >= DATE '{MER_GAP}'")[0][0]
 
 
 def qlabel(d):
@@ -201,7 +211,7 @@ body = f"""<div class=head><div><h1>Housing pipeline (Census New Residential Con
 <h3>Starts vs residential investment in GDP</h3>
 <div id="c_prfi" style="height:320px"></div>
 <h3>Single-family completions vs homebuilder revenue</h3>
-<p>Homebuilders book revenue when a finished house closes, so their revenue should follow completions more than starts. The homebuilder line is same-company growth for companies filing under SIC 1531 (operative builders): {num(hb_pop[0])} companies, {num(hb_pop[1])} company-quarters ({num(hb_pop[2])} of them a fiscal fourth quarter worked out as the year less the three quarters reported inside it), {qlabel(hb_pop[3])} to {qlabel(hb_pop[4])}. Largest in 2025: {top}. Two large builders are missing: Lennar files under SIC 1520 and is not included, and Meritage Homes files under SIC 1531 but has a figure in only {mer_n} of the {hb_quarters} quarters, because it mostly reports revenue under a label outside the five used here. Revenue is the largest of {", ".join(REV)} reported for the calendar quarter (SEC's frame). Company Facts is used from {qlabel(XBRL_ALL)}, when every SEC filer was reporting in XBRL. Growth needs the same quarter a year earlier, so the line's first point is {qlabel(hb_yoy[0][0])}.</p>
+<p>Homebuilders book revenue when a finished house closes, so their revenue should follow completions more than starts. The homebuilder line is same-company growth for companies filing under SIC 1531 (operative builders): {num(hb_pop[0])} companies, {num(hb_pop[1])} company-quarters ({num(hb_pop[2])} of them a fiscal fourth quarter worked out as the year less the three quarters reported inside it), {qlabel(hb_pop[3])} to {qlabel(hb_pop[4])}. Largest in 2025: {top}. Two large builders are missing. Lennar files under SIC 1520 and is not included. Meritage Homes (SIC 1531) is missing from 2018 Q3 on, all but {len(mer_after)} of {mer_span} quarters: it tags every revenue figure with a breakdown (homes, land, financial services), and Company Facts keeps only figures tagged without one. Getting it back needs another source that keeps the breakdowns, such as the XBRL of the filings themselves. Revenue is the largest of {", ".join(REV)} reported for the calendar quarter (SEC's frame). Company Facts is used from {qlabel(XBRL_ALL)}, when every SEC filer was reporting in XBRL. Growth needs the same quarter a year earlier, so the line's first point is {qlabel(hb_yoy[0][0])}.</p>
 <div id="c_builders" style="height:320px"></div>
 <p class=muted>{hb_note}</p>
 """
