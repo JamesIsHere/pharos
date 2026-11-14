@@ -3,7 +3,8 @@
 The grouping (subject, group, grain) is typed in series.csv, which opens in Excel; a stored series is named there by
 its series_id (a trailing * matches a prefix), and everything else about it (name, source, frequency, units,
 adjustment, first and last date, periods) is read from the served version at build time. Rows of other kinds are
-typed in full: 'fetched' (a page fetches it when it builds; not stored), 'planned' (not in Pharos yet), and 'facts'
+typed in full: 'table' (stored in a served table of its own, not in observations: IMF, UN), 'fetched' (a page
+fetches it when it builds; not stored), 'planned' (not in Pharos yet), and 'facts'
 (SEC Company Facts, a company-by-concept grid too large to list; its counts are measured here).
 A served series with no row in series.csv, or a row that matches nothing served, stops the build (fail loud).
 Read-only; seconds. Writes series.html.
@@ -22,8 +23,8 @@ DATA = data_root()
 version = (DATA / "serving" / "CURRENT").read_text(encoding="utf-8").strip()
 S = DATA / "serving" / version
 
-KINDS = ("series", "fetched", "planned", "facts")
-STATE = {"series": "stored", "facts": "stored", "fetched": "fetched at page build", "planned": "planned"}
+KINDS = ("series", "table", "fetched", "planned", "facts")
+STATE = {"series": "stored", "table": "stored", "facts": "stored", "fetched": "fetched at page build", "planned": "planned"}
 SOURCE = {"fred": "FRED", "yf": "Yahoo"}                      # series_catalog.source -> the name shown
 SHEET = {"FRED": "fred.html", "Yahoo": "prices.html", "SEC Company Facts": "company-facts.html", "IMF": "weo.html", "UN": "population.html"}
 FREQ = {"D": "Daily", "M": "Monthly", "Q": "Quarterly", "A": "Annual"}

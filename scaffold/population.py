@@ -1,45 +1,27 @@
-"""Scaffold: UN World Population Prospects, population of every country by year (quick lane, 2026-11-14).
+"""Scaffold: UN World Population Prospects, population of every country by year (2026-11-14; stored since D174).
 
 One file from the UN Population Division: total population by country, one value a year as of July 1, in thousands.
-It is downloaded once to <data root>/tmp/scaffold/wpp/ (a revision comes out every two years; REVISION below names
-the one read) and nothing is stored in Pharos. The file carries estimates and, from the year the projection variants
-start, projections; this page shows the Medium variant, which is the only one that runs the whole span, and shades
-the projected years. Countries are the file's Country/Area rows, matched to config/countries.csv by ISO3 code; one
-that does not match stops the build. Regions, income groups and the world total are counted and left out.
+Read from the served table wpp_population, the newest file served (`uv run pharos un` lands it; the revision is named
+in config/sources.yaml); nothing is fetched here. The file carries estimates and, from the year the projection
+variants start, projections; this page shows the Medium variant, which is the only one that runs the whole span, and
+shades the projected years. Countries are the file's Country/Area rows, matched to config/countries.csv by ISO3 code;
+one that does not match stops the build. Regions, income groups and the world total are counted and left out.
 Run: uv run python scaffold/population.py"""
-import urllib.request
 from pathlib import Path
 
 import duckdb
+import imf
 from common import esc, now_et, num, page
 
-from pharos.paths import data_root
-
 HERE = Path(__file__).parent
-REVISION = "WPP2024"
-NAME = f"{REVISION}_TotalPopulationBySex.csv.gz"
-URL = f"https://population.un.org/wpp/assets/Excel%20Files/1_Indicator%20(Standard)/CSV_FILES/{NAME}"
 COUNTRIES = HERE.parent / "config" / "countries.csv"
 
-folder = data_root() / "tmp" / "scaffold" / "wpp"
-folder.mkdir(parents=True, exist_ok=True)
-gz = folder / NAME
-if not gz.exists():
-    part = gz.with_name(gz.name + ".part")
-    with urllib.request.urlopen(urllib.request.Request(URL, headers={"User-Agent": "pharos-scaffold"}), timeout=300) as r, \
-            open(part, "wb") as out:
-        for block in iter(lambda: r.read(1 << 20), b""):
-            out.write(block)
-    part.replace(gz)
-
 con = duckdb.connect()
-con.execute(f"CREATE TABLE f AS SELECT * FROM read_csv('{gz.as_posix()}')")
-need = {"ISO3_code", "LocTypeName", "Location", "Variant", "Time", "MidPeriod", "PopTotal"}
-have = {r[0] for r in con.execute("DESCRIBE f").fetchall()}
-if need - have:
-    raise SystemExit(f"{gz}: columns missing: {sorted(need - have)}")
-con.execute("CREATE TABLE w AS SELECT ISO3_code AS code, Time AS y, PopTotal AS v, MidPeriod AS mid FROM f "
-            "WHERE LocTypeName = 'Country/Area' AND Variant = 'Medium'")
+REVISION = imf.population(con, "f")
+VINTAGE = con.execute("SELECT max(vintage) FROM f").fetchone()[0]
+gz = f"wpp_population ({REVISION})"   # named in the messages below
+con.execute("CREATE TABLE w AS SELECT iso3_code AS code, year AS y, pop_total AS v, mid_period AS mid FROM f "
+            "WHERE loc_type_name = 'Country/Area' AND variant = 'Medium'")
 con.execute(f"CREATE TABLE k AS SELECT * FROM read_csv('{COUNTRIES.as_posix()}', all_varchar=true)")
 
 n, n_null, n_dup = con.execute("SELECT count(*), count(*) FILTER (v IS NULL OR code IS NULL), "
@@ -52,9 +34,9 @@ if unknown:
 if con.execute("SELECT count(*) FROM w WHERE mid <> y + 0.5").fetchone()[0]:
     raise SystemExit(f"{gz}: a value is not dated mid-year (July 1)")
 # Projections start in the first year the other variants cover; every year before it is an estimate.
-first_proj = con.execute("SELECT min(Time) FROM f WHERE Variant <> 'Medium'").fetchone()[0]
-variants = con.execute("SELECT count(DISTINCT Variant) FROM f").fetchone()[0]
-others = con.execute("SELECT count(DISTINCT LocID) FROM f WHERE LocTypeName IS DISTINCT FROM 'Country/Area'").fetchone()[0]
+first_proj = con.execute("SELECT min(year) FROM f WHERE variant <> 'Medium'").fetchone()[0]
+variants = con.execute("SELECT count(DISTINCT variant) FROM f").fetchone()[0]
+others = con.execute("SELECT count(DISTINCT loc_id) FROM f WHERE loc_type_name IS DISTINCT FROM 'Country/Area'").fetchone()[0]
 LO, HI = con.execute("SELECT min(y), max(y) FROM w").fetchone()
 EST = first_proj - 1
 if not LO < EST < HI:
@@ -85,7 +67,7 @@ td.est { background:var(--box); color:var(--muted); }
 </style>"""
 
 body = f"""<div class="head"><h1>UN World Population Prospects</h1>
-<div class="stamps"><span>Page built {now_et()}</span><span>Revision {REVISION[3:]}</span></div></div>
+<div class="stamps"><span>Page built {now_et()}</span><span>Revision {REVISION[3:]}</span><span>UN file dated {VINTAGE}</span></div></div>
 
 <table><tr><th>Series</th><th>Countries</th><th>Other locations in the file</th><th>Values</th><th>Years</th>
 <th>Estimates through</th><th>Projections</th><th>Dated</th><th>Unit</th></tr>

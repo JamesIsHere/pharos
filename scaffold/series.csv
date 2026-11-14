@@ -75,7 +75,7 @@ fetched,,TTLHH,Households,Housing,Stock and prices,US,FRED,A,Thousands,Fetched b
 fetched,,MEHOINUSA646N,Median household income,Housing,Stock and prices,US,FRED,A,Current dollars,Fetched by the Housing supply vs need page
 series,yf:close:*,,,Companies,Prices,company,,,,
 facts,company_facts,,Company financial facts,Companies,Financial statements,company,SEC Company Facts,Q A,"USD, shares, others",
-fetched,,NGDPD,GDP by country,World,IMF World Economic Outlook,country,IMF,A,US$ billions,"Every country, 1980 on, with IMF forecasts"
-fetched,,NGDPRPPPPC,"GDP per person by country, adjusted for inflation and price differences",World,IMF World Economic Outlook,country,IMF,A,2021 international dollars,"Every country, 1980 on; charted on the World GDP per person page"
-fetched,,LUR,Unemployment rate by country,World,IMF World Economic Outlook,country,IMF,A,Percent,"Every country, 1980 on, with IMF forecasts"
-fetched,,PopTotal,Population by country,World,UN World Population Prospects,country,UN,A,Thousands,"Every country, 1950 to 2100, as of July 1; projections from 2024"
+table,,NGDPD,GDP by country,World,IMF World Economic Outlook,country,IMF,A,US$ billions,"Every country, 1980 on, with IMF forecasts"
+table,,NGDPRPPPPC,"GDP per person by country, adjusted for inflation and price differences",World,IMF World Economic Outlook,country,IMF,A,2021 international dollars,"Every country, 1980 on; charted on the World GDP per person page"
+table,,LUR,Unemployment rate by country,World,IMF World Economic Outlook,country,IMF,A,Percent,"Every country, 1980 on, with IMF forecasts"
+table,,PopTotal,Population by country,World,UN World Population Prospects,country,UN,A,Thousands,"Every country, 1950 to 2100, as of July 1; projections from 2024"

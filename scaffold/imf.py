@@ -1,39 +1,59 @@
-"""IMF World Economic Outlook fetch for Scaffold pages (quick lane; nothing is stored).
+"""IMF World Economic Outlook for Scaffold pages, read from the served tables weo_observations and weo_series
+(landed by `uv run pharos imf`, D174). Nothing is fetched here.
 
-fetch() reads annual series for every country from the IMF's SDMX API (api.imf.org, no key). latest_actual() maps a
-country's LATEST_ACTUAL_ANNUAL_DATA label to a calendar year; years after it are IMF estimates or forecasts. The same
-fiscal-year rule is written out in scaffold/weo.py, which predates this module and still carries its own copy."""
+fetch() returns annual series for every country from the newest edition served. latest_actual() maps a country's
+LATEST_ACTUAL_ANNUAL_DATA label to a calendar year; years after it are IMF estimates or forecasts."""
+import json
 import re
-import urllib.request
-import xml.etree.ElementTree as XT
 
-API = "https://api.imf.org/external/sdmx/2.1/"
-UA = {"User-Agent": "pharos-scaffold"}
+import duckdb
+
+from pharos.paths import data_root
+
+DATA = data_root()
+VERSION = (DATA / "serving" / "CURRENT").read_text(encoding="utf-8").strip()
 
 
-def _local(tag):
-    return tag.rsplit("}", 1)[-1]
+def served(table, command):
+    """read_parquet(...) over one served table; a table the served version does not hold stops the build."""
+    path = DATA / "serving" / VERSION / f"{table}.parquet"
+    if not path.exists():
+        raise SystemExit(f"{path} is not served; run `uv run pharos {command}` first")
+    return f"read_parquet('{path.as_posix()}')"
+
+
+def edition():
+    """The publication date of the newest WEO edition served."""
+    return duckdb.sql(f"SELECT max(vintage) FROM {served('weo_observations', 'imf')}").fetchone()[0]
 
 
 def fetch(indicators):
-    """({indicator: {imf_code: {year: value}}}, {indicator: {imf_code: group attributes}}) for the WEO dataflow.
-    An indicator that comes back empty stops the build."""
-    url = API + "data/IMF.RES,WEO/." + "+".join(indicators) + ".A"
-    with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=300) as r:
-        root = XT.fromstring(r.read())
+    """({indicator: {imf_code: {year: value}}}, {indicator: {imf_code: the IMF's notes for that series}}) from the
+    newest edition served. An indicator with no series stops the build."""
+    con = duckdb.connect()
+    ed = edition()
     data = {k: {} for k in indicators}
     meta = {k: {} for k in indicators}
-    for e in root.iter():
-        t = _local(e.tag)
-        if t == "Series":
-            data[e.get("INDICATOR")][e.get("COUNTRY")] = {
-                int(o.get("TIME_PERIOD")): float(o.get("OBS_VALUE")) for o in e if _local(o.tag) == "Obs"}
-        elif t == "Group" and e.get("COUNTRY") and e.get("INDICATOR") in meta:
-            meta[e.get("INDICATOR")][e.get("COUNTRY")] = e.attrib
+    for ind, c, y, v in con.execute(
+            f"SELECT indicator, country, year, value FROM {served('weo_observations', 'imf')} "
+            "WHERE vintage = ? AND indicator IN (SELECT unnest(?))", [ed, list(indicators)]).fetchall():
+        data[ind].setdefault(c, {})[y] = v
+    for ind, c, notes in con.execute(
+            f"SELECT indicator, country, notes FROM {served('weo_series', 'imf')} "
+            "WHERE vintage = ? AND indicator IN (SELECT unnest(?)) AND notes IS NOT NULL",
+            [ed, list(indicators)]).fetchall():
+        meta[ind][c] = json.loads(notes)
     for ind, m in data.items():
         if not m:
-            raise SystemExit(f"imf: no series came back for {ind}")
+            raise SystemExit(f"imf: no series served for {ind}")
     return data, meta
+
+
+def updates(indicators):
+    """[(imf_code, the date the IMF last updated that country's series, or None)] for the newest edition served."""
+    return duckdb.execute(
+        f"SELECT DISTINCT country, country_update_date FROM {served('weo_series', 'imf')} "
+        "WHERE vintage = ? AND indicator IN (SELECT unnest(?))", [edition(), list(indicators)]).fetchall()
 
 
 def latest_actual(meta, ind, c):
@@ -54,3 +74,14 @@ def latest_actual(meta, ind, c):
     if not rules:
         return None
     return int(m.group(1)) + (1 if rules.pop() == "t-1/t" else 0)
+
+
+def population(con, name="wpp"):
+    """CREATE TABLE <name>: the newest UN population file served (wpp_population, landed by `uv run pharos un`).
+    Returns its revision, e.g. 'WPP2024'."""
+    src = served("wpp_population", "un")
+    con.execute(f"CREATE TABLE {name} AS SELECT * FROM {src} WHERE vintage = (SELECT max(vintage) FROM {src})")
+    revisions = [r[0] for r in con.execute(f"SELECT DISTINCT revision FROM {name}").fetchall()]
+    if len(revisions) != 1:
+        raise SystemExit(f"the newest UN population file served names {len(revisions)} revisions: {revisions}")
+    return revisions[0]

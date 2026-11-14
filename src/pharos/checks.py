@@ -329,7 +329,9 @@ def bind_sec(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None =
 
 
 # group name -> the function that binds the names its checks may query
-BINDERS = {"prices_macro": bind, "sec": bind_sec}
+BINDERS = {"prices_macro": bind, "sec": bind_sec,
+           # landed groups (D174): their tables and load records, as bind_sec binds SEC's
+           "imf": bind_sec, "un": bind_sec, "fsds": bind_sec}
 
 
 def bind_view_inputs(con: duckdb.DuckDBPyConnection, run_id: str) -> None:

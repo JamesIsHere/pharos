@@ -5,20 +5,18 @@ Measured from the served version at build time (one pass over company_facts, abo
 reported the concept, companies whose 10-K for the latest complete fiscal year carries it, the years it was first and
 last filed, its usual unit, and whether its facts are point-in-time or cover a period.
 
-Pharos stores nothing that says which statement a concept belongs to. That comes from SEC's Financial Statement Data
-Sets, quick lane: one quarter's zip (QUARTER below) is downloaded once to <data root>/tmp/scaffold/fsds/ and its
-pre.txt read. A concept's statement is the one on which the most filings in that quarter presented it; a tie goes to
-the earlier statement in STMT. A concept no filing in that quarter put on a statement lands in the last group.
-Read-only apart from that download. Writes concepts.html.
+Company Facts does not say which statement a concept belongs to. That comes from SEC's Financial Statement Data
+Sets: the served table fsds_pre (pre.txt, landed by `uv run pharos fsds`, D174), its newest quarter. A concept's
+statement is the one on which the most filings in that quarter presented it; a tie goes to the earlier statement in
+STMT. A concept no filing in that quarter put on a statement lands in the last group.
+Read-only. Writes concepts.html.
 Run: uv run python scaffold/concepts.py"""
 import json
-import zipfile
 from pathlib import Path
 
 import duckdb
 from common import esc, now_et, num, page
 
-from pharos.loaders import sec
 from pharos.paths import data_root
 
 HERE = Path(__file__).parent
@@ -26,29 +24,20 @@ DATA = data_root()
 version = (DATA / "serving" / "CURRENT").read_text(encoding="utf-8").strip()
 S = DATA / "serving" / version
 
-QUARTER = "2026q3"
-URL = f"https://www.sec.gov/files/dera/data/financial-statement-data-sets/{QUARTER}.zip"
+pre = S / "fsds_pre.parquet"
+if not pre.exists():
+    raise SystemExit(f"{pre} is not served; run `uv run pharos fsds` first")
+con = duckdb.connect()
+con.execute("SET memory_limit='6GB'")
+QUARTER = con.execute(f"SELECT max(quarter) FROM read_parquet('{pre.as_posix()}')").fetchone()[0]
+PRE = f"(SELECT * FROM read_parquet('{pre.as_posix()}') WHERE quarter = '{QUARTER}')"
 # pre.txt stmt codes, as the data set's readme.htm names them; the order breaks ties.
 STMT = (("BS", "Balance sheet"), ("IS", "Income statement"), ("CF", "Cash flow"), ("EQ", "Equity"),
         ("CI", "Comprehensive income"), ("SI", "Schedule of investments"), ("UN", "Unclassifiable statement"))
 NONE = f"Not on a statement in {QUARTER[:4]} Q{QUARTER[-1]} filings (notes, or a concept no longer used)"
 SHOWN = 30   # rows shown per statement until "Show all" is clicked
 
-folder = DATA / "tmp" / "scaffold" / "fsds"
-folder.mkdir(parents=True, exist_ok=True)
-zip_path = folder / f"{QUARTER}.zip"
-pre = folder / f"{QUARTER}-pre.txt"
-if not pre.exists():
-    if not zip_path.exists():
-        sec.http_fetch(URL, to=zip_path)
-    with zipfile.ZipFile(zip_path) as z, z.open("pre.txt") as src, open(pre, "wb") as out:
-        for block in iter(lambda: src.read(1 << 20), b""):
-            out.write(block)
-
-con = duckdb.connect()
-con.execute("SET memory_limit='6GB'")
-PRE = f"read_csv('{pre.as_posix()}', delim='\t', header=true, quote='', all_varchar=true)"
-codes = {r[0] for r in con.execute(f"SELECT DISTINCT stmt FROM {PRE} WHERE stmt IS NOT NULL").fetchall()}
+codes ={r[0] for r in con.execute(f"SELECT DISTINCT stmt FROM {PRE} WHERE stmt IS NOT NULL").fetchall()}
 if codes - {c for c, _ in STMT}:
     raise SystemExit(f"{pre}: statement codes this page does not know: {sorted(codes - {c for c, _ in STMT})}")
 n_filings = con.execute(f"SELECT count(DISTINCT adsh) FROM {PRE}").fetchone()[0]

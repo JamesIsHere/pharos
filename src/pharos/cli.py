@@ -98,6 +98,24 @@ def cmd_sec(args: argparse.Namespace) -> int:
     return _report_run(*run_on_demand("sec"), " (SEC, on demand)")
 
 
+def cmd_imf(args: argparse.Namespace) -> int:
+    from pharos.refresh import run_on_demand
+
+    return _report_run(*run_on_demand("imf"), " (IMF World Economic Outlook, on demand)")
+
+
+def cmd_un(args: argparse.Namespace) -> int:
+    from pharos.refresh import run_on_demand
+
+    return _report_run(*run_on_demand("un"), " (UN World Population Prospects, on demand)")
+
+
+def cmd_fsds(args: argparse.Namespace) -> int:
+    from pharos.refresh import run_on_demand
+
+    return _report_run(*run_on_demand("fsds"), " (SEC Financial Statement Data Sets, on demand)")
+
+
 def cmd_companyfacts(args: argparse.Namespace) -> int:
     from pharos.refresh import refresh_companyfacts_full
 
@@ -183,6 +201,18 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("sec", help="run the SEC group alone (index, submissions, tickers, Company Facts delta) "
                                    "and publish it; the nightly refresh doesn't run SEC (D159)")
     p.set_defaults(func=cmd_sec)
+
+    p = sub.add_parser("imf", help="land the IMF World Economic Outlook (every country and indicator) "
+                                   "and publish it; seconds (D174)")
+    p.set_defaults(func=cmd_imf)
+
+    p = sub.add_parser("un", help="land the UN World Population Prospects population file if it changed "
+                                  "and publish it (D174)")
+    p.set_defaults(func=cmd_un)
+
+    p = sub.add_parser("fsds", help="land SEC Financial Statement Data Sets pre.txt for every complete quarter "
+                                    "not yet landed and publish it (D174)")
+    p.set_defaults(func=cmd_fsds)
 
     p = sub.add_parser("companyfacts", help="force a full Company Facts baseline and publish it atomically "
                                             "with fresh SEC index, submissions and tickers")

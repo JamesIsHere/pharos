@@ -197,3 +197,14 @@ sec:
   # in raw, or later, so a late correction is re-landed and seen (C38; D58).
   # The same window as Yahoo's overlap_days.
   submissions_overlap_days: 10
+  # Financial Statement Data Sets (D174): `pharos fsds` lands pre.txt for every
+  # complete quarter from this one on that raw does not hold. 2026q3 is the
+  # quarter the Concepts page was built on.
+  fsds_first_quarter: 2026q3
+
+un:
+  # World Population Prospects (D174): the revision `pharos un` lands. The UN
+  # publishes one every two years under a new file name (WPP2024 came out in
+  # 2024); change this line when the next one is out. Check C46 warns when this
+  # one is three calendar years old.
+  wpp_revision: WPP2024

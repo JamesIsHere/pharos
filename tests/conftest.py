@@ -29,6 +29,10 @@ def no_sec_network(monkeypatch):
     SEC fetch refuse before a request. SEC's own tests call stage_sec directly."""
     from pharos.groups import GROUPS
     monkeypatch.delitem(GROUPS, "sec", raising=False)
+    # the landed groups (D174) reach the IMF, the UN and sec.gov: unregistered too.
+    # Their own tests call the loaders' parsers and stage_landed directly.
+    for name in ("imf", "un", "fsds"):
+        monkeypatch.delitem(GROUPS, name, raising=False)
     monkeypatch.setenv("SEC_USER_AGENT", "")
 
 

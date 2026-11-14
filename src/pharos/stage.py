@@ -217,8 +217,16 @@ def _stage_sec(included: list[str], target: Path) -> None:
     stage_group(included, target)
 
 
+def _stage_landed(name: str):
+    def run(included: list[str], target: Path) -> None:
+        from pharos.stage_landed import stage_group   # stage_landed imports this module
+        stage_group(name, included, target)
+    return run
+
+
 # group name -> the function that stages it into staging/<run_id>/
-STAGERS = {"prices_macro": _stage_prices_macro, "sec": _stage_sec}
+STAGERS = {"prices_macro": _stage_prices_macro, "sec": _stage_sec,
+           "imf": _stage_landed("imf"), "un": _stage_landed("un"), "fsds": _stage_landed("fsds")}
 
 
 def bind_raw(con, included: list[str], group: Group = PRICES_MACRO) -> None:

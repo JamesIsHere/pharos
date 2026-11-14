@@ -25,6 +25,9 @@ Python 3.12 via uv (lockfile committed) · DuckDB (query engine) · Parquet (sto
 uv sync                            # install from lockfile
 uv run pharos refresh                # load -> transform -> audit -> publish (write-audit-publish)
 uv run pharos sec                    # SEC group alone, on demand (D159): index, submissions, tickers, Company Facts
+uv run pharos imf                    # IMF World Economic Outlook, on demand (D174); seconds
+uv run pharos un                     # UN World Population Prospects, on demand (D174); lands only a changed file
+uv run pharos fsds                   # SEC Financial Statement Data Sets pre.txt, on demand (D174); each quarter once
 uv run pharos health                 # pass/warn/fail table; rewrites <data>/health/latest.md
 uv run pytest                      # unit tests + fault-injection tests
 uv run python scaffold/rebuild.py  # rebuild every Scaffold page, in order; stops on the first failure

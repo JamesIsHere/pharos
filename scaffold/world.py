@@ -1,15 +1,15 @@
-"""Scaffold: World GDP per person, charts for exploring it (quick lane, James 2026-11-14).
+"""Scaffold: World GDP per person, charts for exploring it (James 2026-11-14; stored since D174).
 
-One IMF World Economic Outlook series for every country, fetched when the page is built: NGDPRPPPPC, GDP per person
+One IMF World Economic Outlook series for every country, read from the newest edition served: NGDPRPPPPC, GDP per person
 at constant prices in purchasing-power-parity dollars (2021 international dollars). It is adjusted for inflation and
 for price differences between countries, so a value compares across countries and across years; the current-US$
 figures on the IMF page (weo.html) do neither. Population (bar widths, bubble sizes, region averages) and each
-country's region come from the UN World Population Prospects file scaffold/population.py downloads; that page must
-have been built once.
+country's region come from the UN World Population Prospects table Pharos serves (wpp_population).
 
 END is the United States' latest actual year. Years after END (forecasts) are dropped. A country whose own latest
 actual year is before END still shows its IMF estimates up to END, drawn faded and marked in the hover text; the
-one-year-drop chart uses actual years only. Nothing is stored. Writes world.html.
+one-year-drop chart uses actual years only. Both sources are stored (`uv run pharos imf`, `uv run pharos un`);
+nothing is fetched here. Writes world.html.
 Run: uv run python scaffold/world.py"""
 import csv
 import json
@@ -19,12 +19,10 @@ import duckdb
 import imf
 from common import esc, now_et, page
 
-from pharos.paths import data_root
 
 HERE = Path(__file__).parent
 IND = "NGDPRPPPPC"
 PLOTLY = "https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"
-WPP = data_root() / "tmp" / "scaffold" / "wpp" / "WPP2024_TotalPopulationBySex.csv.gz"
 # UN geographic regions, in the order their colours are assigned (fixed: a colour always means the same region).
 REGIONS = ("Africa", "Asia", "Europe", "Latin America and the Caribbean", "Northern America", "Oceania")
 COLORS = ("#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300")
@@ -42,18 +40,16 @@ if END is None:
 START = min(y for obs in series.values() for y in obs)
 YEARS = list(range(START, END + 1))
 
-if not WPP.exists():
-    raise SystemExit(f"world: {WPP} is not on disk; run scaffold/population.py first (it downloads the file)")
 con = duckdb.connect()
-con.execute(f"CREATE TABLE f AS SELECT * FROM read_csv('{WPP.as_posix()}')")
+WPP = imf.population(con, "f")   # the revision's name, e.g. WPP2024
 people = {}
-for code, y, v in con.execute("SELECT ISO3_code, Time, PopTotal FROM f WHERE LocTypeName = 'Country/Area' "
-                              f"AND Variant = 'Medium' AND Time BETWEEN {START} AND {END}").fetchall():
+for code, y, v in con.execute("SELECT iso3_code, year, pop_total FROM f WHERE loc_type_name = 'Country/Area' "
+                              f"AND variant = 'Medium' AND year BETWEEN {START} AND {END}").fetchall():
     people.setdefault(code, {})[y] = v
 # Each country's region: walk up the file's parent links to the first Geographic region.
 loc = {str(i): (t, name, parent) for i, t, name, parent in con.execute(
-    "SELECT DISTINCT LocID, LocTypeName, Location, ParentID FROM f").fetchall()}
-iso_loc = dict(con.execute("SELECT DISTINCT ISO3_code, LocID::VARCHAR FROM f WHERE LocTypeName = 'Country/Area'").fetchall())
+    "SELECT DISTINCT loc_id, loc_type_name, location, parent_id FROM f").fetchall()}
+iso_loc = dict(con.execute("SELECT DISTINCT iso3_code, loc_id::VARCHAR FROM f WHERE loc_type_name = 'Country/Area'").fetchall())
 
 
 # The file gives Canada, the United States, Bermuda, Greenland and Saint Pierre and Miquelon the parent 918, which
@@ -258,7 +254,7 @@ spans = [(END - START, START), (25, END - 25), (15, END - 15), (10, END - 10), (
 buttons = "".join(f'<button data-a="{a}">{n} years ({a} to {END})</button>' for n, a in spans)
 
 body = f"""<div class="head"><h1>World GDP per person</h1>
-<div class="stamps"><span>Fetched {now_et()}</span></div></div>
+<div class="stamps"><span>Page built {now_et()}</span><span>IMF edition published {imf.edition()}</span></div></div>
 <p class=sub>GDP per person for {len(rows)} countries, {START} to {END}, adjusted for inflation and for price differences
 between countries (IMF World Economic Outlook series {IND}, in 2021 international dollars), so a dollar buys the same
 amount in every country and every year. The IMF's data starts in {START}: {END - START} years is the longest span

@@ -7,7 +7,8 @@ check blocks only its own group, and reads only its own group's tables and raw
 data. Checks about the run itself (the age of the last publish, which groups
 were carried forward) declare `group: run`; they are monitors and never gate.
 
-Two registered groups: prices_macro (M1, nightly) and sec (M2, on demand since D159). Company Facts belongs
+Five registered groups: prices_macro (M1, nightly), sec (M2, on demand since D159), and imf, un and fsds
+(on demand, D174). Company Facts belongs
 to the SEC group so submissions and facts cross the publish boundary together.
 A group joins GROUPS
 only with its stager, check binder and loaders: registered without them,
@@ -63,9 +64,42 @@ SEC = Group(
     on_demand=True,
 )
 
+# Three sources the Scaffold pages used to fetch when they built, stored at the
+# landed level (D127, D174). Each is its own on-demand group, so one source
+# being down never holds back another: `pharos imf`, `pharos un`, `pharos fsds`.
+# Their tables sit beside observations, not in it: annual values, forecasts
+# dated in the future and presentation rows are shapes the prices_macro checks
+# have no case for (C09, C17).
+IMF = Group(
+    name="imf",
+    required=(("imf", "weo_observations"), ("imf", "weo_series")),
+    reference=(),
+    tables=("weo_observations", "weo_series"),
+    inputs=(),
+    on_demand=True,
+)
+
+UN = Group(
+    name="un",
+    required=(("un", "wpp_population"),),
+    reference=(),
+    tables=("wpp_population",),
+    inputs=(),
+    on_demand=True,
+)
+
+FSDS = Group(
+    name="fsds",
+    required=(("sec", "fsds_pre"),),
+    reference=(),
+    tables=("fsds_pre",),
+    inputs=(),
+    on_demand=True,
+)
+
 # every declared group, registered or not: a check may name any of them, and
 # runs only while its group is registered (tests unregister the SEC groups)
-DECLARED: tuple[Group, ...] = (PRICES_MACRO, SEC)
+DECLARED: tuple[Group, ...] = (PRICES_MACRO, SEC, IMF, UN, FSDS)
 
 # registered groups: loaded, staged and published by their runs
 GROUPS: dict[str, Group] = {g.name: g for g in DECLARED}
