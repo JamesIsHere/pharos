@@ -150,6 +150,15 @@ def qlabel(d):
     return f"{d[:4]} Q{(int(d[5:7]) - 1) // 3 + 1}"
 
 
+# pharma weak points found in the 2026-11-13 review (step 3): the fit without calendar fourth quarters, and filing errors
+ph_noq4 = q("""SELECT count(*), corr(a.g, b.g) FROM yoy a JOIN yoy b USING (pair, q)
+               WHERE a.pair = 'pharma' AND a.side = 'qfr' AND b.side = 'other' AND quarter(a.q) <> 4""")[0]
+ph_err = q("SELECT q, v FROM ph_q WHERE name ILIKE 'PERNIX THERAPEUTICS%' AND v > 1e9 ORDER BY q")   # filed 1,000 times too large
+ph_err_txt = (" Filing errors are not screened out: Pernix Therapeutics, whose usual quarter is about $31 million, is counted at "
+              + " and ".join(f"${v / 1e9:,.1f}B in {qlabel(d)}" for d, v in ph_err)
+              + ", so growth in those quarters and a year after each is distorted.") if ph_err else ""
+
+
 # ---------------------------------------------------------------- charts
 BASE = {"margin": {"l": 50, "r": 20, "t": 30, "b": 40}, "hovermode": "x unified",
         "font": {"family": "system-ui, Segoe UI, sans-serif", "size": 13},
@@ -262,6 +271,7 @@ body = f"""<div class=head><div><h1>Quarterly Financial Report (Census QFR)</h1>
 <p>QFR pharmaceuticals and medicines net sales against the revenue of companies filing with the SEC under SIC {", ".join(PHARMA_SIC)} (Company Facts, served). The Company Facts line is same-company growth: only companies with a figure in both quarters count, so companies entering or leaving the filing population do not move it. It starts in {qlabel(XBRL_ALL)}, when every SEC filer was reporting in XBRL; before that Company Facts holds only the largest companies. The two measure different things: QFR is domestic operations, private firms included; the 10-K figures are worldwide. In {qlabel(ph_ratio_q[0])} QFR's sales were {ph_ratio_q[1]:.2f} times the public companies' total.</p>
 <div id="c_ph" style="height:360px"></div>
 <p class=muted>Company Facts side: {num(ph_pop[0])} companies, {num(ph_pop[1])} company-quarters ({num(ph_pop[2])} of them a fiscal fourth quarter worked out as the year less the three quarters reported inside it), {qlabel(ph_pop[3])} to {qlabel(ph_pop[4])}. Revenue is the largest of {", ".join(REV)} the company reported for the calendar quarter (SEC's frame). Latest quarter, {qlabel(ph_last[0])}: ${ph_last[1] / 1e9:,.1f}B from {num(ph_last[2])} companies; a quarter still being filed is partial: its total is low, and its same-company growth counts only the companies that have filed so far.</p>
+<p class=muted>Weak points of the Company Facts line (review of 2026-11-13). Fourth quarters: where a company reported all four quarters and the year, the year less the first three quarters missed the reported fourth quarter by more than 5% of the year in 124 of 2,444 cases; one cause is a year restated after its quarters were filed (Pfizer 2018). Without calendar fourth quarters the correlation with QFR growth is {ph_noq4[1]:.2f} over {num(ph_noq4[0])} quarters, against {fit["pharma"][3]:.2f} over all {num(fit["pharma"][0])}.{ph_err_txt}</p>
 """
 
 out = HERE / "qfr.html"

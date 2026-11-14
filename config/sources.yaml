@@ -42,12 +42,71 @@ fred:
     - AMTMUO     # unfilled orders, total manufacturing, monthly, SA
     - DGORDER    # new orders, durable goods, monthly, SA
     - NEWORDER   # new orders, nondefense capital goods ex aircraft, monthly, SA
+    # Manufacturing by industry, Census M3 (D171): shipments for the 21 industries and the durable and nondurable halves.
+    - A11SVS         # shipments, food products, monthly
+    - A12SVS         # shipments, beverage and tobacco products, monthly
+    - A13SVS         # shipments, textile mills, monthly
+    - A14SVS         # shipments, textile products, monthly
+    - A15SVS         # shipments, apparel, monthly
+    - A16SVS         # shipments, leather and allied products, monthly
+    - A21SVS         # shipments, wood products, monthly
+    - A22SVS         # shipments, paper products, monthly
+    - A23SVS         # shipments, printing, monthly
+    - A24SVS         # shipments, petroleum and coal products, monthly
+    - A25SVS         # shipments, chemical products, monthly
+    - A26SVS         # shipments, plastics and rubber products, monthly
+    - A27SVS         # shipments, nonmetallic mineral products, monthly
+    - A31SVS         # shipments, primary metals, monthly
+    - A32SVS         # shipments, fabricated metal products, monthly
+    - A33SVS         # shipments, machinery, monthly
+    - A34SVS         # shipments, computers and electronic products, monthly
+    - A35SVS         # shipments, electrical equipment and appliances, monthly
+    - A36SVS         # shipments, transportation equipment, monthly
+    - A37SVS         # shipments, furniture and related products, monthly
+    - A39SVS         # shipments, miscellaneous products, monthly
+    - AMDMVS         # shipments, durable goods, monthly
+    - AMNMVS         # shipments, nondurable goods, monthly
+    # Housing pipeline, Census new residential construction (D171): permits, starts, under construction, completions.
+    - AUTHNOTTSA     # housing units authorized but not started, monthly, SA
+    - COMPU1USA      # completions, single-family, monthly, SA
+    - COMPUTNSA      # completions, total, monthly, NSA
+    - COMPUTSA       # completions, total, monthly, SA
+    - HOUST          # starts, total, monthly, SA
+    - HOUST1F        # starts, single-family, monthly, SA
+    - HOUST5F        # starts, buildings with 5 or more units, monthly, SA
+    - HOUSTNSA       # starts, total, monthly, NSA
+    - PERMIT         # units authorized by building permits, monthly, SA
+    - UNDCONTNSA     # under construction, total, monthly, NSA
+    - UNDCONTSA      # under construction, total, monthly, SA
+    # Housing stock and prices (D171): occupied and total housing units, vacancy rates, new-home price, residential construction spending.
+    - EOCCUSQ176N    # occupied housing units, quarterly
+    - ETOTALUSQ176N  # total housing units, quarterly
+    - MSPUS          # median sales price of new houses sold, quarterly
+    - PRRESCONS      # private residential construction spending, monthly
+    - RHVRUSQ156N    # homeowner vacancy rate, quarterly
+    - RRVRUSQ156N    # rental vacancy rate, quarterly
+    # Census Quarterly Financial Report (D171): net sales for manufacturing and seven industries, manufacturing inventories.
+    - QFR101311USNO  # QFR net sales, food, quarterly, NSA
+    - QFR101324USNO  # QFR net sales, petroleum and coal products, quarterly, NSA
+    - QFR101333USNO  # QFR net sales, machinery, quarterly, NSA
+    - QFR101385USNO  # QFR net sales, pharmaceuticals and medicines, quarterly, NSA
+    - QFR101CHEUSNO  # QFR net sales, chemicals, quarterly, NSA
+    - QFR101COMUSNO  # QFR net sales, computer and electronic products, quarterly, NSA
+    - QFR101MFGUSNO  # QFR net sales, all manufacturing, quarterly, NSA
+    - QFR101TRAUSNO  # QFR net sales, transportation equipment, quarterly, NSA
+    - QFR214MFGUSNO  # QFR inventories, all manufacturing, quarterly, NSA
+    # Producer prices used to deflate M3 orders (D171).
+    - WPSFD41312     # PPI, final demand private capital equipment, monthly
+    - WPU11          # PPI, machinery and equipment, monthly
   # Days after a period ends by which its first release is expected (checks C02,
   # C17; D33). Measured first-release lags 2023-2026: CPIAUCSL median 12 days,
   # GDP and GDPC1 median 30; a few days of slack on top. Added series (D141),
   # measured the same way: POPTHM median 29, CNP16OV/CLF16OV/CE16OV 5, COE 30.
   # M3 (D169), 46 releases 2023-2026: the four totals median 34, DGORDER and
   # NEWORDER 26.
+  # D171, 51 series the Scaffold pages used to fetch at build: median first-release
+  # lag 2023-2026 plus 4 days (M3 industries 34 and 26, housing 18, construction
+  # spending 32, housing stock and vacancy 30, new-home price 25, QFR 71, PPI 13).
   # Every series above must have one, or staging stops.
   expected_lag_days:
     GDP: 35
@@ -64,6 +123,57 @@ fred:
     AMTMUO: 38
     DGORDER: 30
     NEWORDER: 30
+    A11SVS: 38
+    A12SVS: 38
+    A13SVS: 38
+    A14SVS: 38
+    A15SVS: 38
+    A16SVS: 38
+    A21SVS: 38
+    A22SVS: 38
+    A23SVS: 38
+    A24SVS: 38
+    A25SVS: 38
+    A26SVS: 38
+    A27SVS: 38
+    A31SVS: 30
+    A32SVS: 30
+    A33SVS: 30
+    A34SVS: 30
+    A35SVS: 30
+    A36SVS: 30
+    A37SVS: 38
+    A39SVS: 38
+    AMDMVS: 30
+    AMNMVS: 38
+    AUTHNOTTSA: 22
+    COMPU1USA: 22
+    COMPUTNSA: 22
+    COMPUTSA: 22
+    HOUST: 22
+    HOUST1F: 22
+    HOUST5F: 22
+    HOUSTNSA: 22
+    PERMIT: 22
+    UNDCONTNSA: 22
+    UNDCONTSA: 22
+    EOCCUSQ176N: 34
+    ETOTALUSQ176N: 34
+    MSPUS: 29
+    PRRESCONS: 36
+    RHVRUSQ156N: 34
+    RRVRUSQ156N: 34
+    QFR101311USNO: 75
+    QFR101324USNO: 75
+    QFR101333USNO: 75
+    QFR101385USNO: 75
+    QFR101CHEUSNO: 75
+    QFR101COMUSNO: 75
+    QFR101MFGUSNO: 75
+    QFR101TRAUSNO: 75
+    QFR214MFGUSNO: 75
+    WPSFD41312: 17
+    WPU11: 17
 
 sec:
   # submissions.zip filing history: after the first run, each run lands only
