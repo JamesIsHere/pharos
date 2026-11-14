@@ -2,8 +2,9 @@
 
 Sections: open questions, population by form, then Data: schema diagram, tables, columns, joins, shape over time.
 Oddities, one company by hand and Pipeline were dropped (James, 2026-11-11: not needed for the catalog). Everything is measured from the served version at build time. The heavy
-measurements (about 4 minutes the first time) are cached per served version in <data root>/tmp/scaffold/, so a
-rebuild against the same version takes seconds. Read-only. Writes company-facts.html.
+measurements (several minutes the first time) are cached in <data root>/tmp/scaffold/ under the SEC run the
+served tables came from (groups.parquet, source_run), so a rebuild takes seconds until `pharos sec` lands new data;
+a prices and FRED refresh changes the served version but not the SEC tables, and does not re-measure. Read-only. Writes company-facts.html.
 Run: uv run python scaffold/company_facts.py"""
 import json
 import re
@@ -20,7 +21,13 @@ HERE = Path(__file__).parent
 DATA = data_root()
 version = (DATA / "serving" / "CURRENT").read_text(encoding="utf-8").strip()
 S = DATA / "serving" / version
-CACHE = DATA / "tmp" / "scaffold" / f"company_facts-{version}.json"
+con = duckdb.connect()
+con.execute("SET memory_limit='6GB'")
+sec_run = con.execute(f"SELECT source_run FROM '{(S / 'groups.parquet').as_posix()}' WHERE \"group\" = 'sec'").fetchall()
+if len(sec_run) != 1 or not sec_run[0][0]:
+    raise SystemExit(f"served version {version}: groups.parquet has no single source_run for group sec: {sec_run}")
+sec_run = sec_run[0][0]
+CACHE = DATA / "tmp" / "scaffold" / f"company_facts-sec-{sec_run}.json"
 
 TABLES = {  # table -> (declared key, role)
     "company_facts": (stage_sec.FACTS.key, "one fact as one filing reported it"),
@@ -37,8 +44,6 @@ def src(t):
         else f"read_parquet('{p.as_posix()}')"
 
 
-con = duckdb.connect()
-con.execute("SET memory_limit='6GB'")
 for t in TABLES:
     con.execute(f"CREATE VIEW {t} AS SELECT * FROM {src(t)}")
 
@@ -53,7 +58,7 @@ def timed(label, fn):
 
 
 def measure():
-    m = {"version": version}
+    m = {"version": version, "sec_run": sec_run}
     # tables: rows, columns, types, size, key duplicates
     m["tables"] = {}
     for t, (key, _) in TABLES.items():
