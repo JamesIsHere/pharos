@@ -187,10 +187,13 @@ if "examples" not in M:
         M["examples"][t] = ex
     CACHE.write_text(json.dumps(M, default=str), encoding="utf-8")
 
-# open questions: one line each in company-facts-questions.md, shown first on the page
-questions = [ln[2:] for ln in (HERE / "company-facts-questions.md").read_text(encoding="utf-8").splitlines()
-             if ln.startswith("- ")]
+# open questions, then settled ones: one line each in company-facts-questions.md, split at its "## Settled" heading
+_open, _, _settled = (HERE / "company-facts-questions.md").read_text(encoding="utf-8").partition("\n## Settled\n")
+questions = [ln[2:] for ln in _open.splitlines() if ln.startswith("- ")]
+settled = [ln[2:] for ln in _settled.splitlines() if ln.startswith("- ")]
 q_html = "".join(f"<li>{esc(q)}</li>" for q in questions)
+settled_html = (f"<details><summary>Settled ({len(settled)})</summary><ul>" + "".join(f"<li>{esc(q)}</li>" for q in settled)
+                + "</ul></details>") if settled else ""
 
 # filings and facts by form, by year filed: the forms that carry XBRL change over time (424B2, DEF 14A in 2026)
 FORM_YEARS = list(range(2019, 2027))
@@ -288,6 +291,7 @@ body = f"""
 <div class="stamps"><span>Built {now_et()}</span></div></div>
 <h3>Open questions ({len(questions)})</h3>
 <ul>{q_html}</ul>
+{settled_html}
 
 <h3>Population: every filing that carries XBRL, by form</h3>
 <table><tr><th>Form</th><th>Facts</th><th>Share</th><th>Filings</th></tr>{pop_rows}</table>

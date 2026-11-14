@@ -10,7 +10,7 @@ Housing supply vs need,,"Homes completed against households formed, vacancy, hou
 SEC filing index,landed,"Every EDGAR filing: company, form, date",sec/full_index,filings,C25,on demand (pharos sec),,,,
 SEC submissions,landed,"Company details (SIC, tickers, fiscal year end) and each company's filing list",sec/submission_details sec/submission_filings,submission_details submission_filings,C31,on demand (pharos sec),,,,
 SEC tickers,retired,Ticker to company (CIK) map; SEC submissions carries the same tickers (D165),,,,,,,,
-SEC Company Facts,landed,Every XBRL financial fact every company reported,sec/companyfacts sec/companyfacts_concepts sec/companyfacts_changes,company_facts company_concepts,C40,on demand (pharos sec),,company-facts.html,,
+SEC Company Facts,landed,"Every XBRL fact every company reported: financial statements, plus cover-page, fee and pay tags",sec/companyfacts sec/companyfacts_concepts sec/companyfacts_changes,company_facts company_concepts,C40,on demand (pharos sec),,company-facts.html,,
 IMF World Economic Outlook,quick lane,"GDP (US$) and unemployment rate for every country, 1980 on, with IMF forecasts",,,,on page build,Scaffold page: World Economic Outlook (scaffold/weo.py),weo.html,scaffold/weo.html,
 FRED (page builds),retired,Series an Appendix page fetched when it built; never stored,,,,,"Appendix pages: World, People and Work, Where GDP Goes, Data Tests",,,
 IMF,retired,Trade between economies; was fetched by an Appendix page,,,,,Appendix page: Trade Flows,,,
