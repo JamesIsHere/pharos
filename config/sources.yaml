@@ -83,6 +83,7 @@ fred:
     - ETOTALUSQ176N  # total housing units, quarterly
     - MSPUS          # median sales price of new houses sold, quarterly
     - PRRESCONS      # private residential construction spending, monthly
+    - PRFI           # private residential fixed investment (BEA, in the GDP release), quarterly, SAAR
     - RHVRUSQ156N    # homeowner vacancy rate, quarterly
     - RRVRUSQ156N    # rental vacancy rate, quarterly
     # Census Quarterly Financial Report (D171): net sales for manufacturing and seven industries, manufacturing inventories.
@@ -107,6 +108,8 @@ fred:
   # D171, 51 series the Scaffold pages used to fetch at build: median first-release
   # lag 2023-2026 plus 4 days (M3 industries 34 and 26, housing 18, construction
   # spending 32, housing stock and vacancy 30, new-home price 25, QFR 71, PPI 13).
+  # PRFI, which D171 missed (the housing page fetched it at build): median 30 over 15
+  # releases 2023-2026, the same BEA release as GDP, so it takes GDP's 35.
   # Every series above must have one, or staging stops.
   expected_lag_days:
     GDP: 35
@@ -161,6 +164,7 @@ fred:
     ETOTALUSQ176N: 34
     MSPUS: 29
     PRRESCONS: 36
+    PRFI: 35
     RHVRUSQ156N: 34
     RRVRUSQ156N: 34
     QFR101311USNO: 75
