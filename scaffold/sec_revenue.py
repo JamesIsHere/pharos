@@ -13,7 +13,9 @@ XBRL_ALL = "2011-07-01"   # quarter the last SEC phase-in group began XBRL (fisc
 
 
 def build(con, serving, sics, table, start=XBRL_ALL):
-    """Create <table>(cik, name, q, v, derived) in con. Stops if a company/concept/frame carries two facts."""
+    """Create <table>(cik, name, q, v, derived) in con. derived is true only when the figure kept (the largest across
+    the revenue concepts) is a worked-out fourth quarter, not when a reported figure was kept beside one. Stops if a
+    company/concept/frame carries two facts."""
     cf = f"read_parquet('{(serving / 'company_facts.parquet').as_posix()}/**/*.parquet', hive_partitioning=false)"
     sd = f"read_parquet('{(serving / 'submission_details.parquet').as_posix()}')"
     s = ", ".join(f"'{x}'" for x in sics)
@@ -40,7 +42,7 @@ def build(con, serving, sics, table, start=XBRL_ALL):
                     UNION ALL SELECT cik, concept, q, val, true FROM q4 WHERE NOT EXISTS
                       (SELECT 1 FROM qq WHERE qq.cik = q4.cik AND qq.concept = q4.concept AND qq.q = q4.q))
       SELECT cik, (SELECT any_value(name) FROM {table}_f n WHERE n.cik = allq.cik) AS name, q,
-             max(val) AS v, bool_or(derived) AS derived
+             max(val) AS v, coalesce(max(val) FILTER (WHERE NOT derived) < max(val), true) AS derived
       FROM allq WHERE q >= DATE '{start}' GROUP BY cik, q""")
 
 

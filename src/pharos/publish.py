@@ -25,7 +25,8 @@ Rules applied here:
   place. A version that already exists is re-pointed, not rebuilt.
 - If CURRENT is held open elsewhere the swap retries briefly, then fails loudly
   and leaves the old pointer in place (open issue #7).
-- Old versions are kept (D103).
+- After a publish two versions remain, the one CURRENT names and the one it
+  replaced; older ones are deleted (prune_serving, D133).
 - A publish deletes every staging folder older than the run it publishes:
   staging rebuilds from raw at the run's recorded commit (`pharos
   rebuild-staging`), and a published run's tables live on in its version. A
