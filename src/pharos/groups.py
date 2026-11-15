@@ -7,8 +7,8 @@ check blocks only its own group, and reads only its own group's tables and raw
 data. Checks about the run itself (the age of the last publish, which groups
 were carried forward) declare `group: run`; they are monitors and never gate.
 
-Five registered groups: prices_macro (M1, nightly), sec (M2, on demand since D159), and imf, un and fsds
-(on demand, D174). Company Facts belongs
+Six registered groups: prices_macro (M1, nightly), sec (M2, on demand since D159), imf, un and fsds
+(on demand, D174), and antitrust (on demand, D175). Company Facts belongs
 to the SEC group so submissions and facts cross the publish boundary together.
 A group joins GROUPS
 only with its stager, check binder and loaders: registered without them,
@@ -97,9 +97,24 @@ FSDS = Group(
     on_demand=True,
 )
 
+# Merger-enforcement statistics from the FTC and the DOJ Antitrust Division, at
+# the landed level (D175): `pharos antitrust`. Its loader downloads nothing: it
+# lands five files placed by hand in <data root>/manual/antitrust/ (ftc.gov
+# refuses scripted requests).
+ANTITRUST = Group(
+    name="antitrust",
+    required=(("ftc", "hsr_fiscal_year"), ("ftc", "merger_actions"), ("doj", "merger_outcomes"),
+              ("ftc", "hmid_hhi"), ("ftc", "hmid_competitors")),
+    reference=(),
+    tables=("hsr_fiscal_year", "ftc_merger_actions", "doj_merger_outcomes",
+            "ftc_hmid_hhi", "ftc_hmid_competitors"),
+    inputs=(),
+    on_demand=True,
+)
+
 # every declared group, registered or not: a check may name any of them, and
 # runs only while its group is registered (tests unregister the SEC groups)
-DECLARED: tuple[Group, ...] = (PRICES_MACRO, SEC, IMF, UN, FSDS)
+DECLARED: tuple[Group, ...] = (PRICES_MACRO, SEC, IMF, UN, FSDS, ANTITRUST)
 
 # registered groups: loaded, staged and published by their runs
 GROUPS: dict[str, Group] = {g.name: g for g in DECLARED}

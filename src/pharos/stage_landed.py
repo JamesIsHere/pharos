@@ -1,4 +1,4 @@
-"""Staging for the small landed groups: imf, un, fsds (D174).
+"""Staging for the small landed groups: imf, un, fsds (D174) and antitrust (D175).
 
 Each dataset stages the same way, rebuilt from every landing each run (the
 largest is under a million rows a landing):
@@ -66,7 +66,61 @@ FSDS_PRE = Dataset(
              ("obs_date IS NULL OR vintage IS NULL", "presentation rows with no quarter or no file date")),
 )
 
-DATASETS = {"imf": (WEO_OBSERVATIONS, WEO_SERIES), "un": (WPP_POPULATION,), "fsds": (FSDS_PRE,)}
+# Merger-enforcement statistics (D175). Each file's own arithmetic is asserted
+# here. Two rows do not add up in the FTC's own file, read twice on 2026-11-15
+# with the same result, and are named: FY1999 (FTC 45 + DOJ 68 = 113 against a
+# total of 111) and FY1993 (granted 1,201 + not granted 448 = 1,649 against
+# 1,689 requested). Any other row that fails to add up stops the group.
+_YEAR = ("fiscal_year IS NULL OR obs_date IS NULL OR vintage IS NULL", "rows with no fiscal year or no retrieval date")
+_CELL = ("enforced IS NULL OR closed IS NULL OR enforced < 0 OR closed < 0 OR obs_date IS NULL OR vintage IS NULL",
+         "table cells with no count, a negative count, or no edition or retrieval date")
+
+HSR_FISCAL_YEAR = Dataset(
+    source="ftc", raw="hsr_fiscal_year", sql="ftc_hsr_fiscal_year", table="hsr_fiscal_year",
+    key=("fiscal_year", "vintage"),
+    asserts=(_YEAR,
+             ("second_requests IS DISTINCT FROM second_requests_ftc + second_requests_doj AND fiscal_year <> 1999",
+              "fiscal years whose FTC and DOJ second requests do not add to the total"),
+             ("early_termination_requested IS DISTINCT FROM early_termination_granted + early_termination_not_granted "
+              "AND fiscal_year <> 1993",
+              "fiscal years whose early terminations granted and not granted do not add to those requested"),
+             ("adjusted_transactions > transactions_reported OR second_requests > adjusted_transactions",
+              "fiscal years with more adjusted transactions than reported, or more second requests than adjusted")),
+)
+
+FTC_MERGER_ACTIONS = Dataset(
+    source="ftc", raw="merger_actions", sql="ftc_merger_actions", table="ftc_merger_actions",
+    key=("fiscal_year", "vintage"),
+    asserts=(_YEAR,
+             ("total IS DISTINCT FROM consents + injunctions + part3 + abandoned",
+              "fiscal years whose FTC actions by type do not add to the total")),
+)
+
+DOJ_MERGER_OUTCOMES = Dataset(
+    source="doj", raw="merger_outcomes", sql="doj_merger_outcomes", table="doj_merger_outcomes",
+    key=("fiscal_year", "vintage"),
+    asserts=(_YEAR,
+             ("complaints IS DISTINCT FROM litigation_complaints + simultaneous_settlement",
+              "fiscal years whose DOJ complaints by kind do not add to complaints filed"),
+             ("merger_outcomes IS DISTINCT FROM abandoned + resolved_concerns",
+              "fiscal years whose DOJ outcomes without a complaint do not add to their total")),
+)
+
+FTC_HMID_HHI = Dataset(
+    source="ftc", raw="hmid_hhi", sql="ftc_hmid_hhi", table="ftc_hmid_hhi",
+    key=("edition_end_fy", "table_no", "post_merger_hhi", "delta_hhi", "vintage"),
+    asserts=(_CELL,),
+)
+
+FTC_HMID_COMPETITORS = Dataset(
+    source="ftc", raw="hmid_competitors", sql="ftc_hmid_competitors", table="ftc_hmid_competitors",
+    key=("edition_end_fy", "table_no", "significant_competitors", "vintage"),
+    asserts=(_CELL,),
+)
+
+DATASETS = {"imf": (WEO_OBSERVATIONS, WEO_SERIES), "un": (WPP_POPULATION,), "fsds": (FSDS_PRE,),
+            "antitrust": (HSR_FISCAL_YEAR, FTC_MERGER_ACTIONS, DOJ_MERGER_OUTCOMES, FTC_HMID_HHI,
+                          FTC_HMID_COMPETITORS)}
 
 
 def stage_group(name: str, included: list[str], target: Path) -> None:

@@ -227,7 +227,8 @@ def _stage_landed(name: str):
 
 # group name -> the function that stages it into staging/<run_id>/
 STAGERS = {"prices_macro": _stage_prices_macro, "sec": _stage_sec,
-           "imf": _stage_landed("imf"), "un": _stage_landed("un"), "fsds": _stage_landed("fsds")}
+           "imf": _stage_landed("imf"), "un": _stage_landed("un"), "fsds": _stage_landed("fsds"),
+           "antitrust": _stage_landed("antitrust")}
 
 
 def bind_raw(con, included: list[str], group: Group = PRICES_MACRO) -> None:

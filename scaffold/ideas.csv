@@ -31,3 +31,6 @@ Schools,State test scores,"Comparable scores by state, every two years",NAEP,eas
 Schools,School spending,"Finance by school district, yearly",Census,medium,idea
 Schools,District and school outcomes,Comparable test scores below the state level exist only through one research project,Stanford SEDA,hard,idea
 Odd and small,Consumer oddities,"Box office, book sales, restaurant bookings: small high-frequency reads on spending",Various,medium,idea
+US national series,Airline fares by route,"Fare paid and carrier shares on every city pair, quarterly; the market and the price are both observed, so a merger can be followed route by route",DOT Origin and Destination Survey,hard,idea
+US national series,Bank deposits by county,"Deposits at every bank branch, yearly since 1994; the concentration measure bank mergers are screened on, in every county",FDIC Summary of Deposits,medium,idea
+US national series,Industry concentration ratios,"Share of sales held by the 4, 8, 20 and 50 largest firms in each industry, every five years",Census Economic Census,medium,idea

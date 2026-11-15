@@ -28,6 +28,7 @@ uv run pharos sec                    # SEC group alone, on demand (D159): index,
 uv run pharos imf                    # IMF World Economic Outlook, on demand (D174); seconds
 uv run pharos un                     # UN World Population Prospects, on demand (D174); lands only a changed file
 uv run pharos fsds                   # SEC Financial Statement Data Sets pre.txt, on demand (D174); each quarter once
+uv run pharos antitrust              # FTC and DOJ merger statistics, on demand (D175); lands the files in data/manual/antitrust/, downloads nothing
 uv run pharos health                 # pass/warn/fail table; rewrites <data>/health/latest.md
 uv run pytest                      # unit tests + fault-injection tests
 uv run python scaffold/rebuild.py  # rebuild every Scaffold page, in order; stops on the first failure

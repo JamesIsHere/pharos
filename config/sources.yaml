@@ -208,3 +208,26 @@ un:
   # 2024); change this line when the next one is out. Check C46 warns when this
   # one is three calendar years old.
   wpp_revision: WPP2024
+
+antitrust:
+  # Merger-enforcement statistics (D175): five files placed by hand in
+  # <data root>/manual/antitrust/ and landed by `pharos antitrust`. ftc.gov
+  # refuses scripted downloads, so nothing is fetched. `retrieved` is the date
+  # the figures were read off the source; it is the vintage. To add a fiscal
+  # year: edit the file, change its date here, run the command.
+  files:
+    hsr_by_fiscal_year.csv:
+      retrieved: 2026-11-15
+      from: https://www.ftc.gov/system/files/ftc_gov/data/HSR-Transactions-Filings-Second-Requests-by-FY.csv
+    ftc_merger_actions.csv:
+      retrieved: 2026-11-15
+      from: https://www.ftc.gov/competition-enforcement-database
+    doj_merger_outcomes.csv:
+      retrieved: 2026-11-15
+      from: https://www.justice.gov/media/1385471/dl
+    ftc_hmid_hhi.csv:
+      retrieved: 2026-11-15
+      from: FTC Horizontal Merger Investigation Data, fiscal years 1996-2003, 1996-2005, 1996-2007 and 1996-2011 (PDFs in manual/antitrust/sources)
+    ftc_hmid_competitors.csv:
+      retrieved: 2026-11-15
+      from: the same four reports

@@ -42,7 +42,7 @@ import duckdb
 from pharos import catalog, health, notify
 from pharos.progress import say, step
 from pharos.groups import FAILED, GROUPS, NOT_RUN, PRICES_MACRO, nightly
-from pharos.loaders import fred, imf, sec_companyfacts, sec_fsds, sec_index, sec_submissions, tiingo, un, yahoo
+from pharos.loaders import antitrust, fred, imf, sec_companyfacts, sec_fsds, sec_index, sec_submissions, tiingo, un, yahoo
 from pharos.paths import data_root
 from pharos.publish import Publication, publish
 from pharos.runs import new_run_id, provenance
@@ -81,11 +81,16 @@ def _load_fsds(run_id: str) -> None:
     sec_fsds.load_pre(run_id)
 
 
+def _load_antitrust(run_id: str) -> None:
+    antitrust.load(run_id)
+
+
 # group -> its required loads, and its reference loads (whose failure is only recorded, D37).
 # Only groups registered in GROUPS are loaded: a loader here for an unregistered
 # group is built but switched off
 LOADERS = {"prices_macro": _load_prices_macro, "sec": _load_sec,
-           "imf": _load_imf, "un": _load_un, "fsds": _load_fsds}
+           "imf": _load_imf, "un": _load_un, "fsds": _load_fsds,
+           "antitrust": _load_antitrust}
 REFERENCE_LOADERS = {("tiingo", "prices"): lambda run_id: tiingo.load_prices(run_id)}
 
 

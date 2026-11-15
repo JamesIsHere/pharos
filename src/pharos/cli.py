@@ -116,6 +116,12 @@ def cmd_fsds(args: argparse.Namespace) -> int:
     return _report_run(*run_on_demand("fsds"), " (SEC Financial Statement Data Sets, on demand)")
 
 
+def cmd_antitrust(args: argparse.Namespace) -> int:
+    from pharos.refresh import run_on_demand
+
+    return _report_run(*run_on_demand("antitrust"), " (FTC and DOJ merger statistics, on demand)")
+
+
 def cmd_companyfacts(args: argparse.Namespace) -> int:
     from pharos.refresh import refresh_companyfacts_full
 
@@ -213,6 +219,10 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("fsds", help="land SEC Financial Statement Data Sets pre.txt for every complete quarter "
                                     "not yet landed and publish it (D174)")
     p.set_defaults(func=cmd_fsds)
+
+    p = sub.add_parser("antitrust", help="land the FTC and DOJ merger-enforcement files placed in "
+                                         "<data root>/manual/antitrust/ and publish them; downloads nothing (D175)")
+    p.set_defaults(func=cmd_antitrust)
 
     p = sub.add_parser("companyfacts", help="force a full Company Facts baseline and publish it atomically "
                                             "with fresh SEC index, submissions and tickers")
