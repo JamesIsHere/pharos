@@ -34,3 +34,24 @@ Odd and small,Consumer oddities,"Box office, book sales, restaurant bookings: sm
 US national series,Airline fares by route,"Fare paid and carrier shares on every city pair, quarterly; the market and the price are both observed, so a merger can be followed route by route",DOT Origin and Destination Survey,hard,idea
 US national series,Bank deposits by county,"Deposits at every bank branch, yearly since 1994; the concentration measure bank mergers are screened on, in every county",FDIC Summary of Deposits,medium,idea
 US national series,Industry concentration ratios,"Share of sales held by the 4, 8, 20 and 50 largest firms in each industry, every five years",Census Economic Census,medium,idea
+US states and counties,Transfer payments by county,"Social Security, Medicare, Medicaid, unemployment pay and the rest, beside total personal income, yearly; the share of a place's income that arrives as a transfer",BEA regional accounts,easy,idea
+US states and counties,Personal income by county,"Wages, dividends and interest, transfers, per county, yearly",BEA regional accounts,easy,idea
+US states and counties,State and local government finances,"Revenue (including money from the federal government) and spending, by government, yearly",Census Annual Survey of State and Local Government Finances,medium,idea
+US states and counties,Federal taxes paid by state,"Income tax by where the filer lives; the other side of what a place receives",IRS Statistics of Income,medium,idea
+US states and counties,County-to-county migration,"Tax returns, people and their income on every pair of counties, yearly; origin and destination both recorded",IRS Statistics of Income,medium,idea
+US states and counties,County migration by age,"Movers between counties by age, from a survey, pooled over five years; origin and destination both recorded",Census American Community Survey,medium,idea
+US states and counties,Population change by cause,"Births, deaths, domestic and international migration per county, yearly",Census population estimates,easy,idea
+US states and counties,Change-of-address counts,"Moves in and out by ZIP code, monthly",USPS,medium,idea
+US states and counties,Income by ZIP code,"Tax returns by income band, yearly",IRS Statistics of Income,easy,idea
+US states and counties,Job-to-job moves,"Workers changing employer across states, metros and industries, with earnings before and after, quarterly; origin and destination both recorded",Census Job-to-Job Flows,medium,idea
+US states and counties,Commuting,"Where workers live against where they work, yearly",Census LODES,hard,idea
+US states and counties,Jobs and pay by county and industry,"Nearly every employer, quarterly",BLS Quarterly Census of Employment and Wages,medium,idea
+US states and counties,Business openings and closings,"Establishments opened and closed, jobs created and destroyed, by county, yearly",Census Business Dynamics Statistics,easy,idea
+US states and counties,Mortgage applications,"Every application: census tract, amount, borrower income, approved or denied, owner-occupied or not, yearly",HMDA (CFPB),hard,idea
+US states and counties,Building permits by county,"Monthly; the housing pages hold the national series",Census Building Permits Survey,easy,idea
+US states and counties,House prices by county,"Price index by county and ZIP code, yearly",FHFA,easy,idea
+US states and counties,Children's adult income by neighborhood,"What children earn as adults, by the census tract they grew up in",Opportunity Atlas,easy,idea
+US states and counties,Where young adults end up,"Where people lived at 16 against where they lived at 26, by commuting zone",Opportunity Insights,easy,idea
+US states and counties,New permanent residents,"By state and metro, yearly",DHS immigration yearbook,medium,idea
+Countries,Migrants by origin and destination,"People living outside their birth country, by pair of countries; joins the UN population already stored",UN migrant stock,easy,idea
+Countries,Remittances,"Money sent home, by pair of countries (estimates)",World Bank,medium,idea
