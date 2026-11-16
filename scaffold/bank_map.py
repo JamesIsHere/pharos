@@ -76,11 +76,14 @@ for o, a, t, code in events_all:
     fail = 1 if code in (211, 213, 215, 216, 217, 230, 235) else 0
     events.append([t, idx[o], idx.get(a, -1) if a is not None else -1, fail])
 t_end = max(e[0] for e in events)
+t_last = -(-round(t_end * 1000) // 50) / 20  # the slider stops at the last event, rounded up to its 0.05 step
 data = {"lon": [b[1] for b in banks], "lat": [b[2] for b in banks], "s": [b[3] for b in banks], "e": [b[4] for b in banks],
-        "g": [b[5] for b in banks], "ev": events, "top": [[idx[u], name, n] for u, name, n in top], "t0": T0, "t1": round(t_end + 0.3, 2),
+        "g": [b[5] for b in banks], "ev": events, "top": [[idx[u], name, n] for u, name, n in top], "t0": T0, "t1": t_last,
         "col": COLORS, "atlas": ATLAS}
 alive0 = sum(1 for b in banks if b[3] <= T0 and (b[4] is None or b[4] > T0))
 alive1 = sum(1 for b in banks if b[4] is None)
+# marked inactive by the FDIC with an end date of 12/31/9999 and no event: they never leave the map
+no_end = sum(1 for b in banks if b[4] is not None and b[4] > t_last)
 
 script = "const D = " + json.dumps(data, separators=(",", ":")) + ";" + r"""
 const cv = document.getElementById('map'), ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
@@ -181,7 +184,8 @@ Red marks a failure. Colours show which of today's ten largest family trees a ba
 This includes institutions that appear only in the events ({n_event_only:,} in all); those have no founding date and are drawn from the start.</td></tr>
 <tr><td>Dots on the map</td><td class=num>{len(banks):,}</td><td>Institutions with a position that still existed on 1 January {T0} or opened later</td></tr>
 <tr><td>Dots at the start</td><td class=num>{alive0:,}</td><td>Existing on 1 January {T0}</td></tr>
-<tr><td>Dots at the end</td><td class=num>{alive1:,}</td><td>Still active</td></tr>
+<tr><td>Dots at the end</td><td class=num>{alive1 + no_end:,}</td><td>{alive1:,} still active. The other {no_end:,} are marked inactive in the FDIC file with no end date and no event
+(by name: trust companies, offices of foreign banks, finance companies), so their dots never leave the map.</td></tr>
 <tr><td>Disappearances shown</td><td class=num>{len(events):,}</td><td>Of {len(events_all):,} since {T0}; {n_no_dot:,} are left out because the institution could not be placed</td></tr>
 <tr><td>Absorbed with no flight drawn</td><td class=num>{n_no_acq_dot:,}</td><td>The acquirer could not be placed, so the dot just disappears</td></tr></table>
 <p class=sub>Limits: this is the bank-charter level, so a bank owned by a holding company keeps its dot until its charter is merged.
