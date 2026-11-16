@@ -20,6 +20,24 @@ EXPLORE = ROOT / "archive" / "explore-2026-11-12"
 COUNTRIES = ROOT / "archive" / "countries-2026-11-12"
 
 SECTIONS = (
+    # Exploration pages built in scaffold/ itself (quick lane, nothing stored, not in rebuild.py). Each reads its
+    # downloads under data/tmp/scaffold/ and is rebuilt only by running its own script.
+    ("Tax preparation", HERE, (
+        ("Who prepares US tax returns", "tax-filers.html", "IRS state files, tax years 2012 and 2014-2023: paid preparer, volunteer and e-file, by income band and state"),
+        ("Jobs and pay in tax preparation", "tax-jobs.html", "BLS: monthly jobs in tax preparation services, occupation pay, quarterly pay from the employer census"),
+        ("Registered tax return preparers", "tax-preparers.html", "The IRS public list of registered preparers dated 2026-08-14, counted by credential, business name and state"),
+        ("H&R Block", "tax-hrblock.html", "Company Facts plus 25 annual reports: returns prepared, charge per return, offices, headcount, field wages"),
+    )),
+    ("Banks and financial advice", HERE, (
+        ("Bank mergers", "bank-mergers.html", "FDIC institutions and events: counts by year, and a family tree for each of 534 surviving banks"),
+        ("Banks being absorbed", "bank-map.html", "Animated map of banks being absorbed since 1970, from the same FDIC files"),
+        ("Who gets financial advice", "advice-sources.html", "The Federal Reserve's 2025 Survey of Consumer Finances and the SEC's November 2026 file of registered investment advisers"),
+    )),
+    ("Government transfers and people moving", HERE, (
+        ("Exploring BEA transfers", "transfers-explore.html", "Four BEA regional tables: the share of personal income that arrives as a government transfer, by state and county"),
+        ("Plan: transfers in local income", "transfers-plan.html", "Hand-written plan for the transfers work; no script, this file is the only copy"),
+        ("Where people and money move", "mobility-map.html", "Hand-written page; no script, this file is the only copy"),
+    )),
     ("Economy", EXPLORE, (
         ("World", "world/world.html", "The US and 12 economies plus the euro area: output, prices, work, short and long rates, currencies (56 FRED series)"),
         ("People and Work", "people/people.html", "US population, employment, where growth comes from, who gets paid"),
@@ -75,7 +93,7 @@ for title, base, pages in SECTIONS:
         when = built(f)
         if base == EXPLORE:
             back_link(f)
-        else:   # the countries pages' own menu named the Archive page, renamed Appendix
+        elif base == COUNTRIES:   # the countries pages' own menu named the Archive page, renamed Appendix
             t = f.read_text(encoding="utf-8")
             if "scaffold/archive.html" in t:
                 st = f.stat()
@@ -88,7 +106,7 @@ for title, base, pages in SECTIONS:
 
 body = f"""<div class="head"><h1>Appendix</h1>
 <div class="stamps"><span>Page built {now_et()}</span></div></div>
-<p class=sub>Earlier exploration. Each page is a snapshot from the day it was built.</p>
+<p class=sub>Exploration pages, newest topics first. Each page is a snapshot from the day in its Built column.</p>
 {"".join(parts)}"""
 
 (HERE / "appendix.html").write_text(page("Appendix", "Appendix", body), encoding="utf-8")
