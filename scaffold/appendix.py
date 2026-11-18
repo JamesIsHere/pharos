@@ -22,6 +22,9 @@ COUNTRIES = ROOT / "archive" / "countries-2026-11-12"
 SECTIONS = (
     # Exploration pages built in scaffold/ itself (quick lane, nothing stored, not in rebuild.py). Each reads its
     # downloads under data/tmp/scaffold/ and is rebuilt only by running its own script.
+    ("Public health", HERE, (
+        ("Measles cases: state reports and CDC", "measles.html", "CDC's weekly tables (state by week, 2020 on) and the Johns Hopkins compilation of state and county releases (2025 on): sources, fields, 19 charts"),
+    )),
     ("Tax preparation", HERE, (
         ("Who prepares US tax returns", "tax-filers.html", "IRS state files, tax years 2012 and 2014-2023: paid preparer, volunteer and e-file, by income band and state"),
         ("Jobs and pay in tax preparation", "tax-jobs.html", "BLS: monthly jobs in tax preparation services, occupation pay, quarterly pay from the employer census"),

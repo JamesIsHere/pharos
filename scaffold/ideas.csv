@@ -55,3 +55,4 @@ US states and counties,Where young adults end up,"Where people lived at 16 again
 US states and counties,New permanent residents,"By state and metro, yearly",DHS immigration yearbook,medium,idea
 Countries,Migrants by origin and destination,"People living outside their birth country, by pair of countries; joins the UN population already stored",UN migrant stock,easy,idea
 Countries,Remittances,"Money sent home, by pair of countries (estimates)",World Bank,medium,idea
+US states and counties,Measles cases by state and county,"Cases by state and week from CDC (2020 on) and by county from state health department releases (2025 on); explored 2026-11-18 on the Measles cases page, not stored. No deaths, hospital stays or outbreak counts in either file",CDC NNDSS; Johns Hopkins measles tracker,easy,idea
