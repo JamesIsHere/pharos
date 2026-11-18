@@ -39,6 +39,7 @@ import duckdb
 from pharos import config
 from pharos.db import query
 from pharos.groups import GROUPS, PRICES_MACRO, Group, nightly
+from pharos.landed import LANDED
 from pharos.paths import data_root
 from pharos.progress import step
 from pharos.runs import raw_select
@@ -227,8 +228,7 @@ def _stage_landed(name: str):
 
 # group name -> the function that stages it into staging/<run_id>/
 STAGERS = {"prices_macro": _stage_prices_macro, "sec": _stage_sec,
-           "imf": _stage_landed("imf"), "un": _stage_landed("un"), "fsds": _stage_landed("fsds"),
-           "antitrust": _stage_landed("antitrust")}
+           **{source.name: _stage_landed(source.name) for source in LANDED}}
 
 
 def bind_raw(con, included: list[str], group: Group = PRICES_MACRO) -> None:

@@ -43,6 +43,7 @@ import exchange_calendars as xc
 
 from pharos import config
 from pharos.groups import DECLARED, GROUPS, PRICES_MACRO, RUN, Group
+from pharos.landed import LANDED
 from pharos.paths import PROJECT_ROOT, data_root
 from pharos.parquet import table_scan
 from pharos.runs import sha256_of
@@ -330,8 +331,8 @@ def bind_sec(con: duckdb.DuckDBPyConnection, run_id: str, now: datetime | None =
 
 # group name -> the function that binds the names its checks may query
 BINDERS = {"prices_macro": bind, "sec": bind_sec,
-           # landed groups (D174): their tables and load records, as bind_sec binds SEC's
-           "imf": bind_sec, "un": bind_sec, "fsds": bind_sec, "antitrust": bind_sec}
+           # landed groups (D174, D176): their tables and load records, as bind_sec binds SEC's
+           **{source.name: bind_sec for source in LANDED}}
 
 
 def bind_view_inputs(con: duckdb.DuckDBPyConnection, run_id: str) -> None:

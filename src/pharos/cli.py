@@ -3,6 +3,8 @@
 import argparse
 import sys
 
+from pharos.landed import LANDED
+
 
 def cmd_paths(args: argparse.Namespace) -> int:
     from pharos.paths import data_root
@@ -98,28 +100,11 @@ def cmd_sec(args: argparse.Namespace) -> int:
     return _report_run(*run_on_demand("sec"), " (SEC, on demand)")
 
 
-def cmd_imf(args: argparse.Namespace) -> int:
+def cmd_landed(args: argparse.Namespace) -> int:
+    """`pharos <name>` for a landed source (landed.py, D176): its group alone, on demand."""
     from pharos.refresh import run_on_demand
 
-    return _report_run(*run_on_demand("imf"), " (IMF World Economic Outlook, on demand)")
-
-
-def cmd_un(args: argparse.Namespace) -> int:
-    from pharos.refresh import run_on_demand
-
-    return _report_run(*run_on_demand("un"), " (UN World Population Prospects, on demand)")
-
-
-def cmd_fsds(args: argparse.Namespace) -> int:
-    from pharos.refresh import run_on_demand
-
-    return _report_run(*run_on_demand("fsds"), " (SEC Financial Statement Data Sets, on demand)")
-
-
-def cmd_antitrust(args: argparse.Namespace) -> int:
-    from pharos.refresh import run_on_demand
-
-    return _report_run(*run_on_demand("antitrust"), " (FTC and DOJ merger statistics, on demand)")
+    return _report_run(*run_on_demand(args.source.name), f" ({args.source.title}, on demand)")
 
 
 def cmd_companyfacts(args: argparse.Namespace) -> int:
@@ -208,21 +193,9 @@ def main(argv: list[str] | None = None) -> int:
                                    "and publish it; the nightly refresh doesn't run SEC (D159)")
     p.set_defaults(func=cmd_sec)
 
-    p = sub.add_parser("imf", help="land the IMF World Economic Outlook (every country and indicator) "
-                                   "and publish it; seconds (D174)")
-    p.set_defaults(func=cmd_imf)
-
-    p = sub.add_parser("un", help="land the UN World Population Prospects population file if it changed "
-                                  "and publish it (D174)")
-    p.set_defaults(func=cmd_un)
-
-    p = sub.add_parser("fsds", help="land SEC Financial Statement Data Sets pre.txt for every complete quarter "
-                                    "not yet landed and publish it (D174)")
-    p.set_defaults(func=cmd_fsds)
-
-    p = sub.add_parser("antitrust", help="land the FTC and DOJ merger-enforcement files placed in "
-                                         "<data root>/manual/antitrust/ and publish them; downloads nothing (D175)")
-    p.set_defaults(func=cmd_antitrust)
+    for source in LANDED:   # one command per landed source, from its declaration (D176)
+        p = sub.add_parser(source.name, help=source.help)
+        p.set_defaults(func=cmd_landed, source=source)
 
     p = sub.add_parser("companyfacts", help="force a full Company Facts baseline and publish it atomically "
                                             "with fresh SEC index, submissions and tickers")

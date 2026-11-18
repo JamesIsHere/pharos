@@ -10,7 +10,8 @@ import pytest
 from pharos.loaders import imf, sec_fsds
 from pharos.runs import write_raw
 from pharos.stage import StageError
-from pharos.stage_landed import WEO_OBSERVATIONS, stage_table
+from pharos.landed import WEO_OBSERVATIONS
+from pharos.stage_landed import stage_table
 
 RUN_A, RUN_B = "20261101T120000Z", "20261102T120000Z"
 

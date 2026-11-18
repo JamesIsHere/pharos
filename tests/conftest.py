@@ -32,8 +32,9 @@ def no_sec_network(monkeypatch):
     # the landed groups (D174) reach the IMF, the UN and sec.gov: unregistered too.
     # Their own tests call the loaders' parsers and stage_landed directly.
     # antitrust (D175) reads files placed by hand in the data root, which a test root does not hold.
-    for name in ("imf", "un", "fsds", "antitrust"):
-        monkeypatch.delitem(GROUPS, name, raising=False)
+    from pharos.landed import LANDED
+    for source in LANDED:
+        monkeypatch.delitem(GROUPS, source.name, raising=False)
     monkeypatch.setenv("SEC_USER_AGENT", "")
 
 

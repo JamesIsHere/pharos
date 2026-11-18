@@ -7,6 +7,7 @@ check file's header). A registry name that can't be resolved, a group with no lo
 loader writes, or a run step that is no longer in the code stops the build (fail loud).
 Run: uv run python scaffold/pipeline.py"""
 import ast
+import importlib
 import inspect
 import io
 import re
@@ -19,6 +20,7 @@ from common import MERMAID, esc, now_et, page
 from pharos import checks as checks_mod
 from pharos import cli, refresh, stage
 from pharos.groups import GROUPS, RUN, nightly
+from pharos.landed import LANDED
 
 HERE = Path(__file__).parent
 
@@ -27,6 +29,11 @@ HERE = Path(__file__).parent
 CHECKS = checks_mod.discover()
 CLI_SRC = inspect.getsource(cli)
 COMMANDS = set(re.findall(r'add_parser\("([\w-]+)"', CLI_SRC))
+# a landed source's command is added from its declaration (landed.py, D176), not typed in cli.py
+if "for source in LANDED:" not in CLI_SRC or "add_parser(source.name" not in CLI_SRC:
+    raise SystemExit("pipeline: cli no longer adds a command per landed source")
+COMMANDS |= {source.name for source in LANDED}
+LANDED_LOADER = {source.name: source.loader.split(":") for source in LANDED}   # group -> [loader module, function]
 
 
 def need(cond, msg):
@@ -81,14 +88,18 @@ for g in GROUPS.values():
         CMD[g.name] = [g.name]
 need("companyfacts" in COMMANDS, "cli has no companyfacts command")
 CMD["companyfacts"] = ["sec"]
-CMD_NOTE = {"refresh": "", "sec": "", "imf": "", "un": "", "fsds": "", "antitrust": "",
-            "companyfacts": "rare: a new full Company Facts baseline"}
+CMD_NOTE = {"companyfacts": "rare: a new full Company Facts baseline"}
 
 GROUP = {}
 for name, g in GROUPS.items():
     need(name in refresh.LOADERS, f"group {name} has no loader in refresh.LOADERS")
     need(name in stage.STAGERS, f"group {name} has no stager in stage.STAGERS")
-    loads = [(m, f, writes(m)) for m, f in calls(refresh.LOADERS[name])]
+    if name in LANDED_LOADER:   # the loader its declaration names
+        mod = importlib.import_module(f"pharos.loaders.{LANDED_LOADER[name][0]}")
+        need(hasattr(mod, LANDED_LOADER[name][1]), f"{mod.__name__}.{LANDED_LOADER[name][1]} not found")
+        loads = [(mod, LANDED_LOADER[name][1], writes(mod))]
+    else:
+        loads = [(m, f, writes(m)) for m, f in calls(refresh.LOADERS[name])]
     refs = []
     for key, fn in refresh.REFERENCE_LOADERS.items():
         if key in g.reference:
@@ -120,7 +131,7 @@ def ids(cs):
 def overview():
     L = ["flowchart TB"]
     for cmd, groups in CMD.items():
-        note = f"<br/><i>{CMD_NOTE[cmd]}</i>" if CMD_NOTE[cmd] else ""
+        note = f"<br/><i>{CMD_NOTE[cmd]}</i>" if CMD_NOTE.get(cmd) else ""
         L.append(f'    c_{cmd}["pharos {cmd}{note}"]:::cmd')
         for gname in groups:
             L.append(f"    c_{cmd} --> g_{gname}")

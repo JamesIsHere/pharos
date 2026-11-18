@@ -7,8 +7,8 @@ check blocks only its own group, and reads only its own group's tables and raw
 data. Checks about the run itself (the age of the last publish, which groups
 were carried forward) declare `group: run`; they are monitors and never gate.
 
-Six registered groups: prices_macro (M1, nightly), sec (M2, on demand since D159), imf, un and fsds
-(on demand, D174), and antitrust (on demand, D175). Company Facts belongs
+The registered groups: prices_macro (M1, nightly), sec (M2, on demand since D159), and one
+on-demand group per landed source declared in landed.py (D176). Company Facts belongs
 to the SEC group so submissions and facts cross the publish boundary together.
 A group joins GROUPS
 only with its stager, check binder and loaders: registered without them,
@@ -21,6 +21,8 @@ current version, and C35/C36 don't count it.
 """
 
 from dataclasses import dataclass
+
+from pharos.landed import LANDED
 
 RUN = "run"   # the group field of a check about the run itself
 
@@ -64,57 +66,21 @@ SEC = Group(
     on_demand=True,
 )
 
-# Three sources the Scaffold pages used to fetch when they built, stored at the
-# landed level (D127, D174). Each is its own on-demand group, so one source
-# being down never holds back another: `pharos imf`, `pharos un`, `pharos fsds`.
-# Their tables sit beside observations, not in it: annual values, forecasts
-# dated in the future and presentation rows are shapes the prices_macro checks
-# have no case for (C09, C17).
-IMF = Group(
-    name="imf",
-    required=(("imf", "weo_observations"), ("imf", "weo_series")),
-    reference=(),
-    tables=("weo_observations", "weo_series"),
-    inputs=(),
-    on_demand=True,
-)
-
-UN = Group(
-    name="un",
-    required=(("un", "wpp_population"),),
-    reference=(),
-    tables=("wpp_population",),
-    inputs=(),
-    on_demand=True,
-)
-
-FSDS = Group(
-    name="fsds",
-    required=(("sec", "fsds_pre"),),
-    reference=(),
-    tables=("fsds_pre",),
-    inputs=(),
-    on_demand=True,
-)
-
-# Merger-enforcement statistics from the FTC and the DOJ Antitrust Division, at
-# the landed level (D175): `pharos antitrust`. Its loader downloads nothing: it
-# lands five files placed by hand in <data root>/manual/antitrust/ (ftc.gov
-# refuses scripted requests).
-ANTITRUST = Group(
-    name="antitrust",
-    required=(("ftc", "hsr_fiscal_year"), ("ftc", "merger_actions"), ("doj", "merger_outcomes"),
-              ("ftc", "hmid_hhi"), ("ftc", "hmid_competitors")),
-    reference=(),
-    tables=("hsr_fiscal_year", "ftc_merger_actions", "doj_merger_outcomes",
-            "ftc_hmid_hhi", "ftc_hmid_competitors"),
-    inputs=(),
-    on_demand=True,
-)
+# The landed sources (D127), each built from its one declaration in landed.py
+# (D176): an on-demand group whose required raw datasets and served tables are
+# the declaration's datasets. `pharos <name>` runs it.
+LANDED_GROUPS: tuple[Group, ...] = tuple(
+    Group(name=source.name,
+          required=tuple((d.source, d.raw) for d in source.datasets),
+          reference=(),
+          tables=tuple(d.table for d in source.datasets),
+          inputs=(),
+          on_demand=True)
+    for source in LANDED)
 
 # every declared group, registered or not: a check may name any of them, and
 # runs only while its group is registered (tests unregister the SEC groups)
-DECLARED: tuple[Group, ...] = (PRICES_MACRO, SEC, IMF, UN, FSDS, ANTITRUST)
+DECLARED: tuple[Group, ...] = (PRICES_MACRO, SEC, *LANDED_GROUPS)
 
 # registered groups: loaded, staged and published by their runs
 GROUPS: dict[str, Group] = {g.name: g for g in DECLARED}
